@@ -7,7 +7,7 @@ const nextConfig = {
     unoptimized: true,
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL;
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "");
     if (!backendUrl && process.env.VERCEL) {
       throw new Error(
         "NEXT_PUBLIC_API_URL must be configured in Vercel with the public backend URL.",
@@ -16,7 +16,7 @@ const nextConfig = {
     return [
       {
         source: "/api-proxy/:path*",
-        destination: `${(backendUrl || "http://127.0.0.1:8000").replace(/\/$/, "")}/:path*`,
+        destination: `${backendUrl || "http://127.0.0.1:8000"}/:path*`,
       },
     ];
   },
