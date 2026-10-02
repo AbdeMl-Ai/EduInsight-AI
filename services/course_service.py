@@ -1,89 +1,76 @@
-from models.course import Course
+from models.domain_models import Course
 from utils.validation_course import CourseValidator
+
 
 class CourseService:
     def __init__(self, course_repo, teacher_repo):
         self.course_repo = course_repo
         self.teacher_repo = teacher_repo
 
-    def create_course(self, course_name, teacher_id, level, semester):
-
-        CourseValidator.validate_course_name(course_name)
-        CourseValidator.Validation_level(level)
-        CourseValidator.Validation_semester(semester)
-        
-        teacher = self.teacher_repo.get_teacher(teacher_id)
+    async def create_course(self, title, description, teacher_id, class_id, admin_id, content_url=""):
+        CourseValidator.validate_course_name(title)
+        teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
         if teacher is None:
-            raise ValueError("Teacher not found")
-        course = Course(None, course_name, teacher, level, semester)
+            raise ValueError("Teacher not found in your workspace.")
+        class_doc = await self.course_repo.class_exists(class_id, admin_id)
+        if class_doc is None:
+            raise ValueError("Class not found in your workspace.")
+        if class_doc.get("teacher_id") != teacher_id:
+            raise ValueError("You can only create courses for your assigned classes.")
+        course = Course(admin_id=admin_id, teacher_id=teacher.id, class_id=class_id, title=title.strip(), description=description, content_url=content_url.strip())
+        return await self.course_repo.add_course(course, admin_id)
 
-        self.course_repo.add_course(course)
-        return "Course created successfully."
-
-    def get_course(self, course_id, organization_id=None):
-
-        if not isinstance(course_id, int):
-            raise ValueError("Course ID must be an int")
-        course = self.course_repo.get_course(course_id, organization_id)
+    async def get_course(self, course_id, admin_id):
+        course = await self.course_repo.get_course(course_id, admin_id)
         if course is None:
             raise ValueError("Course not found.")
         return course
 
-    def get_all_courses(self, organization_id=None):
-        return self.course_repo.get_all_courses(organization_id)
+    async def get_all_courses(self, admin_id):
+        return await self.course_repo.get_all_courses(admin_id)
 
-    def update_course(self, course_id, teacher_id=None, **kwargs):
-        course = self.course_repo.get_course(course_id)
-        if course is None :
-            raise ValueError("Course not found")
-        if teacher_id is not None and course.teacher.teacher_id != teacher_id:
+    async def update_course(self, course_id, admin_id, teacher_id, **updates):
+        course = await self.get_course(course_id, admin_id)
+        if course.teacher_id != teacher_id:
             raise ValueError("You can only manage your own courses.")
-        if "course_name" in kwargs:
-            CourseValidator.validate_course_name(kwargs["course_name"])
-        if "teacher_id" in kwargs:
-            teacher = self.teacher_repo.get_teacher(kwargs["teacher_id"])
-            if teacher is None:
-                raise ValueError("Teacher not found.")
-            kwargs["teacher"] = teacher
-            del kwargs["teacher_id"] 
-
-        self.course_repo.update_course(course_id, **kwargs)
+        if "teacher_id" in updates and await self.teacher_repo.get_teacher(updates["teacher_id"], admin_id) is None:
+            raise ValueError("Teacher not found in your workspace.")
+        if "teacher_id" in updates and updates["teacher_id"] != teacher_id:
+            raise ValueError("You cannot transfer a course to another teacher.")
+        if "class_id" in updates:
+            class_doc = await self.course_repo.class_exists(updates["class_id"], admin_id)
+            if class_doc is None or class_doc.get("teacher_id") != teacher_id:
+                raise ValueError("Class not found in your assigned classes.")
+        if "title" in updates:
+            CourseValidator.validate_course_name(updates["title"])
+        if not await self.course_repo.update_course(course_id, admin_id, **updates):
+            raise ValueError("Course not found or unchanged.")
         return "Course updated successfully."
 
-    def delete_course(self, course_id, teacher_id=None):
-        course = self.course_repo.get_course(course_id)
-        if course is None:
-            raise ValueError('Course ID not found.')
-        if teacher_id is not None and course.teacher.teacher_id != teacher_id:
+    async def delete_course(self, course_id, admin_id, teacher_id):
+        course = await self.get_course(course_id, admin_id)
+        if course.teacher_id != teacher_id:
             raise ValueError("You can only manage your own courses.")
-        self.course_repo.delete_course(course_id)
-        return "Course deleted successfully"
+        if not await self.course_repo.delete_course(course_id, admin_id):
+            raise ValueError("Course not found.")
+        return "Course deleted successfully."
 
-    def search_course(self, query, organization_id=None):
-        query = query.strip()
-        if not query:
+    async def search_course(self, query, admin_id):
+        if not query.strip():
             raise ValueError("Search query cannot be empty.")
+        return await self.course_repo.search_course(query.strip(), admin_id)
 
-        courses = self.course_repo.search_course(query, organization_id)
-        if not courses:
-            raise ValueError("No courses found.")
-        return courses
+    async def count_courses(self, admin_id):
+        return await self.course_repo.count_courses(admin_id)
 
-    def count_courses(self, organization_id=None):
-        return self.course_repo.count_courses(organization_id)
+    async def get_courses_by_level(self, level, admin_id):
+        return await self.course_repo.get_courses_by_level(level, admin_id)
 
-    def get_courses_by_level(self, level):
-        courses = self.course_repo.get_courses_by_level(level)
-        return courses
+    async def get_courses_by_class_id(self, class_id, admin_id):
+        return await self.course_repo.get_courses_by_class_id(class_id, admin_id)
 
-    def get_courses_by_class_id(self, class_id, organization_id=None):
-        if not isinstance(class_id, int):
-            raise ValueError("Class ID must be an int")
-        return self.course_repo.get_courses_by_class_id(class_id, organization_id)
-        
-    def get_courses_by_teacher(self, teacher_id, organization_id=None):
+    async def get_courses_by_class_ids(self, class_ids, admin_id):
+        return await self.course_repo.get_courses_by_class_ids(class_ids, admin_id)
 
-        if not isinstance(teacher_id, int):
-            raise ValueError("Teacher ID must be an int")
-
-        return self.course_repo.get_courses_by_teacher(teacher_id, organization_id)
+    async def get_courses_by_teacher(self, teacher_id, admin_id):
+        return await self.course_repo.get_courses_by_teacher(teacher_id, admin_id)

@@ -5,11 +5,11 @@ from pydantic import BaseModel
 
 
 class AttendanceRecord(BaseModel):
-    student_id: int
+    student_id: str
     status: Literal["present", "absent"]
 
 
 class AttendanceSaveRequest(BaseModel):
-    class_id: int
+    class_id: str
     date: date
     records: list[AttendanceRecord]

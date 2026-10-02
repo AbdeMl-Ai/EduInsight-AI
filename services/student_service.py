@@ -1,151 +1,105 @@
-from models.student import Student
+from models.domain_models import Student
 from utils.student_validation import StudentValidator
-from utils.security import hash_password
+
 
 class StudentService:
-    def __init__(self, student_repo, exercise_repo):
+    def __init__(self, student_repo, exercise_repo, parent_repo=None):
         self.student_repo = student_repo
         self.exercise_repo = exercise_repo
+        self.parent_repo = parent_repo
 
-    def create_student(self, full_name, email, password, phone_number, level, class_id=None, admin_id=None):
-        validation = StudentValidator()
-        validation.validate_name(full_name)
-        validation.validate_email(email)
-        validation.validate_password(password)
-        validation.validate_phone_number(phone_number)
-        validation.validate_level(level)
-        hashed_password = hash_password(password)
-        student = Student(None, full_name, email, hashed_password, phone_number, level, class_id)
-        self.student_repo.add_student(student, admin_id)
-        return student
+    async def create_student(self, full_name, email, phone_number, level, class_id=None, admin_id=None, age=0, parent_id=None, class_ids=None):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        validator = StudentValidator()
+        validator.validate_name(full_name)
+        validator.validate_email(email)
+        if phone_number:
+            validator.validate_phone_number(phone_number)
+        level = validator.validate_level(level)
+        if parent_id and (self.parent_repo is None or await self.parent_repo.get_parent(parent_id, admin_id) is None):
+            raise ValueError("Parent not found in your workspace.")
+        ids = list(dict.fromkeys(class_ids or ([class_id] if class_id else [])))
+        if class_id and class_id not in ids:
+            ids.insert(0, class_id)
+        document = Student(admin_id=admin_id, parent_id=parent_id, full_name=full_name.strip(), age=age, level_academy=level, email=email.strip().lower(), phone_number=phone_number, level=level, class_id=ids[0] if ids else None, class_ids=ids)
+        return await self.student_repo.add_student(document, admin_id)
 
-    def get_student(self, student_id, admin_id=None):
-        if not isinstance(student_id, int):
-            raise ValueError("student Id must be an integer.")
-        student = self.student_repo.get_student(student_id, admin_id)
+    async def get_student(self, student_id, admin_id):
+        student = await self.student_repo.get_student(student_id, admin_id)
         if student is None:
-            raise ValueError("student not found.")
+            raise ValueError("Student not found.")
         return student
 
-    def get_all_students(self, admin_id=None):
-        students = self.student_repo.get_all_student(admin_id)
+    async def get_all_students(self, admin_id):
+        students = await self.student_repo.get_all_student(admin_id)
         for student in students:
-            student.class_ids = self.student_repo.get_student_class_ids(student.student_id)
+            student.class_ids = await self.student_repo.get_student_class_ids(student.id, admin_id)
         return students
 
-    def set_student_classes(self, student_id, class_ids):
-        self.get_student(student_id)
-        self.student_repo.set_student_class_ids(student_id, class_ids)
+    async def set_student_classes(self, student_id, class_ids, admin_id):
+        await self.get_student(student_id, admin_id)
+        return await self.student_repo.set_student_class_ids(student_id, class_ids, admin_id)
 
-    def get_students_by_level(self, level):
-        if not isinstance(level, str):
-            raise ValueError("Level must be a string.")
-        return self.student_repo.get_students_by_level(level)
+    async def get_students_by_level(self, level, admin_id):
+        return await self.student_repo.get_students_by_level(level, admin_id)
 
-    def get_students_by_class_ids(self, class_ids):
-        if not all(isinstance(class_id, int) for class_id in class_ids):
-            raise ValueError("Class IDs must be integers.")
-        return self.student_repo.get_students_by_class_ids(class_ids)
+    async def get_students_by_class_ids(self, class_ids, admin_id):
+        return await self.student_repo.get_students_by_class_ids(class_ids, admin_id)
 
-    def get_my_exercises(self, student_id, class_id, organization_id=None):
-        if not isinstance(student_id, int):
-            raise ValueError("Student ID must be an integer.")
-        # If class_id is None (new student without class assignment),
-        # fall back to the student's level to fetch exercises.
-        if class_id is None:
-            # Retrieve the student to know their level.
-            student = self.get_student(student_id)
-            # Try to use class_id if the student already has one.
-            if student.class_id:
-                class_id = student.class_id
-            else:
-                # No class_id – use the level string to fetch exercises.
-                return self.exercise_repo.get_exercises_by_level_for_student(
-                    student.level, student_id, organization_id
-                )
-        # Existing behavior: if class_id is a string (treated as level)
-        if isinstance(class_id, str):
-            return self.exercise_repo.get_exercises_by_level_for_student(
-                class_id, student_id, organization_id
-            )
-        # At this point class_id should be an integer.
-        if not isinstance(class_id, int):
-            raise ValueError("Class ID must be an integer.")
-        return self.exercise_repo.get_exercises_by_class_id_for_student(
-            class_id, student_id, organization_id
-        )
+    async def get_my_exercises(self, student_id, class_id=None, admin_id=None):
+        student = await self.get_student(student_id, admin_id)
+        selected_classes = class_id if isinstance(class_id, list) else ([class_id] if class_id else [])
+        selected_classes = selected_classes or student.class_ids or ([student.class_id] if student.class_id else [])
+        if selected_classes:
+            return await self.exercise_repo.get_exercises_by_class_ids_for_student(selected_classes, student_id, admin_id)
+        return await self.exercise_repo.get_exercises_by_level_for_student(student.level_academy, student_id, admin_id)
 
-    def assign_to_class(self, student_id, class_id):
-        self.get_student(student_id)
-        self.student_repo.update_student(student_id, class_id=class_id)
+    async def assign_to_class(self, student_id, class_id, admin_id):
+        await self.get_student(student_id, admin_id)
+        student = await self.get_student(student_id, admin_id)
+        class_ids = list(dict.fromkeys([*(student.class_ids or []), class_id]))
+        return await self.student_repo.set_student_class_ids(student_id, class_ids, admin_id)
 
-    def get_academic_report(self, student_id):
-        self.get_student(student_id)
-        return self.student_repo.get_academic_report(student_id)
+    async def get_academic_report(self, student_id, admin_id):
+        await self.get_student(student_id, admin_id)
+        return await self.student_repo.get_academic_report(student_id, admin_id)
 
-    def update_student(self, student_id, **kwargs):
-        student = self.student_repo.get_student(student_id)
-        if student is None:
-            raise ValueError("studentnot found.")
-        if "full_name" in kwargs:
-            StudentValidator.validate_name(kwargs["full_name"])
+    async def update_student(self, student_id, admin_id, **updates):
+        await self.get_student(student_id, admin_id)
+        if "full_name" in updates:
+            StudentValidator.validate_name(updates["full_name"])
+        if "email" in updates:
+            StudentValidator.validate_email(updates["email"])
+            updates["email"] = updates["email"].strip().lower()
+        if "phone_number" in updates and updates["phone_number"]:
+            StudentValidator.validate_phone_number(updates["phone_number"])
+        level = updates.get("level_academy", updates.get("level"))
+        if level:
+            StudentValidator.validate_level(level)
+            updates.setdefault("level", level)
+            updates.setdefault("level_academy", level)
+        await self.student_repo.update_student(student_id, admin_id, **updates)
+        return "Student updated successfully."
 
-        if "email" in kwargs:
-            StudentValidator.validate_email(kwargs["email"])
-
-        if "password" in kwargs:
-            StudentValidator.validate_password(kwargs["password"])
-            kwargs["password"] = hash_password(kwargs["password"])
-
-        if "phone_number" in kwargs:
-            StudentValidator.validate_phone_number(kwargs["phone_number"])
-        if "level" in kwargs:
-            StudentValidator.validate_level(kwargs["level"])
-
-        self.student_repo.update_student(student_id, **kwargs)
-        return "Student updated successfully"
-
-    def delete_student(self, student_id):
-        if not isinstance(student_id, int):
-            raise ValueError("Student ID must be an integer")
-        student = self.student_repo.get_student(student_id)
-        if student is None:
-            raise ValueError("Student is not found.")
-        self.student_repo.delete_student(student_id)
+    async def delete_student(self, student_id, admin_id):
+        await self.get_student(student_id, admin_id)
+        if not await self.student_repo.delete_student(student_id, admin_id):
+            raise ValueError("Student not found.")
         return "Student deleted successfully."
 
-    def search_student(self, full_name, admin_id=None):
+    async def search_student(self, full_name, admin_id):
         StudentValidator.validate_name(full_name)
-        students = self.student_repo.search_student(full_name, admin_id)
-        return students
+        return await self.student_repo.search_student(full_name, admin_id)
 
-    def count_students(self, admin_id=None):
-        return self.student_repo.count_students(admin_id)
+    async def count_students(self, admin_id):
+        return await self.student_repo.count_students(admin_id)
 
-    # Profile methods
-    def get_my_profile(self, current_user):
-        """Return the profile of the authenticated student as a dict."""
-        return {
-            "student_id": current_user.student_id,
-            "full_name": current_user.full_name,
-            "email": current_user.email,
-            "phone_number": current_user.phone_number,
-            "level": current_user.level,
-            "class_id": current_user.class_id,
-        }
+    async def get_my_profile(self, user):
+        return {"student_id": user.id, "admin_id": user.admin_id, "parent_id": user.parent_id, "full_name": user.full_name, "age": user.age, "level_academy": user.level_academy, "date_enjoined": user.date_enjoined, "email": user.email, "phone_number": user.phone_number, "level": user.level, "class_id": user.class_id, "class_ids": user.class_ids}
 
-    def update_my_profile(self, current_user, updates):
-        """Update the authenticated student's profile and return updated dict."""
+    async def update_my_profile(self, user, updates):
         if not updates:
             raise ValueError("No data to update")
-        # Reuse existing update logic
-        self.update_student(current_user.student_id, **updates)
-        updated = self.student_repo.get_student(current_user.student_id)
-        return {
-            "student_id": updated.student_id,
-            "full_name": updated.full_name,
-            "email": updated.email,
-            "phone_number": updated.phone_number,
-            "level": updated.level,
-            "class_id": updated.class_id,
-        }
+        await self.update_student(user.id, user.admin_id, **updates)
+        return await self.get_my_profile(await self.get_student(user.id, user.admin_id))

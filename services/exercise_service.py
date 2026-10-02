@@ -1,108 +1,92 @@
-from models.exercise import Exercise
+from models.domain_models import Exercise
 from utils.validation_exercise import ExerciseValidator
 from utils.validators import validate_max_score
+
 
 class ExerciseService:
     def __init__(self, exercise_repo, course_repo):
         self.exercise_repo = exercise_repo
         self.course_repo = course_repo
 
-    def create_exercise(self, exercise_name, course_id, teacher_id, max_score=20):
-
-        ExerciseValidator.validation_exercise_name(
-            exercise_name
-        )
+    async def create_exercise(self, teacher_id, course_id, file_path, max_score, admin_id):
         validate_max_score(max_score)
-
-        course = self.course_repo.get_course(course_id)
-
+        course = await self.course_repo.get_course(course_id, admin_id)
         if course is None:
-            raise ValueError("Course not found.")
+            raise ValueError("Course not found in your workspace.")
+        if course.teacher_id != teacher_id:
+            raise ValueError("You can only create exercises for your own courses.")
+        exercise = Exercise(admin_id=admin_id, teacher_id=teacher_id, class_id=course.class_id, course_id=course.id, course_title=course.title, file_path=file_path, max_score=max_score)
+        return await self.exercise_repo.add_exercise(exercise, admin_id)
 
-        if course.teacher.teacher_id != teacher_id:
-            raise ValueError(
-                "You can only create exercises for your own courses."
-            )
-
+    async def create_graded_work(self, teacher_id, class_id, title, description, max_score, due_date, admin_id, file_path="", course_id=None):
+        validate_max_score(max_score)
+        if course_id:
+            course = await self.course_repo.get_course(course_id, admin_id)
+            if course is None:
+                raise ValueError("Course not found in your workspace.")
+            if course.teacher_id != teacher_id:
+                raise ValueError("You can only create exercises for your own courses.")
+            if course.class_id != class_id:
+                raise ValueError("Choose a course from the selected class.")
+            course_id = course.id
+        else:
+            course_id = class_id
         exercise = Exercise(
-            None,
-            exercise_name,
-            course,
-            max_score
+            admin_id=admin_id,
+            teacher_id=teacher_id,
+            class_id=class_id,
+            course_id=course_id,
+            course_title=title,
+            file_path=file_path,
+            max_score=max_score,
+            description=description,
+            due_date=due_date,
         )
+        return await self.exercise_repo.add_graded_work(exercise, admin_id)
 
-        self.exercise_repo.add_exercise(exercise)
-
-        return "Exercise created successfully."
-
-    def get_exercise(self, exercise_id, organization_id=None):
-
-        if not isinstance(exercise_id, int):
-            raise ValueError("exercise ID must be an int")
-        exercise = self.exercise_repo.get_exercise(exercise_id, organization_id)
+    async def get_exercise(self, exercise_id, admin_id):
+        exercise = await self.exercise_repo.get_exercise(exercise_id, admin_id)
         if exercise is None:
-            raise ValueError("exercise not found.")
+            raise ValueError("Exercise not found.")
         return exercise
 
-    def get_all_exercises(self, organization_id=None):
-        return self.exercise_repo.get_all_exercises(organization_id)
+    async def get_all_exercises(self, admin_id):
+        return await self.exercise_repo.get_all_exercises(admin_id)
 
-    def update_exercise(self, exercise_id, teacher_id=None, **kwargs):
-        exercise = self.exercise_repo.get_exercise(exercise_id)
-        if exercise is None :
-            raise ValueError("exercise not found")
-        if teacher_id is not None and exercise.course.teacher.teacher_id != teacher_id:
+    async def update_exercise(self, exercise_id, teacher_id, admin_id, **updates):
+        exercise = await self.get_exercise(exercise_id, admin_id)
+        if exercise.teacher_id != teacher_id:
             raise ValueError("You can only manage your own exercises.")
-        if "exercise_name" in kwargs:
-            ExerciseValidator.validation_exercise_name(kwargs["exercise_name"])
-        if "max_score" in kwargs:
-            validate_max_score(kwargs["max_score"])
-        if "course_id" in kwargs:
-            course = self.course_repo.get_course(
-                kwargs["course_id"]
-            )
-            if course is None:
-                raise ValueError("Course not found.")
-            kwargs["course"] = course
-            del kwargs["course_id"]
+        if "max_score" in updates:
+            validate_max_score(updates["max_score"])
+        if "course_id" in updates:
+            course = await self.course_repo.get_course(updates["course_id"], admin_id)
+            if course is None or course.teacher_id != teacher_id:
+                raise ValueError("Course not found in your workspace.")
+            updates.update(class_id=course.class_id, teacher_id=teacher_id, course_title=course.title)
+        if not await self.exercise_repo.update_exercise(exercise_id, admin_id, **updates):
+            raise ValueError("Exercise not found or unchanged.")
+        return "Exercise updated successfully."
 
-        self.exercise_repo.update_exercise(exercise_id, **kwargs)
-        return "exercise updated successfully."
-
-    def delete_exercise(self, exercise_id, teacher_id=None):
-        exercise = self.exercise_repo.get_exercise(exercise_id)
-        if exercise is None:
-            raise ValueError('exercise ID not found.')
-        if teacher_id is not None and exercise.course.teacher.teacher_id != teacher_id:
+    async def delete_exercise(self, exercise_id, teacher_id, admin_id):
+        exercise = await self.get_exercise(exercise_id, admin_id)
+        if exercise.teacher_id != teacher_id:
             raise ValueError("You can only manage your own exercises.")
-        self.exercise_repo.delete_exercise(exercise_id)
-        return "exercise deleted successfully"
+        if not await self.exercise_repo.delete_exercise(exercise_id, admin_id):
+            raise ValueError("Exercise not found.")
+        return "Exercise deleted successfully."
 
-    def search_exercise(self, query, organization_id=None):
-        query = query.strip()
-        if not query:
+    async def search_exercise(self, query, admin_id):
+        if not query.strip():
             raise ValueError("Search query cannot be empty.")
+        return await self.exercise_repo.search_exercise(query.strip(), admin_id)
 
-        exercises = self.exercise_repo.search_exercise(query, organization_id)
-        if not exercises:
-            raise ValueError("No exercise found.")
-        return exercises
+    async def count_exercise(self, admin_id):
+        return await self.exercise_repo.count_exercises(admin_id)
 
-    def count_exercise(self, organization_id=None):
-        return self.exercise_repo.count_exercises(organization_id)
-
-    def get_exercises_by_level(self, level):
-
+    async def get_exercises_by_level(self, level, admin_id):
         ExerciseValidator.validation_level(level)
+        return await self.exercise_repo.get_exercises_by_level(level, admin_id)
 
-        return self.exercise_repo.get_exercises_by_level(level)
-
-    def get_exercises_by_teacher(self, teacher_id, organization_id=None):
-
-        if not isinstance(teacher_id, int):
-            raise ValueError("Teacher ID must be an int.")
-
-        return self.exercise_repo.get_exercises_by_teacher(
-            teacher_id,
-            organization_id,
-        )
+    async def get_exercises_by_teacher(self, teacher_id, admin_id):
+        return await self.exercise_repo.get_exercises_by_teacher(teacher_id, admin_id)

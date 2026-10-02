@@ -1,0 +1,407 @@
+'use client';
+
+import { useEffect, useState, type FormEvent } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { BookOpen, CalendarDays, FileText, LoaderCircle, Plus, Trash2, UserRound, Users, X } from 'lucide-react';
+import {
+  ACADEMIC_LEVELS,
+  SUBJECTS,
+  assignAdminTeacherClasses,
+  createAdminClass,
+  deleteAdminClass,
+  getAdminClasses,
+  getAdminClassStudents,
+  getAdminErrorMessage,
+  getAdminMonthlyAttendance,
+  getAdminStudentReport,
+  getAdminTeachers,
+  updateAdminClass,
+  type AdminClass,
+  type AdminTeacher,
+  type AttendanceRecord,
+  type ClassCreate,
+  type AdminStudent,
+} from '@/lib/admin-api';
+import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
+
+type ClassForm = Omit<ClassCreate, 'teacher_id'> & { teacher_id: string };
+
+const emptyForm: ClassForm = {
+  teacher_id: '',
+  class_name: '',
+  subject: '',
+  class_level: '',
+  center_rent_fee_per_student: 0,
+  teacher_teaching_fee_per_student: 0,
+  student_monthly_fee: 0,
+};
+
+function Field({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-[11px] font-medium text-white/55">{label}</span>
+      <input {...props} className={`min-h-11 w-full rounded-lg border border-white/10 bg-white/[0.035] px-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c6a96b]/55 ${props.className ?? ''}`} />
+    </label>
+  );
+}
+
+export default function AdminClassesPage() {
+  const [classes, setClasses] = useState<AdminClass[]>([]);
+  const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<AdminClass | null>(null);
+  const [form, setForm] = useState<ClassForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reportClassId, setReportClassId] = useState('');
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [attendance, setAttendance] = useState<AttendanceRecord[] | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [expandedClassId, setExpandedClassId] = useState<string | null>(null);
+  const [classStudents, setClassStudents] = useState<Record<string, AdminStudent[]>>({});
+  const [studentsLoading, setStudentsLoading] = useState<string | null>(null);
+  const [reportStudentId, setReportStudentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    Promise.all([getAdminClasses(controller.signal), getAdminTeachers(controller.signal)])
+      .then(([classData, teacherData]) => {
+        if (controller.signal.aborted) return;
+        setClasses(classData);
+        setTeachers(teacherData);
+        setReportClassId((current) => current || classData[0]?.id || '');
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) setError(getAdminErrorMessage(requestError, 'Classes could not be loaded.'));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [attempt]);
+
+  function openCreate() {
+    setEditingClass(null);
+    setForm({ ...emptyForm, teacher_id: teachers[0]?.teacher_id ?? '' });
+    setFormError('');
+    setFormOpen(true);
+  }
+
+  function openEdit(classItem: AdminClass) {
+    setEditingClass(classItem);
+    setForm({
+      teacher_id: classItem.teacher_id,
+      class_name: classItem.class_name,
+      subject: classItem.subject,
+      class_level: classItem.class_level,
+      center_rent_fee_per_student: classItem.center_rent_fee_per_student,
+      teacher_teaching_fee_per_student: classItem.teacher_teaching_fee_per_student,
+      student_monthly_fee: classItem.student_monthly_fee,
+    });
+    setFormError('');
+    setFormOpen(true);
+  }
+
+  async function reloadClasses() {
+    const [classData, teacherData] = await Promise.all([getAdminClasses(), getAdminTeachers()]);
+    setClasses(classData);
+    setTeachers(teacherData);
+  }
+
+  async function saveClass(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setFormError('');
+    try {
+      if (editingClass) {
+        await updateAdminClass(editingClass.id, form);
+      } else {
+        const created = await createAdminClass(form);
+        await assignAdminTeacherClasses(form.teacher_id, [created.id]);
+      }
+      setFormOpen(false);
+      setEditingClass(null);
+      await reloadClasses();
+    } catch (requestError) {
+      setFormError(getAdminErrorMessage(requestError, 'Class could not be saved.'));
+      await reloadClasses().catch(() => undefined);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeClass(classItem: AdminClass) {
+    if (!window.confirm(`Delete ${classItem.class_name}? This cannot be undone.`)) return;
+    setDeletingId(classItem.id);
+    setError('');
+    try {
+      await deleteAdminClass(classItem.id);
+      setClasses((current) => current.filter((item) => item.id !== classItem.id));
+      setAttendance(null);
+      setReportClassId((current) => current === classItem.id ? '' : current);
+    } catch (requestError) {
+      setError(getAdminErrorMessage(requestError, 'Class could not be deleted.'));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function loadAttendance() {
+    if (!reportClassId || !month) return;
+    setReportLoading(true);
+    setReportError('');
+    setAttendance(null);
+    try {
+      setAttendance(await getAdminMonthlyAttendance(reportClassId, month));
+    } catch (requestError) {
+      setReportError(getAdminErrorMessage(requestError, 'Attendance report could not be loaded.'));
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
+  async function toggleClassStudents(classId: string) {
+    if (expandedClassId === classId) {
+      setExpandedClassId(null);
+      return;
+    }
+    setExpandedClassId(classId);
+    if (classStudents[classId]) return;
+    setStudentsLoading(classId);
+    setReportError('');
+    try {
+      const students = await getAdminClassStudents(classId);
+      setClassStudents((current) => ({ ...current, [classId]: students }));
+    } catch (requestError) {
+      setReportError(getAdminErrorMessage(requestError, 'Students could not be loaded.'));
+    } finally {
+      setStudentsLoading(null);
+    }
+  }
+
+  async function downloadStudentReport(student: AdminStudent) {
+    setReportStudentId(student.student_id);
+    setReportError('');
+    try {
+      const report = await getAdminStudentReport(student.student_id);
+      const [{ jsPDF }, { default: Chart }] = await Promise.all([
+        import('jspdf'),
+        import('chart.js/auto'),
+      ]);
+      const pdf = new jsPDF();
+      const canvas = globalThis.document.createElement('canvas');
+      canvas.width = 1100;
+      canvas.height = 420;
+      const scores = report.exercises_and_exams.map((exercise) =>
+        exercise.score === null
+          ? null
+          : exercise.max_score > 0
+            ? (exercise.score / exercise.max_score) * 20
+            : exercise.score,
+      );
+      const chart = new Chart(canvas, {
+        type: 'line',
+        data: {
+          labels: report.exercises_and_exams.map((exercise) => exercise.exercise_name),
+          datasets: [{
+            label: 'Score (/20)',
+            data: scores,
+            borderColor: '#c6a96b',
+            backgroundColor: 'rgba(198, 169, 107, 0.18)',
+            pointBackgroundColor: '#dfc27e',
+            tension: 0.3,
+            spanGaps: true,
+          }],
+        },
+        options: {
+          responsive: false,
+          animation: false,
+          scales: { y: { min: 0, max: 20 } },
+        },
+      });
+      pdf.setFontSize(18);
+      pdf.text(`${report.name} | Academic Progress`, 14, 18);
+      pdf.setFontSize(10);
+      pdf.text(report.email, 14, 25);
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 14, 32, 182, 69);
+      chart.destroy();
+      const subjectAverages = getSubjectAverages(report.exercises_and_exams);
+      let y = 112;
+      pdf.setFontSize(13);
+      pdf.setTextColor(42, 36, 32);
+      pdf.text('Average by course', 14, y);
+      y += 10;
+      if (!subjectAverages.length) {
+        pdf.setFontSize(10);
+        pdf.text('No subjects recorded.', 14, y);
+      }
+      for (const item of subjectAverages) {
+        if (y > 275) {
+          pdf.addPage();
+          y = 20;
+        }
+        pdf.setDrawColor(230, 217, 194);
+        pdf.line(14, y + 4, 196, y + 4);
+        pdf.setFontSize(10);
+        pdf.setTextColor(42, 36, 32);
+        pdf.text(`Course ${item.subject}`, 16, y);
+        pdf.text(
+          item.average === null ? '— / 20' : `${item.average.toFixed(2)} / 20`,
+          132,
+          y,
+        );
+        const status = item.average === null
+          ? 'No graded exercises'
+          : getPerformanceStatus(item.average).text;
+        pdf.setTextColor(98, 87, 74);
+        pdf.text(status, 194, y, { align: 'right' });
+        y += 12;
+      }
+      pdf.save(`${report.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-progress-report.pdf`);
+    } catch (requestError) {
+      setReportError(getAdminErrorMessage(requestError, 'The student report could not be generated.'));
+    } finally {
+      setReportStudentId(null);
+    }
+  }
+
+  const selectedTeacher = (teacherId: string) => teachers.find((teacher) => teacher.teacher_id === teacherId);
+  const presentCount = attendance?.filter((record) => record.status === 'present').length ?? 0;
+  const attendancePercent = attendance?.length ? Math.round((presentCount / attendance.length) * 100) : 0;
+
+  return (
+    <section className="space-y-6">
+      <header className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">ORGANIZATION</p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">Classes</h1>
+          <p className="mt-1 text-xs text-white/45">Class groups, teaching assignments, and attendance.</p>
+        </div>
+        <button onClick={openCreate} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-[#c6a96b] px-3 text-xs font-semibold text-[#17130b]"><Plus size={15} />New class</button>
+      </header>
+
+      {error && <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4 text-xs text-rose-200">{error}<button onClick={() => setAttempt((value) => value + 1)} className="ml-2 underline underline-offset-4">Try again</button></div>}
+
+      <section aria-labelledby="classes-list-title">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 id="classes-list-title" className="text-sm font-semibold text-white">Your classes</h2>
+          <span className="text-[10px] tabular-nums text-white/40">{classes.length} total</span>
+        </div>
+        {loading ? (
+          <div role="status" className="space-y-3">{[0, 1, 2].map((key) => <div key={key} className="h-24 animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.025]" />)}</div>
+        ) : classes.length ? (
+          <div className="space-y-3">
+            {classes.map((classItem, index) => {
+              const teacher = selectedTeacher(classItem.teacher_id);
+              return (
+                <motion.article key={classItem.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * 0.04, 0.2) }} className="rounded-lg border border-white/10 bg-white/[0.025] p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/20 bg-[#c6a96b]/[0.06] text-[#dfc27e]"><BookOpen size={18} /></span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-sm font-semibold text-white">{classItem.class_name}</h3>
+                      <p className="mt-1 text-[11px] text-white/45">{classItem.subject} · {classItem.class_level}</p>
+                      <p className="mt-2 flex items-center gap-1.5 text-[10px] text-white/40"><UserRound size={13} />{teacher?.full_name ?? 'Teacher assignment unavailable'}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button onClick={() => toggleClassStudents(classItem.id)} aria-label={`View students in ${classItem.class_name}`} title="View students" className={`flex size-9 items-center justify-center rounded-lg ${expandedClassId === classItem.id ? 'bg-[#c6a96b]/[0.12] text-[#dfc27e]' : 'text-white/45 hover:bg-white/5 hover:text-[#dfc27e]'}`}><Users size={16} /></button>
+                      <button onClick={() => openEdit(classItem)} aria-label={`Edit ${classItem.class_name}`} title="Edit class" className="flex size-9 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRound size={16} /></button>
+                      <button onClick={() => removeClass(classItem)} disabled={deletingId === classItem.id} aria-label={`Delete ${classItem.class_name}`} title="Delete class" className="flex size-9 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">{deletingId === classItem.id ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}</button>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/[0.07] pt-3 text-center">
+                    <div><p className="text-[9px] text-white/35">Center fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.center_rent_fee_per_student}</p></div>
+                    <div><p className="text-[9px] text-white/35">Teacher fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.teacher_teaching_fee_per_student}</p></div>
+                    <div><p className="text-[9px] text-white/35">Monthly fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.student_monthly_fee}</p></div>
+                  </div>
+                  <AnimatePresence initial={false}>
+                    {expandedClassId === classItem.id && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                        <div className="mt-3 border-t border-white/[0.07] pt-3">
+                          <p className="mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/40">ENROLLED STUDENTS</p>
+                          {studentsLoading === classItem.id ? <p className="py-3 text-xs text-white/40">Loading students...</p> : classStudents[classItem.id]?.length ? (
+                            <ul className="divide-y divide-white/[0.06]">
+                              {classStudents[classItem.id].map((student) => <li key={student.student_id} className="flex items-center gap-2 py-2"><span className="min-w-0 flex-1 truncate text-xs text-white/75">{student.full_name}</span><button onClick={() => downloadStudentReport(student)} disabled={reportStudentId === student.student_id} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#c6a96b]/25 px-2.5 text-[10px] font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.08] disabled:opacity-40"><FileText size={13} />{reportStudentId === student.student_id ? 'Generating' : 'Get report'}</button></li>)}
+                            </ul>
+                          ) : <p className="py-3 text-xs text-white/40">No students enrolled in this class.</p>}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.article>
+              );
+            })}
+          </div>
+        ) : !error ? (
+          <div className="rounded-lg border border-white/10 px-5 py-10 text-center">
+            <BookOpen className="mx-auto mb-3 text-[#c6a96b]" size={23} />
+            <h3 className="text-sm font-medium text-white">No classes yet</h3>
+            <p className="mt-1 text-xs text-white/40">Create a class to organize students and teachers.</p>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.025] p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-300/15 bg-emerald-300/[0.05] text-emerald-200"><CalendarDays size={17} /></span>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Monthly attendance</h2>
+            <p className="mt-1 text-[11px] text-white/40">Review recorded attendance for a class.</p>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+          <select value={reportClassId} onChange={(event) => { setReportClassId(event.target.value); setAttendance(null); }} aria-label="Select class for attendance" className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50">
+            <option value="">Choose a class</option>
+            {classes.map((item) => <option key={item.id} value={item.id}>{item.class_name}</option>)}
+          </select>
+          <input type="month" value={month} onChange={(event) => { setMonth(event.target.value); setAttendance(null); }} aria-label="Select month" className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50" />
+          <button onClick={loadAttendance} disabled={!reportClassId || reportLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c6a96b]/25 px-4 text-xs font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.06] disabled:opacity-40">{reportLoading ? <LoaderCircle size={15} className="animate-spin" /> : <Users size={15} />}View report</button>
+        </div>
+        {reportError && <p role="alert" className="mt-3 text-xs text-rose-200">{reportError}</p>}
+        {attendance && (
+          attendance.length ? (
+            <div className="mt-4 border-t border-white/[0.08] pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div><p className="text-xs font-medium text-white">{presentCount} present records</p><p className="mt-1 text-[10px] text-white/40">{attendance.length} total recorded entries · {month}</p></div>
+                <span className="text-lg font-semibold tabular-nums text-emerald-200">{attendancePercent}%</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-300 transition-[width]" style={{ width: `${attendancePercent}%` }} /></div>
+              <ul className="mt-3 divide-y divide-white/[0.06]">
+                {attendance.slice(0, 8).map((record, index) => <li key={`${record.student_id}-${record.date}-${index}`} className="flex items-center justify-between gap-3 py-2 text-[11px]"><span className="truncate text-white/65">{record.student_name || 'Student'}</span><span className="shrink-0 text-white/35">{record.date}</span><span className={record.status === 'present' ? 'shrink-0 text-emerald-200' : 'shrink-0 text-rose-200'}>{record.status}</span></li>)}
+              </ul>
+            </div>
+          ) : <p className="mt-4 border-t border-white/[0.08] pt-4 text-xs text-white/40">No attendance records for this class and month.</p>
+        )}
+      </section>
+
+      <AnimatePresence>
+        {formOpen && (
+          <motion.div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setFormOpen(false); }}>
+            <motion.section role="dialog" aria-modal="true" aria-label={editingClass ? 'Edit class' : 'Create class'} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-white/10 bg-[#111111] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-xl sm:p-5">
+              <div className="mb-5 flex items-center justify-between"><h2 className="text-base font-semibold text-white">{editingClass ? 'Edit class' : 'New class'}</h2><button onClick={() => setFormOpen(false)} aria-label="Close" className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
+              <form onSubmit={saveClass} className="space-y-4">
+                <Field label="Class name" value={form.class_name} onChange={(event) => setForm((current) => ({ ...current, class_name: event.target.value }))} required />
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Subject</span><select required value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose a subject</option>{SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label>
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Academic level</span><select required value={form.class_level} onChange={(event) => setForm((current) => ({ ...current, class_level: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose an academic level</option>{ACADEMIC_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Teacher</span><select required value={form.teacher_id} onChange={(event) => setForm((current) => ({ ...current, teacher_id: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose a teacher</option>{teachers.map((teacher) => <option key={teacher.teacher_id} value={teacher.teacher_id}>{teacher.full_name}</option>)}</select>{teachers.length === 0 && <span className="text-[10px] text-amber-100/65">Add a teacher before creating a class.</span>}</label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <Field label="Center fee / student" type="number" min="0" step="0.01" value={form.center_rent_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, center_rent_fee_per_student: Number(event.target.value) }))} required />
+                  <Field label="Teacher fee / student" type="number" min="0" step="0.01" value={form.teacher_teaching_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, teacher_teaching_fee_per_student: Number(event.target.value) }))} required />
+                  <Field label="Student monthly fee" type="number" min="0" step="0.01" value={form.student_monthly_fee} onChange={(event) => setForm((current) => ({ ...current, student_monthly_fee: Number(event.target.value) }))} required />
+                </div>
+                {formError && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{formError}</p>}
+                <div className="flex gap-2 border-t border-white/[0.08] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs text-white/60">Cancel</button><button type="submit" disabled={saving || !teachers.length} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{saving && <LoaderCircle size={15} className="animate-spin" />}{saving ? 'Saving' : editingClass ? 'Save changes' : 'Create class'}</button></div>
+              </form>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+}

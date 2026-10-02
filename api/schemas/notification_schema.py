@@ -1,43 +1,61 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, model_validator
 
 
 class NotificationResponse(BaseModel):
-    notification_id: int
-    title: str
+    id: str
+    admin_id: str
+    sender_id: str | None = None
+    receiver_id: str
+    receiver_role: str
+    notification_type: str
     message: str
-    teacher_id: int
-    teacher_name: str
-    sender_role: str = "teacher"
-    created_at: str
+    reference_link: str | None = None
+    is_read: bool
+    created_at: datetime
+    notification_id: str | None = None
+    title: str | None = None
+    teacher_id: str | None = None
+    teacher_name: str | None = None
 
 
 class AdminNotificationCreate(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=5000)
-    class_id: int | None = Field(default=None, gt=0)
-    student_id: int | None = Field(default=None, gt=0)
+    class_id: str | None = None
+    student_id: str | None = None
+    teacher_id: str | None = None
 
     @model_validator(mode="after")
     def validate_recipient(self):
-        if (self.student_id is None) == (self.class_id is None):
-            raise ValueError("Provide exactly one of student_id or class_id.")
+        recipients = [self.student_id, self.class_id, self.teacher_id]
+        if sum(recipient is not None for recipient in recipients) != 1:
+            raise ValueError("Provide exactly one student_id, class_id, or teacher_id.")
         return self
 
 
 class NotificationCreate(BaseModel):
-    title: str
+    receiver_id: str
+    receiver_role: str = "student"
     message: str
-    teacher_id: int
-    student_id: int
+    reference_link: str | None = None
 
 
 class TeacherNotificationCreate(BaseModel):
-    title: str
     message: str
-    class_id: int | None = None
+    class_id: str | None = None
+    student_id: str | None = None
+    reference_link: str | None = None
+
+
+class TeacherMessageCreate(BaseModel):
+    target_type: str
+    target_id: str
+    subject: str = Field(min_length=1, max_length=200)
+    message: str = Field(min_length=1, max_length=5000)
 
 
 class NotificationUpdate(BaseModel):
-    title: str | None = None
     message: str | None = None
-    teacher_id: int | None = None
+    reference_link: str | None = None
+    is_read: bool | None = None

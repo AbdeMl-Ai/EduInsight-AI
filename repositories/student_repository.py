@@ -1,434 +1,158 @@
-import sqlite3
+from bson import ObjectId
 
-from models.student import Student
+from models.domain_models import Student
+
 
 class StudentRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["students"]
 
-    def _organization_for_admin(self, admin_id):
-        if admin_id is None:
-            return None
-        row = self.db.cursor.execute(
-            "SELECT organization_id FROM admins WHERE id = ?",
-            (admin_id,),
-        ).fetchone()
-        return row[0] if row else None
+    @staticmethod
+    def _id(value):
+        if not ObjectId.is_valid(value):
+            raise ValueError("student/reference ID must be a valid ObjectId")
+        return str(ObjectId(value))
 
-    def add_student(self, student, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if self.db.cursor.execute(
-            """SELECT 1 FROM students
-               WHERE organization_id IS ? AND (
-                   email = ? OR (length(phone_number) = 10 AND phone_number = ?)
-               )
-               LIMIT 1""",
-            (organization_id, student.email, student.phone_number),
-        ).fetchone():
+    @staticmethod
+    def _tenant(admin_id):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
+
+    @staticmethod
+    def _model(document):
+        return Student.model_validate(document) if document else None
+
+    async def add_student(self, student: Student, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        payload = student.model_dump(exclude={"id"})
+        payload["admin_id"] = admin_id
+        duplicate_terms = [{"email": payload["email"]}]
+        if payload.get("phone_number"):
+            duplicate_terms.append({"phone_number": payload["phone_number"]})
+        if await self.collection.find_one({"admin_id": admin_id, "$or": duplicate_terms}):
             raise ValueError("A student with this email or phone number already exists.")
-        try:
-            self.db.cursor.execute("""
-        INSERT INTO students
-        (full_name, email, password, phone_number, level, class_id, admin_id, organization_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (student.full_name, student.email, student.password, student.phone_number,
-             student.level, student.class_id, admin_id, organization_id))
-        except sqlite3.IntegrityError as error:
-            raise ValueError("A student with this email or phone number already exists.") from error
-        self.db.connection.commit()
-        student.student_id = self.db.cursor.lastrowid
-        student.organization_id = organization_id
+        result = await self.collection.insert_one(payload)
+        return self._model({"_id": result.inserted_id, **payload})
 
+    async def get_student(self, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return self._model(await self.collection.find_one({"_id": ObjectId(self._id(student_id)), "admin_id": admin_id}))
 
+    async def get_all_student(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return [self._model(doc) async for doc in self.collection.find({"admin_id": admin_id}).sort("full_name", 1)]
 
-    def get_student(self, student_id, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        self.db.cursor.execute("""
-        SELECT student_id, full_name, email,
-               password, phone_number, level, class_id, organization_id
-        FROM students
-        WHERE student_id = ?""" + (" AND (? IS NULL OR organization_id = ?)" if organization_id is not None else ""),
-        (student_id, organization_id, organization_id) if organization_id is not None else (student_id,))
+    async def get_all_students_for_admin(self, admin_id: str):
+        return await self.get_all_student(admin_id)
 
-        row = self.db.cursor.fetchone()
-        if row is None:
-            return None
+    async def get_students_by_level(self, level: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        pattern = {"$regex": f"^{level.strip()}$", "$options": "i"}
+        cursor = self.collection.find({"admin_id": admin_id, "$or": [{"level_academy": pattern}, {"level": pattern}]})
+        return [self._model(doc) async for doc in cursor]
 
-        return Student(
-            row[0],
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            row[6],
-            organization_id=row[7]
-        )
-    def get_all_student(self, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if organization_id is not None:
-            self.db.cursor.execute("""
-            SELECT student_id, full_name, email,
-                   password, phone_number, level, class_id, organization_id
-            FROM students
-            WHERE organization_id = ?
-            """, (organization_id,))
-        elif admin_id is not None:
-            self.db.cursor.execute("""
-            SELECT student_id, full_name, email,
-                   password, phone_number, level, class_id, organization_id
-            FROM students
-            WHERE admin_id = ?
-            """, (admin_id,))
-        else:
-            self.db.cursor.execute("""
-            SELECT student_id, full_name, email,
-                   password, phone_number, level, class_id, organization_id
-            FROM students
-            """)
-
-        rows = self.db.cursor.fetchall()
-
-        students = []
-
-        for row in rows:
-            students.append(
-                Student(
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6],
-                    organization_id=row[7]
-                )
-            )
-
-        return students
-
-    def get_all_students_for_admin(self, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-            """SELECT student_id, full_name, email,
-                      password, phone_number, level, class_id, organization_id
-               FROM students
-               WHERE organization_id = ?""",
-            (organization_id,),
-        )
-        return [
-            Student(row[0], row[1], row[2], row[3], row[4], row[5], row[6], organization_id=row[7])
-            for row in self.db.cursor.fetchall()
-        ]
-
-    def get_students_by_level(self, level):
-        self.db.cursor.execute("""
-            SELECT student_id, full_name, email,
-                   password, phone_number, level, class_id
-            FROM students
-            WHERE UPPER(TRIM(level)) = ?
-        """, (level.strip().upper(),))
-
-        rows = self.db.cursor.fetchall()
-        students = []
-
-        for row in rows:
-            students.append(
-                Student(
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6]
-                )
-            )
-
-        return students
-
-    def get_students_by_class_ids(self, class_ids):
+    async def get_students_by_class_ids(self, class_ids: list[str], admin_id: str):
+        admin_id = self._tenant(admin_id)
         if not class_ids:
             return []
+        values = [self._id(value) for value in class_ids]
+        mongo_values = values + [ObjectId(value) for value in values]
+        admin_values = [admin_id]
+        if ObjectId.is_valid(admin_id):
+            admin_values.append(ObjectId(admin_id))
+        cursor = self.collection.find({"admin_id": {"$in": admin_values}, "$or": [{"class_id": {"$in": mongo_values}}, {"class_ids": {"$in": mongo_values}}]}).sort("full_name", 1)
+        return [self._model(doc) async for doc in cursor]
 
-        placeholders = ", ".join("?" for _ in class_ids)
-        self.db.cursor.execute(
-            f"""SELECT student_id, full_name, email,
-                      password, phone_number, level, class_id
-               FROM students
-               WHERE class_id IN ({placeholders})""",
-            class_ids,
-        )
+    async def get_students_by_class_id(self, class_id: str, admin_id: str):
+        return await self.get_students_by_class_ids([class_id], admin_id)
 
-        return [
-            Student(
-                row[0],
-                row[1],
-                row[2],
-                row[3],
-                row[4],
-                row[5],
-                row[6],
-            )
-            for row in self.db.cursor.fetchall()
-        ]
+    async def get_student_class_ids(self, student_id: str, admin_id: str):
+        student = await self.get_student(student_id, admin_id)
+        return student.class_ids or ([student.class_id] if student and student.class_id else []) if student else []
 
-    def get_students_by_class_id(self, class_id):
-        """Fetch all students enrolled in a single class."""
-        self.db.cursor.execute(
-            """SELECT student_id, full_name, email,
-                      password, phone_number, level, class_id, organization_id
-               FROM students
-                    WHERE class_id = ? OR student_id IN (
-                         SELECT student_id FROM student_classes WHERE class_id = ?
-                    )""",
-                (class_id, class_id),
-        )
-        return [
-            Student(row[0], row[1], row[2], row[3], row[4], row[5], row[6], organization_id=row[7])
-            for row in self.db.cursor.fetchall()
-        ]
+    async def set_student_class_ids(self, student_id: str, class_ids: list[str], admin_id: str):
+        admin_id = self._tenant(admin_id)
+        values = list(dict.fromkeys(self._id(value) for value in class_ids))
+        result = await self.collection.update_one({"_id": ObjectId(self._id(student_id)), "admin_id": admin_id}, {"$set": {"class_ids": values, "class_id": values[0] if values else None}})
+        return result.matched_count == 1
 
-    def get_student_class_ids(self, student_id):
-        self.db.cursor.execute(
-            "SELECT class_id FROM student_classes WHERE student_id = ? ORDER BY class_id",
-            (student_id,),
-        )
-        ids = [row[0] for row in self.db.cursor.fetchall()]
-        if ids:
-            return ids
-        student = self.get_student(student_id)
-        return [student.class_id] if student and student.class_id is not None else []
+    async def belongs_to_admin(self, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return await self.collection.find_one({"_id": ObjectId(self._id(student_id)), "admin_id": admin_id}, {"_id": 1}) is not None
 
-    def set_student_class_ids(self, student_id, class_ids):
-        self.db.cursor.execute(
-            "DELETE FROM student_classes WHERE student_id = ?", (student_id,)
-        )
-        self.db.cursor.executemany(
-            "INSERT INTO student_classes (student_id, class_id) VALUES (?, ?)",
-            [(student_id, class_id) for class_id in class_ids],
-        )
-        self.db.cursor.execute(
-            "UPDATE students SET class_id = ? WHERE student_id = ?",
-            (class_ids[0] if class_ids else None, student_id),
-        )
-        self.db.connection.commit()
-
-    def belongs_to_admin(self, student_id, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        return self.db.cursor.execute(
-            "SELECT 1 FROM students WHERE student_id = ? AND organization_id = ?",
-            (student_id, organization_id),
-        ).fetchone() is not None
-        
-
-    def update_student(self, student_id, **kwargs):
-        student = self.get_student(student_id)
-        if not kwargs:
+    async def update_student(self, student_id: str, admin_id: str, **updates):
+        admin_id = self._tenant(admin_id)
+        allowed = {"full_name", "email", "phone_number", "age", "level", "level_academy", "parent_id", "class_id", "class_ids"}
+        updates = {k: ([self._id(v) for v in value] if k == "class_ids" else self._id(value) if k in {"parent_id", "class_id"} and value is not None else value) for k, value in updates.items() if k in allowed}
+        if "class_ids" in updates:
+            updates["class_ids"] = list(dict.fromkeys(updates["class_ids"]))
+            updates["class_id"] = updates["class_ids"][0] if updates["class_ids"] else None
+        elif updates.get("class_id") is not None:
+            updates["class_ids"] = [updates["class_id"]]
+        if not updates:
             return False
-        if "full_name" in kwargs:
-            self.db.cursor.execute("""
-        UPDATE students
-            SET full_name = ?
-            WHERE student_id = ?
-            """, (kwargs["full_name"], student_id))
+        result = await self.collection.update_one({"_id": ObjectId(self._id(student_id)), "admin_id": admin_id}, {"$set": updates})
+        return result.matched_count == 1
 
+    async def delete_student(self, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        result = await self.collection.delete_one({"_id": ObjectId(self._id(student_id)), "admin_id": admin_id})
+        return result.deleted_count == 1
 
-        if "email" in kwargs:
-            self.db.cursor.execute("""
-        UPDATE students
-            SET email = ?
-            WHERE student_id = ?
-            """, (kwargs["email"], student_id))
+    async def search_student(self, name: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return [self._model(doc) async for doc in self.collection.find({"admin_id": admin_id, "full_name": {"$regex": name, "$options": "i"}})]
 
+    async def count_students(self, admin_id: str):
+        return await self.collection.count_documents({"admin_id": self._tenant(admin_id)})
 
-        if "password" in kwargs:
-                self.db.cursor.execute("""
-        UPDATE students
-            SET password = ?
-            WHERE student_id = ?
-            """, (kwargs["password"], student_id))
+    async def get_student_by_email(self, email: str):
+        return self._model(await self.collection.find_one({"email": email}))
 
+    async def get_student_by_phone(self, phone_number: str):
+        return self._model(await self.collection.find_one({"phone_number": phone_number}))
 
-        if "phone_number" in kwargs:
-                self.db.cursor.execute("""
-        UPDATE students
-            SET phone_number = ?
-            WHERE student_id = ?
-            """, (kwargs["phone_number"], student_id))
-
-
-        if "level" in kwargs:
-                self.db.cursor.execute("""
-        UPDATE students
-            SET level = ?
-            WHERE student_id = ?
-            """, (kwargs["level"], student_id))
-
-        if "class_id" in kwargs:
-            self.db.cursor.execute("""
-        UPDATE students SET class_id = ? WHERE student_id = ?
-            """, (kwargs["class_id"], student_id))
-
-        self.db.connection.commit() 
-                
-
-    def delete_student(self, student_id):
-        student = self.get_student(student_id)
+    async def get_academic_report(self, student_id: str, admin_id: str):
+        student = await self.get_student(student_id, admin_id)
         if student is None:
-             return False
-        self.db.cursor.execute("""
-DELETE FROM students
-WHERE student_id = ?""", (student_id,))
-        self.db.connection.commit()
-        return True
-
-    
-    def search_student(self, name, admin_id=None):
-        organization_id = self._organization_for_admin(admin_id)
-
-        self.db.cursor.execute("""
-            SELECT student_id, full_name, email,
-                password, phone_number, level, class_id
-            FROM students
-            WHERE full_name LIKE ?
-        """ + (" AND organization_id = ?" if organization_id is not None else ""),
-        (f"%{name}%", organization_id) if organization_id is not None else (f"%{name}%",))
-
-        rows = self.db.cursor.fetchall()
-        students = []
-
-        for row in rows:
-            students.append(
-                Student(
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6]
-                )
-            )
-
-        return students
-
-    
-    def count_students(self, admin_id=None):
-        organization_id = self._organization_for_admin(admin_id)
-
-        self.db.cursor.execute("""
-            SELECT COUNT(*)
-            FROM students
-        """ + (" WHERE organization_id = ?" if organization_id is not None else ""),
-        (organization_id,) if organization_id is not None else ())
-        result = self.db.cursor.fetchone()
-
-        return result[0]
-
-    def get_student_by_email(self, email):
-
-        self.db.cursor.execute("""
-            SELECT
-                student_id,
-                full_name,
-                email,
-                password,
-                phone_number,
-                level,
-                class_id
-            FROM students
-            WHERE email = ?
-        """, (email,))
-
-        row = self.db.cursor.fetchone()
-
-        if row is None:
             return None
-
-        return Student(
-            row[0],
-            row[1],
-            row[2],
-            row[3],
-            row[4],
-            row[5],
-            row[6]
-        )
-
-    def get_student_by_phone(self, phone_number):
-        self.db.cursor.execute("""
-            SELECT student_id, full_name, email, password, phone_number, level, class_id
-            FROM students
-            WHERE phone_number = ?
-        """, (phone_number,))
-        row = self.db.cursor.fetchone()
-        return Student(*row) if row else None
-
-    def get_students_by_level(self, level):
-        self.db.cursor.execute("""
-            SELECT student_id, full_name, email, password, phone_number, level, class_id
-            FROM students
-            WHERE UPPER(TRIM(level)) = ?
-        """, (level.strip().upper(),))
-
-        rows = self.db.cursor.fetchall()
-        students = []
-
-        for row in rows:
-            students.append(
-                Student(
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6]
-                )
+        class_ids = student.class_ids or ([student.class_id] if student.class_id else [])
+        classes = self.collection.database["classes"]
+        exercises = self.collection.database["exercises"]
+        submissions = self.collection.database["submissions"]
+        class_docs = [
+            document async for document in classes.find(
+                {"admin_id": admin_id, "_id": {"$in": [ObjectId(class_id) for class_id in class_ids]}}
             )
-
-        return students
-
-    def get_academic_report(self, student_id):
-        self.db.cursor.execute("""
-            SELECT s.student_id, s.full_name, s.email, s.phone_number, s.level,
-                   s.class_id, c.name, c.academic_year,
-                     e.exercise_id, e.exercise_name, g.score
-            FROM students s
-                 LEFT JOIN classes c ON c.id = s.class_id
-            LEFT JOIN exercises e ON EXISTS (
-                SELECT 1 FROM courses course_for_exercise
-                WHERE course_for_exercise.course_id = e.course_id
-                  AND (
-                      UPPER(TRIM(course_for_exercise.level)) = UPPER(TRIM(c.name))
-                      OR UPPER(TRIM(course_for_exercise.level)) = UPPER(TRIM(s.level))
-                  )
-            )
-            LEFT JOIN grades g
-              ON g.student_id = s.student_id AND g.exercise_id = e.exercise_id
-            WHERE s.student_id = ?
-            ORDER BY e.exercise_id
-        """, (student_id,))
-        rows = self.db.cursor.fetchall()
-        if not rows:
-            return None
-        first = rows[0]
+        ] if class_ids else []
+        class_by_id = {str(document["_id"]): document for document in class_docs}
+        exercise_docs = [
+            document async for document in exercises.find(
+                {"admin_id": admin_id, "class_id": {"$in": class_ids}}
+            ).sort("created_at", 1)
+        ] if class_ids else []
+        exercise_rows = []
+        for exercise in exercise_docs:
+            submission = await submissions.find_one({
+                "admin_id": admin_id,
+                "student_id": student.id,
+                "exercise_id": str(exercise["_id"]),
+            })
+            class_doc = class_by_id.get(str(exercise["class_id"]), {})
+            exercise_rows.append({
+                "exercise_id": str(exercise["_id"]),
+                "exercise_name": exercise.get("course_title", "Exercise"),
+                "subject": class_doc.get("subject", "Unknown"),
+                "class_id": str(exercise["class_id"]),
+                "score": submission.get("score") if submission else None,
+                "max_score": exercise.get("max_score", 100),
+                "created_at": exercise.get("created_at"),
+            })
         return {
-            "student_id": first[0],
-            "name": first[1],
-            "email": first[2],
-            "class_info": (
-                {"class_id": first[5], "name": first[6], "academic_year": first[7]}
-                if first[5] is not None else None
-            ),
-            "exercises_and_exams": [
-                {
-                    "exercise_id": row[8],
-                    "exercise_name": row[9],
-                    "score": row[10],
-                }
-                for row in rows if row[8] is not None
-            ],
+            "student_id": student.id,
+            "name": student.full_name,
+            "email": student.email,
+            "class_info": None,
+            "exercises_and_exams": exercise_rows,
         }

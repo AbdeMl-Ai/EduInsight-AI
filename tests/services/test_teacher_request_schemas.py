@@ -5,19 +5,17 @@ from utils.validation_course import CourseValidator
 
 def test_teacher_course_request_does_not_accept_teacher_id():
     request = TeacherCourseCreate(
-        course_name="Algebra",
-        class_id=1,
-        semester="1",
+        title="Algebra",
+        class_id="class-id",
     )
 
     assert not hasattr(request, "teacher_id")
-    assert request.class_id == 1
+    assert request.class_id == "class-id"
 
 
 def test_teacher_exercise_request_accepts_max_score():
     request = TeacherExerciseCreate(
-        exercise_name="Linear equations",
-        course_id=1,
+        course_id="course-id",
         max_score=25,
     )
 

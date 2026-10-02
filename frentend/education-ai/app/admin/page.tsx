@@ -1,5 +1,5 @@
-import AdminWorkspace from "../../components/admin/AdminWorkspace";
+import { redirect } from 'next/navigation';
 
 export default function AdminPage() {
-	return <AdminWorkspace />;
+	redirect('/admin/home');
 }

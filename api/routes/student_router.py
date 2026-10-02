@@ -1,437 +1,198 @@
-from fastapi import APIRouter
-from api.schemas.student_schema import (
-    StudentResponse,
-    StudentCreate,
-    StudentUpdate
-)
-from api.schemas.student_exercise_schema import StudentExerciseResponse
-from api.dependencies import get_current_admin, student_controller
-from fastapi import APIRouter , HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-router = APIRouter(
-    prefix="/students",
-    tags = ["Students"]
+from api.dependencies import (
+    admin_controller,
+    class_controller,
+    course_controller,
+    get_current_admin,
+    material_controller,
+    notification_controller,
+    require_student,
+    student_controller,
+    submission_controller,
 )
-from fastapi import Depends
-from api.dependencies import require_student
+from api.schemas.admin_schemas import AdminStudentCreate
+from api.schemas.student_schema import StudentCreate, StudentResponse, StudentUpdate
+from utils.submission_storage import delete_submission_file, save_submission_file
+
+router = APIRouter(prefix="/students", tags=["Students"])
+
+
+def _student(student):
+    return {"student_id": student.id, "admin_id": student.admin_id, "parent_id": student.parent_id, "full_name": student.full_name, "age": student.age, "level_academy": student.level_academy, "date_enjoined": student.date_enjoined, "email": student.email, "phone_number": student.phone_number, "level": student.level, "class_id": student.class_id, "class_ids": student.class_ids}
+
+
+def _submission(item):
+    return {"id": item.id, "admin_id": item.admin_id, "student_id": item.student_id, "class_id": item.class_id, "exercise_id": item.exercise_id, "submission_status": item.submission_status, "file_path": item.file_path, "student_note": item.student_note, "score": item.score, "submitted_at": item.submitted_at, "graded_at": item.graded_at}
 
 
 @router.get("/me", response_model=StudentResponse)
-def get_my_profile(
-    current_user=Depends(require_student)
-):
-    return student_controller.get_my_profile(current_user)
-from api.dependencies import require_student
-from fastapi import Depends
-from api.dependencies import course_controller, db
+async def get_my_profile(user=Depends(require_student)):
+    return await student_controller.get_my_profile(user)
 
 
-def material_path(owner_type: str, owner_id: int):
-    row = db.cursor.execute(
-        """
-        SELECT file_path
-        FROM learning_materials
-        WHERE owner_type = ? AND owner_id = ?
-        ORDER BY material_id DESC
-        LIMIT 1
-        """,
-        (owner_type, owner_id),
-    ).fetchone()
-    return row[0] if row else None
-
-@router.get("/me/courses")
-def get_my_courses(
-    current_user=Depends(require_student)
-):
-    class_id = current_user.class_id
-
-    # If the student has no class_id, look up the class via their level
-    if class_id is None:
-        from api.dependencies import db
-        row = db.cursor.execute(
-            "SELECT id FROM classes WHERE UPPER(TRIM(academic_year)) = ?",
-            (current_user.level.strip().upper(),)
-        ).fetchone()
-        if row is None:
-            return []
-        class_id = row[0]
-
-    courses = course_controller.get_courses_by_class_id(
-        class_id,
-        current_user.organization_id,
-    )
-
-    return [
-        {
-            "course_id": course.course_id,
-            "course_name": course.course_name,
-            "semester": course.semester,
-            "level": course.level,
-            "teacher": {
-                "teacher_id": course.teacher.teacher_id,
-                "full_name": course.teacher.full_name
-            },
-            "material_file_path": material_path("course", course.course_id),
-        }
-        for course in courses
-    ]
-
-from api.dependencies import require_student
-from fastapi import Depends
-from api.dependencies import exercise_controller
-
-@router.get("/me/exercises", response_model=list[StudentExerciseResponse])
-def get_my_exercises(
-    current_user=Depends(require_student)
-):
-    # Let the service handle class_id being None – it will fall back to the student's level.
-    exercises = student_controller.get_my_exercises(
-        current_user.student_id,
-        current_user.class_id,
-        current_user.organization_id,
-    )
-
-    return [
-        {
-            "exercise_id": exercise.exercise_id,
-            "exercise_name": exercise.exercise_name,
-            "course": {
-                "course_id": exercise.course.course_id,
-                "course_name": exercise.course.course_name,
-                "semester": exercise.course.semester
-            },
-            "material_file_path": material_path("exercise", exercise.exercise_id),
-            "max_score": exercise.max_score,
-            "score": getattr(exercise, "score", None),
-            "submission_status": getattr(exercise, "submission_status", "pending"),
-        }
-        for exercise in exercises
-    ]
-
-from api.dependencies import require_student
-from api.dependencies import submission_controller
-from fastapi import Depends
-
-
-@router.get("/me/submissions")
-def get_my_submissions(
-    current_user=Depends(require_student)
-):
-
-    submissions = submission_controller.get_submissions_by_student(
-        current_user.student_id,
-        current_user.organization_id,
-    )
-
-    return [
-        {
-            "submission_id": submission.submission_id,
-            "student_id": submission.student_id,
-            "exercise_id": submission.exercise.exercise_id,
-            "submission_date": submission.submission_date,
-            "file_path": submission.file_path,
-            "status": submission.status
-        }
-        for submission in submissions
-    ]
-
-from api.schemas.submission_schema import (
-    SubmissionResponse
-)
-
-from api.dependencies import (
-    require_student,
-    submission_controller
-)
-
-from fastapi import Depends
-from fastapi import File, Form, UploadFile
-from utils.submission_storage import (
-    delete_submission_file,
-    save_submission_file,
-)
-@router.post("/me/submissions", response_model=SubmissionResponse)
-def create_my_submission(
-    exercise_id: int = Form(...),
-    file: UploadFile = File(...),
-    current_user=Depends(require_student)
-):
-
-    file_path = save_submission_file(
-        file,
-        exercise_id,
-        current_user.student_id
-    )
-
-    try:
-        submission = submission_controller.create_submission(
-            current_user.student_id,
-            exercise_id,
-            file_path,
-            current_user.organization_id,
-        )
-    except ValueError:
-        delete_submission_file(file_path)
-        raise
-
-    return {
-        "submission_id": submission.submission_id,
-        "student_id": submission.student_id,
-        "exercise_id": submission.exercise.exercise_id,
-        "submission_date": submission.submission_date,
-        "file_path": submission.file_path,
-        "status": submission.status
-    }
-
-
-@router.put("/me/submissions/{submission_id}")
-def replace_my_submission(
-    submission_id: int,
-    file: UploadFile = File(...),
-    current_user=Depends(require_student),
-):
-    submission = submission_controller.get_submission(submission_id, current_user.organization_id)
-    if submission.student_id != current_user.student_id:
-        raise HTTPException(status_code=403, detail="You can only edit your own submissions.")
-
-    new_file_path = save_submission_file(
-        file,
-        submission.exercise.exercise_id,
-        current_user.student_id,
-    )
-    try:
-        submission_controller.update_submission(
-            submission_id,
-            current_user.organization_id,
-            file_path=new_file_path,
-        )
-        delete_submission_file(submission.file_path)
-    except ValueError:
-        delete_submission_file(new_file_path)
-        raise
-
-    updated = submission_controller.get_submission(submission_id, current_user.organization_id)
-    return {
-        "submission_id": updated.submission_id,
-        "student_id": updated.student_id,
-        "exercise_id": updated.exercise.exercise_id,
-        "submission_date": updated.submission_date,
-        "file_path": updated.file_path,
-        "status": updated.status,
-    }
-
-
-@router.delete("/me/submissions/{submission_id}")
-def delete_my_submission(
-    submission_id: int,
-    current_user=Depends(require_student),
-):
-    submission = submission_controller.get_submission(submission_id, current_user.organization_id)
-    if submission.student_id != current_user.student_id:
-        raise HTTPException(status_code=403, detail="You can only delete your own submissions.")
-
-    submission_controller.delete_submission(submission_id, current_user.organization_id)
-    delete_submission_file(submission.file_path)
-    return {"message": "Submission deleted successfully."}
-
-from api.dependencies import require_student
-from api.dependencies import grade_controller
-from fastapi import Depends
-
-
-@router.get("/me/grades")
-def get_my_grades(
-    current_user=Depends(require_student)
-):
-
-    grades = grade_controller.get_grades_by_student(
-        current_user.student_id,
-        current_user.organization_id,
-    )
-
-    return [
-        {
-            "grade_id": grade.grade_id,
-            "score": grade.score,
-            "exercise_id": grade.exercise.exercise_id
-        }
-        for grade in grades
-    ]
-
-from api.dependencies import notification_controller
-from api.dependencies import require_student
-from fastapi import Depends
-
-
-@router.get("/me/notifications")
-def get_my_notifications(
-    current_user=Depends(require_student)
-):
-
-    notifications = notification_controller.get_student_notifications(
-        current_user.student_id
-    )
-
-    return [
-        {
-            "student_notification_id":
-                item.student_notification_id,
-
-            "notification_id":
-                item.notification.notification_id,
-
-            "title":
-                item.notification.title,
-
-            "message":
-                item.notification.message,
-
-            "is_read":
-                item.is_read,
-
-            "created_at":
-                item.notification.created_at
-        }
-        for item in notifications
-    ]
+@router.get("/me/classes")
+async def get_my_classes(user=Depends(require_student)):
+    class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
+    classes = []
+    for class_id in class_ids:
+        try:
+            class_group = await class_controller.get_class(class_id, user.admin_id)
+        except ValueError:
+            continue
+        classes.append({
+            "id": class_group.id,
+            "class_name": class_group.class_name,
+            "class_level": class_group.class_level,
+            "subject": class_group.subject,
+        })
+    return classes
 
 
 @router.put("/me", response_model=StudentResponse)
-def update_my_profile(
-    data: StudentUpdate,
-    current_user=Depends(require_student)
-):
+async def update_my_profile(data: StudentUpdate, user=Depends(require_student)):
     updates = data.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(status_code=400, detail="No data to update")
-    return student_controller.update_my_profile(current_user, updates)
+    if {"class_id", "class_ids", "parent_id", "level_academy"}.intersection(updates):
+        raise HTTPException(status_code=403, detail="Only administrators can update student enrollment and academic level.")
+    return await student_controller.update_my_profile(user, updates)
+
+
+@router.get("/me/courses")
+async def get_my_courses(user=Depends(require_student)):
+    tenant = user.admin_id
+    class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
+    if class_ids:
+        courses = await course_controller.get_courses_by_class_ids(class_ids, tenant)
+    else:
+        courses = await course_controller.get_courses_by_level(user.level_academy or user.level, tenant)
+    result = []
+    for course in courses:
+        result.append({"id": course.id, "title": course.title, "description": course.description, "teacher_id": course.teacher_id, "class_id": course.class_id, "material_file_path": await material_controller.get_latest_path("course", course.id, tenant)})
+    return result
+
+
+@router.get("/me/exercises")
+async def get_my_exercises(user=Depends(require_student)):
+    class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
+    exercises = await student_controller.get_my_exercises(user.id, class_ids, user.admin_id)
+    return [{"id": exercise.id, "course_id": exercise.course_id, "class_id": exercise.class_id, "course_title": exercise.course_title, "file_path": exercise.file_path, "material_file_path": await material_controller.get_latest_path("exercise", exercise.id, user.admin_id), "max_score": exercise.max_score, "score": exercise.score, "submission_status": exercise.submission_status} for exercise in exercises]
+
+
+@router.get("/me/submissions")
+async def get_my_submissions(user=Depends(require_student)):
+    return [_submission(item) for item in await submission_controller.get_submissions_by_student(user.id, user.admin_id)]
+
+
+@router.post("/me/submissions")
+async def create_my_submission(exercise_id: str = Form(...), file: UploadFile = File(...), student_note: str = Form("", max_length=1000), user=Depends(require_student)):
+    file_path = await save_submission_file(file, exercise_id, user.id)
+    try:
+        return _submission(await submission_controller.create_submission(user.id, exercise_id, file_path, user.admin_id, student_note))
+    except ValueError as error:
+        await delete_submission_file(file_path)
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.put("/me/submissions/{submission_id}")
+async def replace_my_submission(submission_id: str, file: UploadFile = File(...), student_note: str | None = Form(None, max_length=1000), user=Depends(require_student)):
+    new_path = None
+    try:
+        submission = await submission_controller.get_submission(submission_id, user.admin_id)
+        if submission.student_id != user.id:
+            raise HTTPException(status_code=403, detail="You can only edit your own submissions.")
+        new_path = await save_submission_file(file, submission.exercise_id, user.id)
+        updates = {"file_path": new_path}
+        if student_note is not None:
+            updates["student_note"] = student_note.strip()
+        await submission_controller.update_submission(submission_id, user.admin_id, **updates)
+        await delete_submission_file(submission.file_path)
+        return _submission(await submission_controller.get_submission(submission_id, user.admin_id))
+    except ValueError as error:
+        if new_path is not None:
+            await delete_submission_file(new_path)
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.delete("/me/submissions/{submission_id}")
+async def delete_my_submission(submission_id: str, user=Depends(require_student)):
+    try:
+        submission = await submission_controller.get_submission(submission_id, user.admin_id)
+        if submission.student_id != user.id:
+            raise HTTPException(status_code=403, detail="You can only delete your own submissions.")
+        await submission_controller.delete_submission(submission_id, user.admin_id)
+        await delete_submission_file(submission.file_path)
+        return {"message": "Submission deleted successfully."}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/me/grades")
+async def get_my_scores(user=Depends(require_student)):
+    submissions = await submission_controller.get_submissions_by_student(user.id, user.admin_id)
+    return [{"submission_id": item.id, "score": item.score, "exercise_id": item.exercise_id, "graded_at": item.graded_at} for item in submissions if item.score is not None]
+
+
+@router.get("/me/notifications")
+async def get_my_notifications(user=Depends(require_student)):
+    notifications = await notification_controller.get_student_notifications(user.id, user.admin_id)
+    return [{"student_notification_id": item.id, "notification_id": item.id, "title": item.notification_type, "message": item.message, "is_read": item.is_read, "created_at": item.created_at, "admin_id": item.admin_id, "sender_id": item.sender_id, "receiver_id": item.receiver_id, "receiver_role": item.receiver_role, "notification_type": item.notification_type, "reference_link": item.reference_link} for item in notifications]
+
 
 @router.get("/", response_model=list[StudentResponse])
-def get_all_student(_admin=Depends(get_current_admin)):
-    students = student_controller.get_all_students()
-    return [{
-        "student_id": student.student_id,
-            "full_name": student.full_name,
-            "email": student.email,
-            "phone_number": student.phone_number,
-            "level": student.level
-    }
-    for student in students]
+async def list_students(admin=Depends(get_current_admin)):
+    return [_student(item) for item in await student_controller.get_all_students(admin.id)]
 
-
-
-from models.student import Student
-from api.dependencies import student_controller
 
 @router.post("/", response_model=StudentResponse)
-def create_student(data: StudentCreate):
+async def create_student(data: StudentCreate, admin=Depends(get_current_admin)):
     try:
-        result = student_controller.create_student(
-            data.full_name,
-            data.email,
-            data.password,
-            data.phone_number,
-            data.level,
-            data.class_id
+        admin_data = AdminStudentCreate(
+            full_name=data.full_name,
+            email=data.email,
+            phone_number=data.phone_number,
+            level=data.level_academy,
+            age=data.age,
+            parent_id=data.parent_id,
+            class_id=data.class_id,
+            class_ids=data.class_ids,
         )
+        student = await admin_controller.create_student(admin_data, admin.id)
+        return _student(student)
     except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error))
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
-    if result is False:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not create student"
-        )
 
-    return {
-        "student_id": result.student_id,
-        "full_name": result.full_name,
-        "email": result.email,
-        "phone_number": result.phone_number,
-        "level": result.level,
-        "class_id": result.class_id
-    }
-
-from api.schemas.student_schema import StudentUpdate
-
-@router.put("/{student_id}")
-def update_student(
-    student_id: int,
-    data: StudentUpdate
-):
-    student = student_controller.get_student(student_id)
-
-    if student is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found"
-        )
-
-    updates = data.model_dump(exclude_none=True)
-
-    result = student_controller.update_student(
-        student_id,
-        **updates
-    )
-
-    return {
-        "message": result
-    }
-# delete methode 
-@router.delete("/{student_id}")
-def delete_student(student_id: int):
-
-    student = student_controller.get_student(student_id)
-
-    if student is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found"
-        )
-
-    result = student_controller.delete_student(student_id)
-
-    return {
-        "message": result
-    }
-
-@router.get("/search")
-def search_students(full_name: str):
-
-    students = student_controller.search_student(full_name)
-
-    return [
-        {
-            "student_id": student.student_id,
-            "full_name": student.full_name,
-            "email": student.email,
-            "phone_number": student.phone_number,
-            "level": student.level
-        }
-        for student in students
-    ]
+@router.get("/search", response_model=list[StudentResponse])
+async def search_students(full_name: str, admin=Depends(get_current_admin)):
+    return [_student(item) for item in await student_controller.search_student(full_name, admin.id)]
 
 
 @router.get("/count")
-def count_students():
+async def count_students(admin=Depends(get_current_admin)):
+    return {"count": await student_controller.count_students(admin.id)}
 
-    count = student_controller.count_students()
-
-    return {
-        "count": count
-    }
 
 @router.get("/{student_id}", response_model=StudentResponse)
-def get_student(student_id: int):
-    student = student_controller.get_student(student_id)
-    if student is None:
-        raise HTTPException(status_code=404,
-                            detail = "Student not found")
-    return {
-        "student_id": student.student_id,
-        "full_name": student.full_name,
-        "email": student.email,
-        "phone_number": student.phone_number,
-        "level": student.level
-    }
+async def get_student(student_id: str, admin=Depends(get_current_admin)):
+    try:
+        return _student(await student_controller.get_student(student_id, admin.id))
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
+
+@router.put("/{student_id}")
+async def update_student(student_id: str, data: StudentUpdate, admin=Depends(get_current_admin)):
+    try:
+        return {"message": await admin_controller.update_student(student_id, data.model_dump(exclude_none=True), admin.id)}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/{student_id}")
+async def delete_student(student_id: str, admin=Depends(get_current_admin)):
+    try:
+        return {"message": await student_controller.delete_student(student_id, admin.id)}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error

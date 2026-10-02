@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/abden/Projects/frentend/education-ai/components/admin/AdminWorkspace.tsx"],"sourcesContent":["\"use client\";\r\n\r\nimport { ConnectedApp } from \"../app/LegacyApp\";\r\n\r\nexport default function AdminWorkspace() {\r\n  return <ConnectedApp allowedRole=\"admin\" />;\r\n}"],"names":["AdminWorkspace","allowedRole"],"mappings":";;;;;AAEA;AAFA;;;AAIe,SAASA;IACtB,qBAAO,4SAAC,kJAAY;QAACC,aAAY;;;;;;AACnC;KAFwBD"}}]
+}

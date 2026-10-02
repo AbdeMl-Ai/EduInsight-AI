@@ -1,145 +1,218 @@
-'use client'
+'use client';
 
-import { FormEvent, useEffect, useState } from 'react'
-import Link from 'next/link'
-import { Eye, EyeOff } from 'lucide-react'
-
-import { api } from '../../lib/api'
-import { LANGUAGE_KEY, languages, type Language, translate } from '../../lib/i18n'
-
-function LandingLogo() {
-	return (
-		<svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-			<path d="M10 3L2 7.5l8 4.5 8-4.5L10 3z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-			<path d="M5 9.5V14c0 1.657 2.239 3 5 3s5-1.343 5-3V9.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-			<path d="M17.5 7.5v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-		</svg>
-	)
-}
+import { useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Apple, Eye, EyeOff, GraduationCap, LoaderCircle, LockKeyhole, Mail } from 'lucide-react';
+import axios from 'axios';
+import client from '@/lib/axios';
+import { api as sessionApi, type LoginResponse } from '@/lib/api';
+import ThemeToggle from '@/components/app/ThemeToggle';
 
 export default function LoginPage() {
-	const [isSetup, setIsSetup] = useState(false)
-	const [error, setError] = useState('')
-	const [message, setMessage] = useState('')
-	const [submitting, setSubmitting] = useState(false)
-	const [showPassword, setShowPassword] = useState(false)
-	const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-	const [language, setLanguage] = useState<Language>('en')
+	const router = useRouter();
+	const [email, setEmail] = useState('');
+	const [password, setPassword] = useState('');
+	const [showPassword, setShowPassword] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
+	const [error, setError] = useState('');
+	const [notice, setNotice] = useState('');
+	const [showAccountNotice, setShowAccountNotice] = useState(false);
 
-	useEffect(() => {
-		const storedLanguage = window.localStorage.getItem(LANGUAGE_KEY) as Language | null
-		if (storedLanguage === 'en' || storedLanguage === 'fr' || storedLanguage === 'ar') {
-			setLanguage(storedLanguage)
-			document.documentElement.lang = storedLanguage
-			document.documentElement.dir = storedLanguage === 'ar' ? 'rtl' : 'ltr'
+	function routeForRole(role: string) {
+		if (role === 'student') router.replace('/student/home');
+		else if (role === 'teacher' || role === 'admin') router.replace(`/${role}`);
+		else {
+			sessionApi.logout();
+			setError('This account does not have a supported dashboard role. Contact your administrator.');
 		}
-	}, [])
-
-	function changeLanguage(value: Language) {
-		setLanguage(value)
-		window.localStorage.setItem(LANGUAGE_KEY, value)
-		document.documentElement.lang = value
-		document.documentElement.dir = value === 'ar' ? 'rtl' : 'ltr'
-		window.dispatchEvent(new CustomEvent('eduinsight-language-change', { detail: value }))
 	}
 
-	const text = (key: string) => translate(language, key)
+	useEffect(() => {
+		const authFragment = new URLSearchParams(window.location.hash.slice(1));
+		const accessToken = authFragment.get('access_token');
+		const role = authFragment.get('role');
+		if (!accessToken || !role) return;
+
+		if (!['student', 'teacher', 'admin'].includes(role)) {
+			window.history.replaceState(null, '', window.location.pathname + window.location.search);
+			setError('This account does not have a supported dashboard role. Contact your administrator.');
+			return;
+		}
+
+		const session = {
+			access_token: accessToken,
+			token_type: authFragment.get('token_type') ?? 'bearer',
+			role: role as LoginResponse['role'],
+		} as LoginResponse;
+		sessionApi.saveSession(session);
+		window.history.replaceState(null, '', window.location.pathname + window.location.search);
+		routeForRole(role);
+	}, [router]);
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault()
-		setError('')
-		setMessage('')
-		setSubmitting(true)
-		const form = new FormData(event.currentTarget)
-
+		event.preventDefault();
+		setError('');
+		setNotice('');
+		setSubmitting(true);
 		try {
-			const identifier = String(form.get('identifier') ?? '')
-			const email = String(form.get('email') ?? '')
-			const phoneNumber = String(form.get('phone_number') ?? '')
-			const password = String(form.get('password') ?? '')
-			if (isSetup) {
-				const confirmPassword = String(form.get('confirmPassword') ?? '')
-				if (password !== confirmPassword) {
-					throw new Error('Passwords do not match.')
-				}
-				await api.setupAdmin({ name: String(form.get('name') ?? ''), email, phone_number: phoneNumber, password })
-				setIsSetup(false)
-				setShowPassword(false)
-				setShowConfirmPassword(false)
-				setMessage('Admin account created. Sign in to continue.')
-			} else {
-				const session = await api.login(identifier, password)
-				api.saveSession(session)
-				window.location.assign(`/${session.role}`)
+			const form = new URLSearchParams({ username: email.trim(), password });
+			const { data } = await client.post<LoginResponse>('/auth/login', form, {
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			});
+			if (!['student', 'teacher', 'admin'].includes(data.role)) {
+				setError('This account does not have a supported dashboard role. Contact your administrator.');
+				return;
 			}
-		} catch (submissionError) {
-			setError(submissionError instanceof Error ? submissionError.message : 'Unable to sign in.')
+			sessionApi.saveSession(data);
+			routeForRole(data.role);
+		} catch (requestError) {
+			if (axios.isAxiosError(requestError)) {
+				const detail = requestError.response?.data?.detail;
+				setError(typeof detail === 'string' ? detail : 'We could not sign you in. Check your details and try again.');
+			} else {
+				setError('We could not sign you in. Please try again.');
+			}
 		} finally {
-			setSubmitting(false)
+			setSubmitting(false);
 		}
+	}
+
+	function startGoogleSignIn() {
+		sessionApi.startGoogleSignIn();
 	}
 
 	return (
-		<main dir={language === 'ar' ? 'rtl' : 'ltr'} className="flex min-h-screen items-center justify-center bg-[#F5F8F2] p-4 font-sans sm:p-5">
-			<div className="w-full max-w-md rounded-2xl border border-[#E7D39A] border-t-4 border-t-[#D4A72C] bg-white p-6 shadow-[0_12px_35px_rgba(42,92,55,.12)] sm:p-8">
-				<div className="mb-5 flex items-center justify-end gap-2">
-					<label htmlFor="language" className="text-xs font-semibold text-[#64748B]">{text('language')}</label>
-					<select id="language" value={language} onChange={(event) => changeLanguage(event.target.value as Language)} className="rounded-lg border border-[#DDE8D6] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#334155] outline-none focus:border-[#D4A72C]">
-						{languages.map((item) => <option key={item.value} value={item.value}>{item.nativeLabel}</option>)}
-					</select>
-				</div>
-				<div className="mb-8 text-center">
-					<div className="flex items-center justify-center gap-3">
-						<div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#1769E0] text-white shadow-[0_5px_12px_rgba(23,105,224,.22)]"><LandingLogo /></div>
-						<h1 className="text-3xl font-bold tracking-tight text-[#0F172A]">EduInsight AI</h1>
+		<main className="login-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9] md:grid md:grid-cols-[1.05fr_0.95fr]">
+			<div className="fixed right-4 top-4 z-50 md:right-8 md:top-8"><ThemeToggle /></div>
+			<section className="login-hero relative isolate h-[190px] overflow-hidden md:sticky md:top-0 md:h-dvh">
+				<img
+					src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1800&q=85"
+					alt="Student studying at a desk"
+					className="absolute inset-0 size-full object-cover object-center"
+				/>
+				<div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/45 to-black/20 md:bg-gradient-to-r md:from-black/25 md:via-black/35 md:to-[#0a0a0a]" />
+				<div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 px-5 pb-5 md:inset-y-0 md:flex-col md:items-start md:justify-between md:px-12 md:py-12 lg:px-16">
+					<div className="flex items-center gap-3">
+						<span className="flex size-10 items-center justify-center rounded-lg border border-[#d2b778]/45 bg-black/35 text-[#e0c783] backdrop-blur-sm">
+							<GraduationCap size={21} strokeWidth={1.7} />
+						</span>
+						<span className="text-xs font-semibold tracking-[0.16em] text-white">EDUINSIGHT AI</span>
 					</div>
-					<p className="mt-3 text-lg text-[#64748B]">AI-Powered Learning Platform</p>
+					<p className="hidden max-w-md text-3xl font-medium leading-tight text-white md:block lg:text-4xl">
+						Make room for the work that moves you forward.
+					</p>
+					<p className="hidden text-[10px] font-medium tracking-[0.2em] text-white/45 md:block">LEARN WITH INTENTION</p>
 				</div>
-				<div className="mb-7">
-					<h2 className="text-2xl font-bold text-[#0F172A]">{isSetup ? 'Initial Admin Setup' : text('welcomeBack')}</h2>
-					<p className="mt-3 text-lg text-[#475569]">{isSetup ? 'Initialize the primary system administrator account' : text('signInAccount')}</p>
+			</section>
+
+			<section className="login-panel mx-auto flex w-full max-w-[520px] flex-col justify-center px-5 pb-9 pt-4 sm:px-10 md:min-h-dvh md:px-12 lg:px-16">
+				<div className="mb-7 md:mb-9">
+					<p className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-[#c6a96b]">STUDENT ACCESS</p>
+					<h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Welcome back</h1>
+					<p className="mt-2 text-sm text-white/50">Sign in to continue your learning journey.</p>
 				</div>
-				<form onSubmit={handleSubmit} className="space-y-5">
-					{isSetup && <label className="block text-sm font-semibold text-[#0F172A]">
-						Full Name
-						<input name="name" type="text" required className="mt-2 w-full rounded-xl border border-[#DDE8D6] bg-white px-4 py-3.5 text-base outline-none focus:border-[#D4A72C] focus:ring-2 focus:ring-[#F4E6B9]" />
-					</label>}
-					{isSetup && <label className="block text-sm font-semibold text-[#0F172A]">
-						Phone Number
-						<input name="phone_number" type="tel" required inputMode="numeric" className="mt-2 w-full rounded-xl border border-[#DDE8D6] bg-white px-4 py-3.5 text-base outline-none focus:border-[#D4A72C] focus:ring-2 focus:ring-[#F4E6B9]" />
-					</label>}
-					<label className="block text-sm font-semibold text-[#0F172A]">
-						{isSetup ? 'Email Address' : 'Email or Phone Number'}
-						<input name={isSetup ? 'email' : 'identifier'} type={isSetup ? 'email' : 'text'} required className="mt-2 w-full rounded-xl border border-[#DDE8D6] bg-white px-4 py-3.5 text-base outline-none focus:border-[#D4A72C] focus:ring-2 focus:ring-[#F4E6B9]" />
+
+				<form onSubmit={handleSubmit} className="space-y-4">
+					<label className="block">
+						<span className="mb-2 block text-xs font-medium text-white/70">Email</span>
+						<span className="flex h-12 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3.5 transition-colors focus-within:border-[#c6a96b]/70">
+							<Mail size={17} className="shrink-0 text-white/40" />
+							<input
+								type="email"
+								name="email"
+								autoComplete="username"
+								inputMode="email"
+								required
+								value={email}
+								onChange={(event) => setEmail(event.target.value)}
+								placeholder="you@example.com"
+								className="h-full min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/25"
+							/>
+						</span>
 					</label>
-					<label className="block text-sm font-semibold text-[#0F172A]">
-						{text('password')}
-						<div className="relative mt-2"><input name="password" type={showPassword ? 'text' : 'password'} required className="w-full rounded-xl border border-[#DDE8D6] bg-white px-4 py-3.5 pr-12 text-base outline-none focus:border-[#D4A72C] focus:ring-2 focus:ring-[#F4E6B9]" /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(value => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5D7A62]">{showPassword ? <EyeOff size={19} /> : <Eye size={19} />}</button></div>
+
+					<label className="block">
+						<span className="mb-2 block text-xs font-medium text-white/70">Password</span>
+						<span className="flex h-12 items-center gap-3 rounded-lg border border-white/10 bg-white/[0.035] px-3.5 transition-colors focus-within:border-[#c6a96b]/70">
+							<LockKeyhole size={17} className="shrink-0 text-white/40" />
+							<input
+								type={showPassword ? 'text' : 'password'}
+								name="password"
+								autoComplete="current-password"
+								required
+								value={password}
+								onChange={(event) => setPassword(event.target.value)}
+								placeholder="Enter your password"
+								className="h-full min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/25"
+							/>
+							<button
+								type="button"
+								onClick={() => setShowPassword((visible) => !visible)}
+								aria-label={showPassword ? 'Hide password' : 'Show password'}
+								className="flex size-9 shrink-0 items-center justify-center rounded-md text-white/45 hover:bg-white/5 hover:text-white"
+							>
+								{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+							</button>
+						</span>
 					</label>
-					{isSetup && <label className="block text-sm font-semibold text-[#0F172A]">
-						Confirm Password
-						<div className="relative mt-2"><input name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} required className="w-full rounded-xl border border-[#DDE8D6] bg-white px-4 py-3.5 pr-12 text-base outline-none focus:border-[#D4A72C] focus:ring-2 focus:ring-[#F4E6B9]" /><button type="button" aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'} onClick={() => setShowConfirmPassword(value => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5D7A62]">{showConfirmPassword ? <EyeOff size={19} /> : <Eye size={19} />}</button></div>
-					</label>}
-					{!isSetup && <div className="flex items-center justify-between text-sm">
-						<label className="flex items-center gap-2 text-[#475569]"><input name="rememberMe" type="checkbox" className="h-4 w-4 accent-[#1769E0]" />Remember me</label>
-						<span className="font-semibold text-[#A87912]">Forgot password?</span>
-					</div>}
-					{error && <p className="text-sm font-semibold text-red-600">{error}</p>}
-					{message && <p className="text-sm font-semibold text-green-700">{message}</p>}
-					<button disabled={submitting} className="w-full rounded-xl bg-[#1769E0] px-4 py-3.5 text-base font-bold text-white shadow-[0_5px_12px_rgba(23,105,224,.2)] hover:bg-[#1257BD] disabled:cursor-not-allowed disabled:opacity-60">
-						{submitting ? (isSetup ? 'Registering...' : 'Signing in...') : (isSetup ? 'Register Admin' : text('signIn'))}
+
+					{error && <p role="alert" className="rounded-md border border-rose-300/20 bg-rose-300/[0.05] px-3 py-2.5 text-xs leading-5 text-rose-200">{error}</p>}
+
+					<button
+						type="submit"
+						disabled={submitting}
+						className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] px-4 text-sm font-semibold text-[#17130b] transition-colors hover:bg-[#d8bd83] disabled:cursor-wait disabled:opacity-65"
+					>
+						{submitting && <LoaderCircle size={17} className="animate-spin" />}
+						{submitting ? 'Signing in' : 'Log In'}
 					</button>
 				</form>
-				<div className="my-7 border-t border-[#E7D39A]" />
-				{isSetup ? <button type="button" onClick={() => { setIsSetup(false); setError(''); setMessage(''); setShowPassword(false); setShowConfirmPassword(false) }} className="block w-full text-center text-sm font-semibold text-[#A87912] hover:underline">
-					Back to Sign In
-				</button> : <Link href="/setup" className="block w-full text-center text-sm font-semibold text-[#A87912] hover:underline">
-					Create the First Admin Account
-				</Link>}
-				<p className="mt-3 text-center text-xs leading-5 text-[#64748B]">
-					This creates the first administrator only. Students and teachers must be added by the administrator.
-				</p>
-			</div>
+
+				<div className="my-5 flex items-center gap-3" aria-hidden="true">
+					<span className="h-px flex-1 bg-white/10" />
+					<span className="text-[10px] font-medium tracking-[0.15em] text-white/35">OR</span>
+					<span className="h-px flex-1 bg-white/10" />
+				</div>
+
+				<div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+					<button
+						type="button"
+						onClick={startGoogleSignIn}
+						className="flex h-11 items-center justify-center gap-2.5 rounded-lg border border-white/12 bg-white/[0.025] px-3 text-xs font-medium text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.05]"
+					>
+						<span aria-hidden="true" className="font-semibold text-sm text-[#dfc27e]">G</span>
+						Continue with Google
+					</button>
+					<button
+						type="button"
+						onClick={() => setNotice('Apple sign-in is not enabled for this service yet.')}
+						className="flex h-11 items-center justify-center gap-2.5 rounded-lg border border-white/12 bg-white/[0.025] px-3 text-xs font-medium text-white/85 transition-colors hover:border-white/25 hover:bg-white/[0.05]"
+					>
+						<Apple size={16} />
+						Continue with Apple
+					</button>
+				</div>
+				{notice && <p role="status" className="mt-3 text-center text-xs text-white/55">{notice}</p>}
+
+				<div className="mt-7 text-center">
+					<span className="text-xs text-white/45">Don't have an account? </span>
+					<button
+						type="button"
+						onClick={() => setShowAccountNotice((shown) => !shown)}
+						className="text-xs font-semibold text-[#dfc27e] underline decoration-[#dfc27e]/35 underline-offset-4 hover:text-[#f0d89d]"
+					>
+						Create Account
+					</button>
+					<AnimatePresence>
+						{showAccountNotice && (
+							<motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mx-auto mt-3 max-w-sm overflow-hidden text-xs leading-5 text-white/45">
+								Student accounts are created by your school administrator. Please contact them to get access.
+							</motion.p>
+						)}
+					</AnimatePresence>
+				</div>
+			</section>
 		</main>
-	)
+	);
 }

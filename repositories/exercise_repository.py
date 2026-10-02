@@ -1,185 +1,108 @@
-from models.course import Course
-from models.exercise import Exercise
-from models.teacher import Teacher
+from bson import ObjectId
+
+from models.domain_models import Exercise
 
 
 class ExerciseRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["exercises"]
 
-    def _from_row(self, row):
-        teacher = Teacher(row[7], row[8], row[9], row[10], row[11])
-        course = Course(row[2], row[3], teacher, row[5], row[6])
-        return Exercise(row[0], row[1], course, row[4])
+    @staticmethod
+    def _id(value):
+        if not ObjectId.is_valid(value):
+            raise ValueError("exercise/reference ID must be a valid ObjectId")
+        return str(ObjectId(value))
 
-    def _select(self, where="", params=(), organization_id=None):
-        tenant_clause = ""
-        tenant_params = ()
-        if organization_id is not None:
-            tenant_clause = (
-                " AND exercises.organization_id = ?"
-                " AND courses.organization_id = ?"
-                " AND teachers.organization_id = ?"
-                if where
-                else " WHERE exercises.organization_id = ?"
-                " AND courses.organization_id = ?"
-                " AND teachers.organization_id = ?"
-            )
-            tenant_params = (organization_id, organization_id, organization_id)
-        query = """
-            SELECT exercises.exercise_id, exercises.exercise_name,
-                   courses.course_id, courses.course_name, exercises.max_score,
-                   courses.semester, courses.level,
-                   teachers.teacher_id, teachers.full_name, teachers.email,
-                   teachers.password, teachers.phone_number
-            FROM exercises
-            JOIN courses ON exercises.course_id = courses.course_id
-            JOIN teachers ON courses.teacher_id = teachers.teacher_id
-        """ + where + tenant_clause
-        self.db.cursor.execute(query, params + tenant_params)
-        return [self._from_row(row) for row in self.db.cursor.fetchall()]
+    @staticmethod
+    def _tenant(admin_id):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
 
-    def add_exercise(self, exercise):
-        organization_id = getattr(exercise.course, "organization_id", None)
-        self.db.cursor.execute(
-            "INSERT INTO exercises (exercise_name, course_id, max_score, organization_id) VALUES (?, ?, ?, ?)",
-            (exercise.exercise_name, exercise.course.course_id, exercise.max_score, organization_id),
-        )
-        self.db.connection.commit()
-        exercise.exercise_id = self.db.cursor.lastrowid
+    async def add_exercise(self, exercise: Exercise, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        payload = exercise.model_dump(exclude={"id"})
+        payload["admin_id"] = admin_id
+        for field in ("teacher_id", "class_id", "course_id"):
+            payload[field] = self._id(payload[field])
+        result = await self.collection.insert_one(payload)
+        return Exercise.model_validate({"_id": result.inserted_id, **payload})
 
-    def get_exercise(self, exercise_id, organization_id=None):
-        exercises = self._select(" WHERE exercises.exercise_id = ?", (exercise_id,), organization_id)
-        return exercises[0] if exercises else None
+    async def add_graded_work(self, exercise: Exercise, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        payload = exercise.model_dump(exclude={"id"})
+        payload["admin_id"] = admin_id
+        for field in ("teacher_id", "class_id", "course_id"):
+            payload[field] = self._id(payload[field])
+        result = await self.collection.insert_one(payload)
+        return Exercise.model_validate({"_id": result.inserted_id, **payload})
 
-    def get_all_exercises(self, organization_id=None):
-        return self._select(organization_id=organization_id)
+    async def get_exercise(self, exercise_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        doc = await self.collection.find_one({"_id": ObjectId(self._id(exercise_id)), "admin_id": admin_id})
+        return Exercise.model_validate(doc) if doc else None
 
-    def update_exercise(self, exercise_id, organization_id=None, **kwargs):
-        updates = []
-        values = []
-        if "exercise_name" in kwargs:
-            updates.append("exercise_name = ?")
-            values.append(kwargs["exercise_name"])
-        if "course" in kwargs:
-            updates.append("course_id = ?")
-            values.append(kwargs["course"].course_id)
-        if "max_score" in kwargs:
-            updates.append("max_score = ?")
-            values.append(kwargs["max_score"])
-        if updates:
-            values.append(exercise_id)
-            if organization_id is not None:
-                values.append(organization_id)
-            self.db.cursor.execute(
-                f"UPDATE exercises SET {', '.join(updates)} WHERE exercise_id = ?" +
-                (" AND organization_id = ?" if organization_id is not None else ""),
-                values,
-            )
-            self.db.connection.commit()
-        return True
+    async def get_all_exercises(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id}).sort("created_at", -1)
+        return [Exercise.model_validate(doc) async for doc in cursor]
 
-    def delete_exercise(self, exercise_id, organization_id=None):
-        if self.get_exercise(exercise_id, organization_id) is None:
+    async def update_exercise(self, exercise_id: str, admin_id: str, **updates):
+        admin_id = self._tenant(admin_id)
+        allowed = {"teacher_id", "class_id", "course_id", "course_title", "file_path", "max_score"}
+        updates = {k: self._id(v) if k in {"teacher_id", "class_id", "course_id"} else v for k, v in updates.items() if k in allowed}
+        if not updates:
             return False
-        self.db.cursor.execute(
-            "DELETE FROM exercises WHERE exercise_id = ?" +
-            (" AND organization_id = ?" if organization_id is not None else ""),
-            (exercise_id, organization_id) if organization_id is not None else (exercise_id,),
-        )
-        self.db.connection.commit()
-        return True
+        result = await self.collection.update_one({"_id": ObjectId(self._id(exercise_id)), "admin_id": admin_id}, {"$set": updates})
+        return result.modified_count == 1
 
-    def search_exercise(self, query, organization_id=None):
-        return self._select(" WHERE exercises.exercise_name LIKE ?", (f"%{query}%",), organization_id)
+    async def delete_exercise(self, exercise_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        result = await self.collection.delete_one({"_id": ObjectId(self._id(exercise_id)), "admin_id": admin_id})
+        return result.deleted_count == 1
 
-    def count_exercises(self, organization_id=None):
-        self.db.cursor.execute(
-            "SELECT COUNT(*) FROM exercises" + (" WHERE organization_id = ?" if organization_id is not None else ""),
-            (organization_id,) if organization_id is not None else (),
-        )
-        return self.db.cursor.fetchone()[0]
+    async def search_exercise(self, query: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, "course_title": {"$regex": query, "$options": "i"}})
+        return [Exercise.model_validate(doc) async for doc in cursor]
 
-    def get_exercises_by_level(self, level, organization_id=None):
-        return self._select(" WHERE UPPER(TRIM(courses.level)) = ?", (level.strip().upper(),), organization_id)
+    async def count_exercises(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return await self.collection.count_documents({"admin_id": admin_id})
 
-    def get_exercises_by_level_for_student(self, level, student_id, organization_id=None):
-        """Fetch all exercises whose course level matches the student's level.
+    async def get_exercises_by_level(self, level: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, "course_title": {"$regex": level, "$options": "i"}})
+        return [Exercise.model_validate(doc) async for doc in cursor]
 
-        This is the fallback path used when a student has no class assignment yet;
-        we still want to show the exercises for their selected level and attach the
-        current grade/submission state when present.
-        """
-        query = """
-            SELECT exercises.exercise_id, exercises.exercise_name,
-                   courses.course_id, courses.course_name, exercises.max_score,
-                   courses.semester, courses.level,
-                   teachers.teacher_id, teachers.full_name, teachers.email,
-                   teachers.password, teachers.phone_number,
-                   grades.score,
-                   submissions.submission_id,
-                   submissions.status
-            FROM exercises
-            JOIN courses ON exercises.course_id = courses.course_id
-            JOIN teachers ON courses.teacher_id = teachers.teacher_id
-            LEFT JOIN grades
-                ON grades.exercise_id = exercises.exercise_id
-               AND grades.student_id = ?
-            LEFT JOIN submissions
-                ON submissions.exercise_id = exercises.exercise_id
-               AND submissions.student_id = ?
-                        WHERE UPPER(TRIM(courses.level)) = ?
-                            AND (? IS NULL OR exercises.organization_id = ?)
-                            AND (? IS NULL OR courses.organization_id = ?)
-                            AND (? IS NULL OR teachers.organization_id = ?)
-        """
-        self.db.cursor.execute(
-            query, (student_id, student_id, level.strip().upper(), organization_id, organization_id, organization_id, organization_id, organization_id, organization_id)
-        )
-        exercises = []
-        for row in self.db.cursor.fetchall():
-            exercise = self._from_row(row[:12])
-            exercise.score = row[12]
-            exercise.submission_id = row[13]
-            exercise.submission_status = row[14] if row[14] else "pending"
-            exercises.append(exercise)
+    async def _student_exercises(self, query, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, **query}).sort("created_at", -1)
+        exercises = [Exercise.model_validate(doc) async for doc in cursor]
+        for exercise in exercises:
+            submission = await self.collection.database["submissions"].find_one({"admin_id": admin_id, "student_id": student_id, "exercise_id": exercise.id})
+            exercise.score = submission.get("score") if submission else None
+            exercise.submission_status = submission.get("submission_status", "pending") if submission else "pending"
         return exercises
 
-    def get_exercises_by_class_id_for_student(self, class_id, student_id, organization_id=None):
-        query = """
-            SELECT exercises.exercise_id, exercises.exercise_name,
-                   courses.course_id, courses.course_name, exercises.max_score,
-                   courses.semester, courses.level,
-                   teachers.teacher_id, teachers.full_name, teachers.email,
-                   teachers.password, teachers.phone_number,
-                   grades.score,
-                   submissions.submission_id,
-                   submissions.status
-            FROM exercises
-            JOIN courses ON exercises.course_id = courses.course_id
-            JOIN classes
-                ON UPPER(TRIM(courses.level)) = UPPER(TRIM(classes.name))
-            JOIN teachers ON courses.teacher_id = teachers.teacher_id
-            LEFT JOIN grades
-                ON grades.exercise_id = exercises.exercise_id
-               AND grades.student_id = ?
-            LEFT JOIN submissions
-                ON submissions.exercise_id = exercises.exercise_id
-               AND submissions.student_id = ?
-                        WHERE classes.id = ?
-                            AND (? IS NULL OR exercises.organization_id = classes.organization_id)
-                            AND (? IS NULL OR courses.organization_id = classes.organization_id)
-                            AND (? IS NULL OR classes.organization_id = ?)
-        """
-        self.db.cursor.execute(query, (student_id, student_id, class_id, organization_id, organization_id, organization_id, organization_id))
-        exercises = []
-        for row in self.db.cursor.fetchall():
-            exercise = self._from_row(row[:12])
-            exercise.score = row[12]
-            exercise.submission_id = row[13]
-            exercise.submission_status = row[14] if row[14] else "pending"
-            exercises.append(exercise)
-        return exercises
+    async def get_exercises_by_level_for_student(self, level: str, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        classes = self.collection.database["classes"].find({"admin_id": admin_id, "class_level": {"$regex": f"^{level.strip()}$", "$options": "i"}}, {"_id": 1})
+        class_ids = [str(doc["_id"]) async for doc in classes]
+        if not class_ids:
+            return []
+        return await self._student_exercises({"class_id": {"$in": class_ids}}, student_id, admin_id)
 
-    def get_exercises_by_teacher(self, teacher_id, organization_id=None):
-        return self._select(" WHERE courses.teacher_id = ?", (teacher_id,), organization_id)
+    async def get_exercises_by_class_id_for_student(self, class_id: str, student_id: str, admin_id: str):
+        return await self._student_exercises({"class_id": self._id(class_id)}, student_id, admin_id)
+
+    async def get_exercises_by_class_ids_for_student(self, class_ids: list[str], student_id: str, admin_id: str):
+        values = list(dict.fromkeys(self._id(class_id) for class_id in class_ids))
+        if not values:
+            return []
+        return await self._student_exercises({"class_id": {"$in": values}}, student_id, admin_id)
+
+    async def get_exercises_by_teacher(self, teacher_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, "teacher_id": self._id(teacher_id)}).sort("created_at", -1)
+        return [Exercise.model_validate(doc) async for doc in cursor]

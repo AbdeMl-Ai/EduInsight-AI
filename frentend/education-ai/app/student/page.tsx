@@ -1,5 +1,5 @@
-import StudentWorkspace from "../../components/student/StudentWorkspace";
+import { redirect } from 'next/navigation';
 
 export default function StudentPage() {
-	return <StudentWorkspace />;
+  redirect('/student/home');
 }

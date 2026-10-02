@@ -1,96 +1,53 @@
-import sqlite3
+from bson import ObjectId
 
-from models.admin import Admin
+from models.domain_models import Admin
 
 
 class AdminRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["admins"]
 
-    def create_organization(self, name=None):
-        org_name = (name or "Default Organization").strip() or "Default Organization"
-        self.db.cursor.execute(
-            "INSERT INTO organizations (name) VALUES (?)",
-            (org_name,),
-        )
-        self.db.connection.commit()
-        return self.db.cursor.lastrowid
+    @staticmethod
+    def _id(value):
+        if not ObjectId.is_valid(value):
+            raise ValueError("admin_id must be a valid MongoDB ObjectId")
+        return ObjectId(value)
 
-    def add_admin(self, admin):
-        if self.db.cursor.execute(
-            "SELECT 1 FROM admins WHERE email = ? OR phone_number = ? LIMIT 1",
-            (admin.email, admin.phone_number),
-        ).fetchone():
+    async def add_admin(self, admin: Admin):
+        payload = admin.model_dump(exclude={"id"})
+        duplicate_terms = [{"email": payload["email"]}]
+        if payload.get("phone_number"):
+            duplicate_terms.append({"phone_number": payload["phone_number"]})
+        if await self.collection.find_one({"$or": duplicate_terms}):
             raise ValueError("An admin with this email or phone number already exists.")
-        columns = {row[1] for row in self.db.cursor.execute("PRAGMA table_info(admins)")}
-        next_id = self.db.cursor.execute(
-            "SELECT COALESCE(MAX(id), 0) + 1 FROM admins"
-        ).fetchone()[0]
-        organization_id = getattr(admin, "organization_id", None)
-        if organization_id is None:
-            organization_id = self.create_organization(f"{admin.full_name.strip()} Organization")
-        try:
-            if "password" in columns:
-                self.db.cursor.execute(
-                    """INSERT INTO admins
-                   (id, full_name, email, phone_number, password, password_hash, created_at, organization_id)
-                   VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)""",
-                    (next_id, admin.full_name, admin.email, admin.phone_number, admin.password, admin.password, organization_id),
-                )
-            else:
-                self.db.cursor.execute(
-                    "INSERT INTO admins (id, full_name, email, phone_number, password_hash, organization_id) VALUES (?, ?, ?, ?, ?, ?)",
-                    (next_id, admin.full_name, admin.email, admin.phone_number, admin.password, organization_id),
-                )
-        except sqlite3.IntegrityError as error:
-            raise ValueError("An admin with this email or phone number already exists.") from error
-        self.db.connection.commit()
-        admin.admin_id = next_id
-        admin.id = admin.admin_id
-        admin.organization_id = organization_id
+        result = await self.collection.insert_one(payload)
+        return Admin.model_validate({"_id": result.inserted_id, **payload})
 
-    def get_admin(self, admin_id):
-        self.db.cursor.execute(
-            "SELECT id, full_name, email, password_hash, created_at, organization_id, phone_number FROM admins WHERE id = ?",
-            (admin_id,),
-        )
-        row = self.db.cursor.fetchone()
-        return Admin(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) if row else None
+    async def get_admin(self, admin_id: str):
+        doc = await self.collection.find_one({"_id": self._id(admin_id)})
+        return Admin.model_validate(doc) if doc else None
 
-    def get_admin_by_email(self, email):
-        self.db.cursor.execute(
-            "SELECT id, full_name, email, password_hash, created_at, organization_id, phone_number FROM admins WHERE email = ?",
-            (email,),
-        )
-        row = self.db.cursor.fetchone()
-        return Admin(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) if row else None
+    async def get_admin_by_email(self, email: str):
+        doc = await self.collection.find_one({"email": email})
+        return Admin.model_validate(doc) if doc else None
 
-    def get_admin_by_phone(self, phone_number):
-        self.db.cursor.execute(
-            "SELECT id, full_name, email, password_hash, created_at, organization_id, phone_number FROM admins WHERE phone_number = ?",
-            (phone_number,),
-        )
-        row = self.db.cursor.fetchone()
-        return Admin(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) if row else None
+    async def get_admin_by_phone(self, phone_number: str):
+        doc = await self.collection.find_one({"phone_number": phone_number})
+        return Admin.model_validate(doc) if doc else None
 
-    def has_admins(self):
-        return self.db.cursor.execute("SELECT 1 FROM admins LIMIT 1").fetchone() is not None
+    async def has_admins(self):
+        return await self.collection.count_documents({}) > 0
 
-    def get_all_admins(self):
-        self.db.cursor.execute(
-            "SELECT id, full_name, email, password_hash, created_at, organization_id, phone_number FROM admins"
-        )
-        return [Admin(row[0], row[1], row[2], row[3], row[4], row[5], row[6]) for row in self.db.cursor.fetchall()]
+    async def get_all_admins(self):
+        return [Admin.model_validate(doc) async for doc in self.collection.find({})]
 
-    def update_admin(self, admin_id, **updates):
-        fields = [field for field in ("full_name", "email", "password_hash") if field in updates]
-        if "password" in updates:
-            updates["password_hash"] = updates.pop("password")
-            fields = [field for field in ("full_name", "email", "password_hash") if field in updates]
-        if fields:
-            values = [updates[field] for field in fields] + [admin_id]
-            self.db.cursor.execute(
-                f"UPDATE admins SET {', '.join(f'{field} = ?' for field in fields)} WHERE id = ?",
-                values,
-            )
-            self.db.connection.commit()
+    async def update_admin(self, admin_id: str, **updates):
+        allowed = {"full_name", "username", "email", "phone_number", "role"}
+        updates = {key: value for key, value in updates.items() if key in allowed}
+        if not updates:
+            return False
+        result = await self.collection.update_one({"_id": self._id(admin_id)}, {"$set": updates})
+        return result.matched_count == 1
+
+    async def create_organization(self, name=None):
+        raise NotImplementedError("Organizations are not part of the v2 MongoDB schema.")

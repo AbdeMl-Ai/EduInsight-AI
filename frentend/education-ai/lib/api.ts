@@ -9,7 +9,7 @@ export const getFileUrl = (filePath: string) =>
   typeof window === "undefined" ? `${DIRECT_URL}${filePath}` : `/api-proxy${filePath}`;
 
 
-export type Role = "admin" | "teacher" | "student";
+export type Role = "admin" | "teacher" | "student" | "user";
 
 export type ApiStudent = {
   student_id: number;
@@ -114,9 +114,13 @@ export type StudentReportData = {
   email: string;
   class_info?: { class_id: number; name: string; academic_year: string } | null;
   exercises_and_exams: Array<{
-    exercise_id: number;
+    exercise_id: string;
     exercise_name: string;
+    subject: string;
+    class_id: string;
     score: number | null;
+    max_score: number;
+    created_at: string | null;
   }>;
 };
 
@@ -128,10 +132,20 @@ export type LoginResponse = {
 
 const TOKEN_KEY = "eduinsight_access_token";
 const ROLE_KEY = "eduinsight_role";
+const AUTH_COOKIE = "eduinsight_access_token";
+
+function setAuthCookie(token: string) {
+  document.cookie = `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=3600; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+}
+
+function clearAuthCookie() {
+  document.cookie = `${AUTH_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
 
 function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
+  clearAuthCookie();
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -157,7 +171,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       window.location.assign("/login");
     }
     throw new Error(
-      "We could not verify your account. Please check your email or phone number and password, then try again.",
+      "We could not verify your sign-in session. Please sign in with Google again.",
     );
   }
 
@@ -173,25 +187,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login: async (identifier: string, password: string) => {
-    try {
-      return await request<LoginResponse>("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ identifier, password }),
-      });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message === "Invalid email/phone number or password"
-      ) {
-        throw new Error(
-          "Invalid email or password. Create the admin environment first, then create teacher accounts from the admin workspace.",
-        );
-      }
-      throw error;
-    }
+  startGoogleSignIn: () => {
+    window.location.assign(`${DIRECT_URL}/auth/google/login`);
   },
-  setupAdmin: (data: { name: string; email: string; phone_number: string; password: string }) =>
+  setupAdmin: (data: { name: string; email: string; phone_number: string }) =>
     request<{ message: string; admin_id: number; email: string; phone_number: string }>(
       "/admin/setup",
       {
@@ -202,6 +201,7 @@ export const api = {
   saveSession: (session: LoginResponse) => {
     localStorage.setItem(TOKEN_KEY, session.access_token);
     localStorage.setItem(ROLE_KEY, session.role);
+    setAuthCookie(session.access_token);
   },
   getSession: () => ({
     token:
@@ -350,7 +350,6 @@ export const api = {
     data: Partial<{
       full_name: string;
       email: string;
-      password: string;
       phone_number: string;
       level: string;
     }>,
@@ -363,7 +362,6 @@ export const api = {
     data: Partial<{
       full_name: string;
       email: string;
-      password: string;
       phone_number: string;
     }>,
   ) =>
@@ -392,7 +390,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   updateAdminProfile: (
-    data: Partial<{ full_name: string; email: string; password: string }>,
+    data: Partial<{ full_name: string; email: string }>,
   ) =>
     request<{ admin_id: number; full_name: string; email: string }>(
       "/admin/me",
@@ -408,7 +406,6 @@ export const api = {
   createStudent: (data: {
     full_name: string;
     email: string;
-    password: string;
     phone_number: string;
     level: string;
     class_id?: number;
@@ -423,7 +420,6 @@ export const api = {
     data: Partial<{
       full_name: string;
       email: string;
-      password: string;
       phone_number: string;
       level: string;
       class_id: number;
@@ -441,7 +437,6 @@ export const api = {
   createTeacher: (data: {
     full_name: string;
     email: string;
-    password: string;
     phone_number: string;
     class_ids?: number[];
   }) =>
@@ -454,7 +449,6 @@ export const api = {
     data: Partial<{
       full_name: string;
       email: string;
-      password: string;
       phone_number: string;
       class_ids: number[];
     }>,

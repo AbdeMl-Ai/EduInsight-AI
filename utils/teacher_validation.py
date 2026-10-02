@@ -20,24 +20,15 @@ class TeacherValidator:
             raise ValueError("Email must contrain '@'ro '.'.")
         if email.count("@") != 1:
             raise ValueError("Invalid email address.")
-    @staticmethod
-    def validate_password(password):  
-        password = password.strip()  
-        if not password:
-            raise ValueError("password cannot be empty")
-        if len(password) < 8:
-            raise ValueError("invalid")
-        if not any(char.isalpha() for char in password):
-            raise ValueError("Pasword must contain at least one latter.")
-        if not any(char.isdigit() for char in password):
-            raise ValueError("Password must contain at least one number.")
     @staticmethod  
     def validate_phone_number(phone_number):
-        phone_number = phone_number.strip()    
+        phone_number = phone_number.strip()
         if not phone_number:
             raise ValueError("Phone number cannot be empty")
-        if not phone_number.isdigit() :
-             raise ValueError("Phone number not correct.")
-        if len(phone_number)!=10:
-             raise ValueError("Phone number not correct size.")
+        if phone_number.startswith("+"):
+            digits = phone_number[1:]
+            if not digits.isdigit() or not 8 <= len(digits) <= 15:
+                raise ValueError("Phone number must use a valid international format.")
+        elif not phone_number.isdigit() or len(phone_number) != 10:
+            raise ValueError("Phone number not correct size.")
 

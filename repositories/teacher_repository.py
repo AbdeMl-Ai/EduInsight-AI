@@ -1,182 +1,110 @@
-import sqlite3
+from bson import ObjectId
 
-from models.teacher import Teacher
-from models.class_group import ClassGroup
+from models.domain_models import Teacher
+
 
 class TeacherRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["teachers"]
+        self.classes = db["classes"]
 
-    def _organization_for_admin(self, admin_id):
-        if admin_id is None:
+    @staticmethod
+    def _id(value):
+        if not ObjectId.is_valid(value):
+            raise ValueError("teacher/reference ID must be a valid ObjectId")
+        return str(ObjectId(value))
+
+    @staticmethod
+    def _tenant(admin_id):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
+
+    async def add_teacher(self, teacher: Teacher, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        payload = teacher.model_dump(exclude={"id", "classes"})
+        payload["admin_id"] = admin_id
+        duplicate_terms = [{"email": payload["email"]}]
+        if payload.get("phone_number"):
+            duplicate_terms.append({"phone_number": payload["phone_number"]})
+        if await self.collection.find_one({"admin_id": admin_id, "$or": duplicate_terms}):
+            raise ValueError("A teacher with this email or phone number already exists.")
+        result = await self.collection.insert_one(payload)
+        return Teacher.model_validate({"_id": result.inserted_id, **payload})
+
+    async def _with_classes(self, teacher, admin_id):
+        if teacher is None:
             return None
-        row = self.db.cursor.execute(
-            "SELECT organization_id FROM admins WHERE id = ?",
-            (admin_id,),
-        ).fetchone()
-        return row[0] if row else None
-
-    def _classes_for_teacher(self, teacher_id, organization_id=None):
-        self.db.cursor.execute(
-            """SELECT c.id, c.name, c.academic_year
-               FROM classes c
-               JOIN teacher_classes tc ON tc.class_id = c.id
-               WHERE tc.teacher_id = ?""" + (" AND (tc.organization_id = ? OR ? IS NULL)" if organization_id is not None else ""),
-            (teacher_id, organization_id, organization_id) if organization_id is not None else (teacher_id,),
-        )
-        return [ClassGroup(*row) for row in self.db.cursor.fetchall()]
-
-    def _teacher_from_row(self, row, organization_id=None):
-        teacher = Teacher(row[0], row[1], row[2], row[3], row[4], organization_id=row[5] if len(row) > 5 else None)
-        teacher.classes = self._classes_for_teacher(teacher.teacher_id, organization_id)
+        teacher_ids = [teacher.id]
+        if ObjectId.is_valid(teacher.id):
+            teacher_ids.append(ObjectId(teacher.id))
+        admin_ids = [admin_id]
+        if ObjectId.is_valid(admin_id):
+            admin_ids.append(ObjectId(admin_id))
+        cursor = self.classes.find({"admin_id": {"$in": admin_ids}, "teacher_id": {"$in": teacher_ids}})
+        teacher.classes = [{"class_id": str(doc["_id"]), "name": doc.get("class_name", ""), "academic_year": doc.get("class_level", ""), "subject": doc.get("subject", "")} async for doc in cursor]
         return teacher
 
-    def add_teacher(self, teacher, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if self.db.cursor.execute(
-            """SELECT 1 FROM teachers
-               WHERE organization_id IS ? AND (
-                   email = ? OR (length(phone_number) = 10 AND phone_number = ?)
-               )
-               LIMIT 1""",
-            (organization_id, teacher.email, teacher.phone_number),
-        ).fetchone():
-            raise ValueError("A teacher with this email or phone number already exists.")
-        try:
-            self.db.cursor.execute(
-                """INSERT INTO teachers (full_name, email, password, phone_number, admin_id, organization_id)
-                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (teacher.full_name, teacher.email, teacher.password, teacher.phone_number, admin_id, organization_id),
-            )
-        except sqlite3.IntegrityError as error:
-            raise ValueError("A teacher with this email or phone number already exists.") from error
-        self.db.connection.commit()
-        teacher.teacher_id = self.db.cursor.lastrowid
-        teacher.organization_id = organization_id
-        teacher.classes = []
+    async def get_teacher(self, teacher_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        doc = await self.collection.find_one({"_id": ObjectId(self._id(teacher_id)), "admin_id": admin_id})
+        return await self._with_classes(Teacher.model_validate(doc) if doc else None, admin_id)
 
-    def get_teacher(self, teacher_id, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-                """SELECT teacher_id, full_name, email, password, phone_number, organization_id
-                    FROM teachers WHERE teacher_id = ?""" + (" AND (? IS NULL OR organization_id = ?)" if organization_id is not None else ""),
-                (teacher_id, organization_id, organization_id) if organization_id is not None else (teacher_id,),
-        )
-        row = self.db.cursor.fetchone()
-        return self._teacher_from_row(row, organization_id) if row else None
+    async def get_all_teachers(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        docs = [Teacher.model_validate(doc) async for doc in self.collection.find({"admin_id": admin_id}).sort("full_name", 1)]
+        for teacher in docs:
+            await self._with_classes(teacher, admin_id)
+        return docs
 
-    def get_all_teachers(self, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if organization_id is not None:
-            self.db.cursor.execute(
-                """SELECT teacher_id, full_name, email, password, phone_number, organization_id
-                   FROM teachers WHERE organization_id = ? ORDER BY full_name""", (organization_id,)
-            )
-        elif admin_id is not None:
-            self.db.cursor.execute(
-                """SELECT teacher_id, full_name, email, password, phone_number, organization_id
-                   FROM teachers WHERE admin_id = ? ORDER BY full_name""", (admin_id,)
-            )
-        else:
-            self.db.cursor.execute(
-                """SELECT teacher_id, full_name, email, password, phone_number, organization_id
-                   FROM teachers ORDER BY full_name"""
-            )
-        return [self._teacher_from_row(row, organization_id) for row in self.db.cursor.fetchall()]
+    async def get_all_teachers_for_admin(self, admin_id: str):
+        return await self.get_all_teachers(admin_id)
 
-    def get_all_teachers_for_admin(self, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-            """SELECT teacher_id, full_name, email, password, phone_number, organization_id
-               FROM teachers WHERE organization_id = ? ORDER BY full_name""",
-            (organization_id,),
-        )
-        return [self._teacher_from_row(row, organization_id) for row in self.db.cursor.fetchall()]
+    async def get_teacher_id_for_class(self, class_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        doc = await self.classes.find_one({"_id": ObjectId(self._id(class_id)), "admin_id": admin_id}, {"teacher_id": 1})
+        return doc.get("teacher_id") if doc else None
 
-    def get_teacher_id_for_class(self, class_id, organization_id=None):
-        if organization_id is not None:
-            self.db.cursor.execute(
-                "SELECT teacher_id FROM teacher_classes WHERE class_id = ? AND organization_id = ?",
-                (class_id, organization_id),
-            )
-        else:
-            self.db.cursor.execute(
-                "SELECT teacher_id FROM teacher_classes WHERE class_id = ?",
-                (class_id,),
-            )
-        row = self.db.cursor.fetchone()
-        return row[0] if row else None
-
-    def update_teacher(self, teacher_id, **kwargs):
-        fields = [field for field in ("full_name", "email", "password", "phone_number") if field in kwargs]
-        if fields:
-            values = [kwargs[field] for field in fields] + [teacher_id]
-            self.db.cursor.execute(
-                f"UPDATE teachers SET {', '.join(f'{field} = ?' for field in fields)} WHERE teacher_id = ?",
-                values,
-            )
-            self.db.connection.commit()
-        return True
-
-    def assign_teacher_to_classes(self, teacher_id, class_ids):
-        teacher_row = self.db.cursor.execute(
-            "SELECT organization_id FROM teachers WHERE teacher_id = ?",
-            (teacher_id,),
-        ).fetchone()
-        organization_id = teacher_row[0] if teacher_row else None
-        self.db.cursor.execute(
-            "DELETE FROM teacher_classes WHERE teacher_id = ?", (teacher_id,)
-        )
-        self.db.cursor.executemany(
-            """INSERT INTO teacher_classes
-               (teacher_id, class_id, organization_id)
-               VALUES (?, ?, ?)""",
-            [(teacher_id, class_id, organization_id) for class_id in class_ids],
-        )
-        self.db.connection.commit()
-
-    def delete_teacher(self, teacher_id):
-        if self.get_teacher(teacher_id) is None:
+    async def update_teacher(self, teacher_id: str, admin_id: str, **updates):
+        admin_id = self._tenant(admin_id)
+        allowed = {"full_name", "email", "phone_number", "age", "is_state_teacher", "specialties"}
+        updates = {k: v for k, v in updates.items() if k in allowed}
+        if not updates:
             return False
-        self.db.cursor.execute("DELETE FROM teachers WHERE teacher_id = ?", (teacher_id,))
-        self.db.connection.commit()
+        result = await self.collection.update_one({"_id": ObjectId(self._id(teacher_id)), "admin_id": admin_id}, {"$set": updates})
+        return result.matched_count == 1
+
+    async def assign_teacher_to_classes(self, teacher_id: str, class_ids: list[str], admin_id: str):
+        admin_id = self._tenant(admin_id)
+        teacher = await self.get_teacher(teacher_id, admin_id)
+        if teacher is None:
+            return False
+        ids = [ObjectId(self._id(value)) for value in class_ids]
+        await self.classes.update_many({"_id": {"$in": ids}, "admin_id": admin_id}, {"$set": {"teacher_id": teacher.id}})
         return True
 
-    def belongs_to_admin(self, teacher_id, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        return self.db.cursor.execute(
-            "SELECT 1 FROM teachers WHERE teacher_id = ? AND organization_id = ?",
-            (teacher_id, organization_id),
-        ).fetchone() is not None
+    async def delete_teacher(self, teacher_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        result = await self.collection.delete_one({"_id": ObjectId(self._id(teacher_id)), "admin_id": admin_id})
+        return result.deleted_count == 1
 
-    def search_teacher(self, full_name, admin_id=None):
-        organization_id = self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-                """SELECT teacher_id, full_name, email, password, phone_number
-                    FROM teachers WHERE full_name LIKE ?""" + (" AND organization_id = ?" if organization_id is not None else "") + " ORDER BY full_name",
-                (f"%{full_name}%", organization_id) if organization_id is not None else (f"%{full_name}%",),
-        )
-        return [self._teacher_from_row(row) for row in self.db.cursor.fetchall()]
+    async def belongs_to_admin(self, teacher_id: str, admin_id: str):
+        return await self.get_teacher(teacher_id, admin_id) is not None
 
-    def count_teacher(self, admin_id=None):
-        organization_id = self._organization_for_admin(admin_id)
-        self.db.cursor.execute("SELECT COUNT(*) FROM teachers" + (" WHERE organization_id = ?" if organization_id is not None else ""), (organization_id,) if organization_id is not None else ())
-        return self.db.cursor.fetchone()[0]
+    async def search_teacher(self, full_name: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        docs = [Teacher.model_validate(doc) async for doc in self.collection.find({"admin_id": admin_id, "full_name": {"$regex": full_name, "$options": "i"}}).sort("full_name", 1)]
+        for teacher in docs:
+            await self._with_classes(teacher, admin_id)
+        return docs
 
-    def get_teacher_by_email(self, email):
-        self.db.cursor.execute(
-            """SELECT teacher_id, full_name, email, password, phone_number
-               FROM teachers WHERE email = ?""",
-            (email,),
-        )
-        row = self.db.cursor.fetchone()
-        return self._teacher_from_row(row) if row else None
+    async def count_teacher(self, admin_id: str):
+        return await self.collection.count_documents({"admin_id": self._tenant(admin_id)})
 
-    def get_teacher_by_phone(self, phone_number):
-        self.db.cursor.execute(
-            """SELECT teacher_id, full_name, email, password, phone_number
-               FROM teachers WHERE phone_number = ?""",
-            (phone_number,),
-        )
-        row = self.db.cursor.fetchone()
-        return self._teacher_from_row(row) if row else None
+    async def get_teacher_by_email(self, email: str):
+        doc = await self.collection.find_one({"email": email})
+        return Teacher.model_validate(doc) if doc else None
+
+    async def get_teacher_by_phone(self, phone_number: str):
+        doc = await self.collection.find_one({"phone_number": phone_number})
+        return Teacher.model_validate(doc) if doc else None

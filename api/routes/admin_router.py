@@ -14,42 +14,60 @@ from api.schemas.admin_schemas import (
     AdminProfileResponse,
     AdminProfileUpdate,
     AdminSetupRequest,
+    AdminStudentPasswordReset,
+    AdminScheduleCreate,
+    AdminScheduleResponse,
     AdminTeacherCreate,
     AdminTeacherUpdate,
     TeacherClassAssignment,
     ClassCreate,
     ClassResponse,
     ClassUpdate,
+    PaymentSummary,
+    PaymentUpdate,
 )
 from api.schemas.notification_schema import AdminNotificationCreate
-from api.dependencies import notification_controller
+from api.dependencies import notification_controller, payment_service, schedule_controller, user_repo
+from models.domain_models import ClassDocument
+from passlib.context import CryptContext
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def student_response(student):
     return {
-        "student_id": student.student_id,
+        "student_id": student.id,
+        "admin_id": student.admin_id,
+        "parent_id": student.parent_id,
         "full_name": student.full_name,
+        "age": student.age,
+        "level_academy": student.level_academy,
+        "date_enjoined": student.date_enjoined,
         "email": student.email,
         "phone_number": student.phone_number,
         "level": student.level,
         "class_id": student.class_id,
-        "class_ids": getattr(student, "class_ids", [student.class_id] if student.class_id is not None else []),
+        "class_ids": student.class_ids,
     }
 
 
 def teacher_response(teacher):
     return {
-        "teacher_id": teacher.teacher_id,
+        "teacher_id": teacher.id,
+        "admin_id": teacher.admin_id,
         "full_name": teacher.full_name,
         "email": teacher.email,
         "phone_number": teacher.phone_number,
+        "age": teacher.age,
+        "is_state_teacher": teacher.is_state_teacher,
+        "specialties": teacher.specialties,
+        "date_enjoined": teacher.date_enjoined,
         "classes": [
             {
-                "class_id": class_group.class_id,
-                "name": class_group.name,
-                "academic_year": class_group.academic_year,
+                "class_id": class_group.get("class_id", ""),
+                "name": class_group.get("name", ""),
+                "academic_year": class_group.get("academic_year", ""),
             }
             for class_group in teacher.classes
         ],
@@ -58,59 +76,91 @@ def teacher_response(teacher):
 
 def class_response(class_group):
     return {
-        "class_id": class_group.class_id,
-        "name": class_group.name,
-        "academic_year": class_group.academic_year,
-        "organization_id": class_group.organization_id,
+        "id": class_group.id,
+        "admin_id": class_group.admin_id,
+        "teacher_id": class_group.teacher_id,
+        "class_name": class_group.class_name,
+        "subject": class_group.subject,
+        "class_level": class_group.class_level,
+        "center_rent_fee_per_student": class_group.center_rent_fee_per_student,
+        "teacher_teaching_fee_per_student": class_group.teacher_teaching_fee_per_student,
+        "student_monthly_fee": class_group.student_monthly_fee,
     }
 
 
 def notification_response(notification):
-    if notification.admin_sender is not None:
-        sender_name = notification.admin_sender.full_name
-        sender_role = "admin"
-    else:
-        sender_name = notification.sender.full_name
-        sender_role = "teacher"
     return {
-        "notification_id": notification.notification_id,
-        "title": notification.title,
+        "id": notification.id,
+        "admin_id": notification.admin_id,
+        "sender_id": notification.sender_id,
+        "receiver_id": notification.receiver_id,
+        "receiver_role": notification.receiver_role,
+        "notification_type": notification.notification_type,
         "message": notification.message,
-        "teacher_id": getattr(notification.sender, "teacher_id", 0),
-        "teacher_name": sender_name,
-        "sender_role": sender_role,
+        "reference_link": notification.reference_link,
+        "is_read": notification.is_read,
         "created_at": notification.created_at,
+        "notification_id": notification.id,
+        "title": notification.notification_type,
+        "teacher_id": notification.sender_id or "",
+        "teacher_name": "Admin" if notification.sender_id is None else "Teacher",
     }
 
 
 @router.post("/setup")
-def setup_admin(data: AdminSetupRequest):
+async def setup_admin(data: AdminSetupRequest):
     try:
-        admin = admin_controller.setup_admin(
+        admin = await admin_controller.setup_admin(
             data.name,
             data.email,
             data.phone_number,
-            data.password,
         )
-        return {
-            "message": "Admin account created successfully.",
-            "admin_id": admin.admin_id,
-            "email": admin.email,
-            "phone_number": admin.phone_number,
-        }
     except ValueError as error:
-        raise HTTPException(status_code=409, detail=str(error))
+        raise HTTPException(status_code=400, detail=str(error))
+    return {
+        "message": "Admin account ready.",
+        "admin_id": admin.admin_id,
+        "email": admin.email,
+        "phone_number": admin.phone_number,
+    }
+
+from api.schemas.admin_schemas import AdminUserCreate
+from passlib.context import CryptContext
+from api.dependencies import user_repo
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+@router.post("/users/create")
+async def create_user(data: AdminUserCreate, _admin=Depends(get_current_admin)):
+    if data.role not in ["student", "teacher", "parent"]:
+        raise HTTPException(status_code=400, detail="Invalid role. Must be student, teacher, or parent.")
+        
+    existing_user = await user_repo.get_by_email(data.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+        
+    hashed_password = pwd_context.hash(data.password)
+    
+    user = await user_repo.create(
+        email=data.email,
+        full_name=data.name,
+        role=data.role,
+        hashed_password=hashed_password,
+        admin_id=_admin.admin_id
+    )
+    
+    return {"message": "User created successfully", "user_id": str(user.id)}
 
 
 @router.get("/me", response_model=AdminProfileResponse)
-def get_my_profile(admin=Depends(get_current_admin)):
-    return admin_controller.get_profile(admin.admin_id)
+async def get_my_profile(admin=Depends(get_current_admin)):
+    return await admin_controller.get_profile(admin.admin_id)
 
 
 @router.put("/me", response_model=AdminProfileResponse)
-def update_my_profile(data: AdminProfileUpdate, admin=Depends(get_current_admin)):
+async def update_my_profile(data: AdminProfileUpdate, admin=Depends(get_current_admin)):
     try:
-        return admin_controller.update_profile(
+        return await admin_controller.update_profile(
             admin.admin_id,
             data.model_dump(exclude_none=True),
         )
@@ -119,211 +169,296 @@ def update_my_profile(data: AdminProfileUpdate, admin=Depends(get_current_admin)
 
 
 @router.post("/classes", response_model=ClassResponse)
-def create_class(data: ClassCreate, _admin=Depends(get_current_admin)):
+async def create_class(data: ClassCreate, _admin=Depends(get_current_admin)):
     try:
-        selected_teachers = [
-            teacher_controller.get_teacher(teacher_id, _admin.admin_id)
-            for teacher_id in data.teacher_ids
-        ]
-        for teacher in selected_teachers:
-            admin_controller.assert_teacher_access(teacher.teacher_id, _admin.admin_id)
-        created_class = admin_controller.create_class(data, _admin.admin_id)
-        for teacher in selected_teachers:
-            existing_class_ids = [
-                class_group.class_id for class_group in teacher.classes
-            ]
-            if created_class.class_id not in existing_class_ids:
-                existing_class_ids.append(created_class.class_id)
-            admin_controller.assign_teacher_to_classes(
-                teacher.teacher_id,
-                existing_class_ids,
-                _admin.admin_id,
-            )
+        created_class = await admin_controller.create_class(
+            ClassDocument(admin_id=_admin.admin_id, **data.model_dump()),
+            _admin.admin_id,
+        )
         return class_response(created_class)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/classes", response_model=list[ClassResponse])
-def list_classes(_admin=Depends(get_current_admin)):
-    return [class_response(item) for item in admin_controller.get_classes(_admin.admin_id)]
+async def list_classes(_admin=Depends(get_current_admin)):
+    return [class_response(item) for item in await admin_controller.get_classes(_admin.admin_id)]
+
+
+@router.get("/classes/{class_id}/students")
+async def list_class_students(class_id: str, _admin=Depends(get_current_admin)):
+    try:
+        await admin_controller.assert_class_access(class_id, _admin.admin_id)
+        students = await student_controller.get_students_by_class_ids([class_id], _admin.admin_id)
+        return [student_response(student) for student in students]
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get("/schedule", response_model=list[AdminScheduleResponse])
+async def list_schedule(_admin=Depends(get_current_admin)):
+    return await schedule_controller.list_sessions(_admin.admin_id)
+
+
+@router.post("/schedule", response_model=AdminScheduleResponse, status_code=201)
+async def create_schedule_session(
+    data: AdminScheduleCreate,
+    _admin=Depends(get_current_admin),
+):
+    try:
+        return await schedule_controller.create_session(data, _admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/schedule/{session_id}")
+async def delete_schedule_session(session_id: str, _admin=Depends(get_current_admin)):
+    try:
+        await schedule_controller.delete_session(session_id, _admin.admin_id)
+        return {"message": "Schedule session deleted."}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
 @router.get("/stats")
-def workspace_stats(_admin=Depends(get_current_admin)):
+async def workspace_stats(_admin=Depends(get_current_admin)):
     return {
-        "total_students": student_controller.count_students(_admin.admin_id),
-        "teaching_staff": teacher_controller.count_teachers(_admin.admin_id),
-        "active_classes": len(admin_controller.get_classes(_admin.admin_id)),
+        "total_students": await student_controller.count_students(_admin.admin_id),
+        "teaching_staff": await teacher_controller.count_teachers(_admin.admin_id),
+        "active_classes": len(await admin_controller.get_classes(_admin.admin_id)),
     }
 
 
 @router.put("/classes/{class_id}")
-def update_class(class_id: int, data: ClassUpdate, _admin=Depends(get_current_admin)):
+async def update_class(class_id: str, data: ClassUpdate, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_class_access(class_id, _admin.admin_id)
-        return {"message": admin_controller.admin_service.class_service.update_class(
-            class_id, _admin.admin_id, **data.model_dump(exclude_none=True)
+        await admin_controller.assert_class_access(class_id, _admin.admin_id)
+        return {"message": await admin_controller.admin_service.class_service.update_class(
+            class_id, _admin.admin_id, data.model_dump(exclude_none=True)
         )}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.delete("/classes/{class_id}")
-def delete_class(class_id: int, _admin=Depends(get_current_admin)):
+async def delete_class(class_id: str, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_class_access(class_id, _admin.admin_id)
-        return {"message": admin_controller.admin_service.class_service.delete_class(class_id, _admin.admin_id)}
+        await admin_controller.assert_class_access(class_id, _admin.admin_id)
+        return {"message": await admin_controller.admin_service.class_service.delete_class(class_id, _admin.admin_id)}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error))
 
 
 @router.post("/students")
-def create_student(data: AdminStudentCreate, _admin=Depends(get_current_admin)):
+async def create_student(data: AdminStudentCreate, _admin=Depends(get_current_admin)):
     try:
-        return student_response(admin_controller.create_student(data, _admin.admin_id))
+        return student_response(await admin_controller.create_student(data, _admin.id))
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/students")
-def list_students(_admin=Depends(get_current_admin)):
-    return [student_response(item) for item in admin_controller.get_students(_admin.admin_id)]
+async def list_students(_admin=Depends(get_current_admin)):
+    return [student_response(item) for item in await admin_controller.get_students(_admin.id)]
 
 
 @router.get("/students/search")
-def search_students(full_name: str, _admin=Depends(get_current_admin)):
-    return [student_response(item) for item in student_controller.search_student(full_name, _admin.admin_id)]
+async def search_students(full_name: str, _admin=Depends(get_current_admin)):
+    return [student_response(item) for item in await student_controller.search_student(full_name, _admin.id)]
 
 
 @router.put("/students/{student_id}")
-def update_student(student_id: int, data: AdminStudentUpdate, _admin=Depends(get_current_admin)):
+async def update_student(student_id: str, data: AdminStudentUpdate, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_student_access(student_id, _admin.admin_id)
-        return {"message": admin_controller.update_student(
-            student_id, data.model_dump(exclude_none=True), _admin.admin_id
-        )}
+        await admin_controller.assert_student_access(student_id, _admin.id)
+        student = await student_controller.get_student(student_id, _admin.id)
+        updates = data.model_dump(exclude_none=True)
+        message = await admin_controller.update_student(
+            student_id, data.model_dump(exclude_none=True), _admin.id
+        )
+        await user_repo.update_student_login_identity(
+            old_email=student.email,
+            email=updates.get("email", student.email),
+            full_name=updates.get("full_name", student.full_name),
+            admin_id=_admin.id,
+        )
+        return {"message": message}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.delete("/students/{student_id}")
-def delete_student(student_id: int, _admin=Depends(get_current_admin)):
+@router.put("/students/{student_id}/password")
+async def reset_student_password(
+    student_id: str,
+    data: AdminStudentPasswordReset,
+    _admin=Depends(get_current_admin),
+):
     try:
-        admin_controller.assert_student_access(student_id, _admin.admin_id)
-        admin_controller.assert_student_access(student_id, _admin.admin_id)
-        return {"message": student_controller.delete_student(student_id)}
+        await admin_controller.assert_student_access(student_id, _admin.id)
+        student = await student_controller.get_student(student_id, _admin.id)
+        await user_repo.set_student_password(
+            email=student.email,
+            full_name=student.full_name,
+            admin_id=_admin.id,
+            hashed_password=password_context.hash(data.password),
+        )
+        return {"message": "Student login password reset successfully."}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/students/{student_id}")
+async def delete_student(student_id: str, _admin=Depends(get_current_admin)):
+    try:
+        await admin_controller.assert_student_access(student_id, _admin.id)
+        return {"message": await student_controller.delete_student(student_id, _admin.id)}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error))
 
 
 @router.get("/students/{student_id}/report", response_model=AdminStudentReportResponse)
-def student_report(student_id: int, _admin=Depends(get_current_admin)):
+async def student_report(student_id: str, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_student_access(student_id, _admin.admin_id)
-        return admin_controller.get_student_report(student_id)
+        await admin_controller.assert_student_access(student_id, _admin.id)
+        return await admin_controller.get_student_report(student_id, _admin.id)
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error))
 
 
-@router.post("/students/{student_id}/class/{class_id}")
-def assign_student(student_id: int, class_id: int, _admin=Depends(get_current_admin)):
+@router.get("/payments/check-due")
+async def check_payment_due(_admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_student_access(student_id, _admin.admin_id)
-        admin_controller.assert_class_access(class_id, _admin.admin_id)
-        return {"message": admin_controller.assign_student_to_class(student_id, class_id, _admin.admin_id)}
+        return await payment_service.check_due(_admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/payments/{user_id}", response_model=PaymentSummary)
+async def get_payment_summary(user_id: str, user_role: str, _admin=Depends(get_current_admin)):
+    try:
+        if user_role not in {"student", "teacher"}:
+            raise ValueError("user_role must be student or teacher.")
+        return await payment_service.summary(user_id, user_role, _admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.put("/payments/{user_id}", response_model=PaymentSummary)
+async def update_payment_state(user_id: str, data: PaymentUpdate, _admin=Depends(get_current_admin)):
+    try:
+        return await payment_service.update(user_id, data.user_role, data.paid_months, _admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.post("/students/{student_id}/class/{class_id}")
+async def assign_student(student_id: str, class_id: str, _admin=Depends(get_current_admin)):
+    try:
+        await admin_controller.assert_student_access(student_id, _admin.id)
+        await admin_controller.assert_class_access(class_id, _admin.id)
+        return {"message": await admin_controller.assign_student_to_class(student_id, class_id, _admin.id)}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.post("/teachers")
-def create_teacher(data: AdminTeacherCreate, _admin=Depends(get_current_admin)):
+async def create_teacher(data: AdminTeacherCreate, _admin=Depends(get_current_admin)):
     try:
-        return teacher_response(admin_controller.create_teacher(data, _admin.admin_id))
+        return teacher_response(await admin_controller.create_teacher(data, _admin.id))
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/teachers")
-def list_teachers(_admin=Depends(get_current_admin)):
-    return [teacher_response(item) for item in admin_controller.get_teachers(_admin.admin_id)]
+async def list_teachers(_admin=Depends(get_current_admin)):
+    return [teacher_response(item) for item in await admin_controller.get_teachers(_admin.id)]
 
 
 @router.get("/teachers/search")
-def search_teachers(full_name: str, _admin=Depends(get_current_admin)):
-    return [teacher_response(item) for item in teacher_controller.search_teacher(full_name, _admin.admin_id)]
+async def search_teachers(full_name: str, _admin=Depends(get_current_admin)):
+    return [teacher_response(item) for item in await teacher_controller.search_teacher(full_name, _admin.id)]
 
 
 @router.put("/teachers/{teacher_id}")
-def update_teacher(teacher_id: int, data: AdminTeacherUpdate, _admin=Depends(get_current_admin)):
+async def update_teacher(teacher_id: str, data: AdminTeacherUpdate, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_teacher_access(teacher_id, _admin.admin_id)
-        return {"message": admin_controller.update_teacher(
-            teacher_id, data.model_dump(exclude_none=True), _admin.admin_id
+        await admin_controller.assert_teacher_access(teacher_id, _admin.id)
+        return {"message": await admin_controller.update_teacher(
+            teacher_id, data.model_dump(exclude_none=True), _admin.id
         )}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
-@router.delete("/teachers/{teacher_id}")
-def delete_teacher(teacher_id: int, _admin=Depends(get_current_admin)):
+@router.put("/teachers/{teacher_id}/password")
+async def reset_teacher_password(
+    teacher_id: str,
+    data: AdminStudentPasswordReset,
+    _admin=Depends(get_current_admin),
+):
     try:
-        admin_controller.assert_teacher_access(teacher_id, _admin.admin_id)
-        admin_controller.assert_teacher_access(teacher_id, _admin.admin_id)
-        return {"message": teacher_controller.delete_teacher(teacher_id)}
+        await admin_controller.assert_teacher_access(teacher_id, _admin.id)
+        teacher = await teacher_controller.get_teacher(teacher_id, _admin.id)
+        await user_repo.set_teacher_password(
+            email=teacher.email,
+            full_name=teacher.full_name,
+            admin_id=_admin.id,
+            hashed_password=password_context.hash(data.password),
+        )
+        return {"message": "Teacher login password reset successfully."}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete("/teachers/{teacher_id}")
+async def delete_teacher(teacher_id: str, _admin=Depends(get_current_admin)):
+    try:
+        await admin_controller.assert_teacher_access(teacher_id, _admin.id)
+        return {"message": await teacher_controller.delete_teacher(teacher_id, _admin.id)}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error))
 
 
 @router.post("/teachers/{teacher_id}/classes")
-def assign_teacher(teacher_id: int, data: TeacherClassAssignment, _admin=Depends(get_current_admin)):
+async def assign_teacher(teacher_id: str, data: TeacherClassAssignment, _admin=Depends(get_current_admin)):
     try:
-        admin_controller.assert_teacher_access(teacher_id, _admin.admin_id)
+        await admin_controller.assert_teacher_access(teacher_id, _admin.id)
         for class_id in data.class_ids:
-            admin_controller.assert_class_access(class_id, _admin.admin_id)
-        teacher = teacher_controller.get_teacher(teacher_id, _admin.admin_id)
+            await admin_controller.assert_class_access(class_id, _admin.id)
+        teacher = await teacher_controller.get_teacher(teacher_id, _admin.id)
         existing_class_ids = {
-            class_group.class_id for class_group in teacher.classes
+            class_group.get("class_id") for class_group in teacher.classes
         }
-        duplicate_class_ids = existing_class_ids.intersection(data.class_ids)
-        if duplicate_class_ids:
-            duplicate_ids = ", ".join(
-                str(class_id) for class_id in sorted(duplicate_class_ids)
-            )
-            raise ValueError(
-                f"Teacher is already assigned to class ID(s): {duplicate_ids}."
-            )
-
-        all_class_ids = [*existing_class_ids, *data.class_ids]
-        return {"message": admin_controller.assign_teacher_to_classes(
+        all_class_ids = list(dict.fromkeys([*sorted(existing_class_ids), *data.class_ids]))
+        return {"message": await admin_controller.assign_teacher_to_classes(
             teacher_id,
             all_class_ids,
-            _admin.admin_id,
+            _admin.id,
         )}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/notifications")
-def list_admin_notifications(admin=Depends(get_current_admin)):
+async def list_admin_notifications(admin=Depends(get_current_admin)):
     return [
         notification_response(item)
-        for item in notification_controller.get_admin_notifications(admin.admin_id)
+        for item in await notification_controller.get_admin_notifications(admin.id)
     ]
 
 
 @router.post("/notifications")
-def send_admin_notification(
+async def send_admin_notification(
     data: AdminNotificationCreate,
     admin=Depends(get_current_admin),
 ):
     try:
-        result = notification_controller.send_admin_notification(
-            admin.admin_id,
-            data.title,
+        result = await notification_controller.send_admin_notification(
+            admin.id,
             data.message,
             student_id=data.student_id,
             class_id=data.class_id,
+            teacher_id=data.teacher_id,
         )
         return {"message": result}
     except ValueError as error:

@@ -1,5 +1,5 @@
-import TeacherWorkspace from "../../components/teacher/TeacherWorkspace";
+import { redirect } from 'next/navigation';
 
 export default function TeacherPage() {
-	return <TeacherWorkspace />;
+	redirect('/teacher/home');
 }

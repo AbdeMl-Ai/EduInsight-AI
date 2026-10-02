@@ -9,42 +9,38 @@ class AttendanceService:
         self.teacher_repo = teacher_repo
         self.class_service = class_service
 
-    def get_class_students(self, teacher_id, class_id, organization_id=None):
-        self._require_teacher_class(teacher_id, class_id, organization_id)
-        return self.attendance_repo.get_students_by_class(class_id, organization_id)
+    async def get_class_students(self, teacher_id, class_id, admin_id):
+        await self._require_teacher_class(teacher_id, class_id, admin_id)
+        return await self.attendance_repo.get_students_by_class(class_id, admin_id)
 
-    def save_attendance(self, teacher_id, class_id, attendance_date, records, organization_id=None):
-        self._require_teacher_class(teacher_id, class_id, organization_id)
+    async def save_attendance(self, teacher_id, class_id, attendance_date, records, admin_id):
+        await self._require_teacher_class(teacher_id, class_id, admin_id)
         if not records:
             raise ValueError("Attendance records are required.")
         if any(record["status"] not in self.VALID_STATUSES for record in records):
             raise ValueError("Attendance status must be present or absent.")
         if len({record["student_id"] for record in records}) != len(records):
             raise ValueError("Each student can appear only once per attendance date.")
-
-        students = self.attendance_repo.get_students_by_class(class_id, organization_id)
-        class_student_ids = {student["student_id"] for student in students}
-        submitted_ids = {record["student_id"] for record in records}
-        if not submitted_ids <= class_student_ids:
+        students = await self.attendance_repo.get_students_by_class(class_id, admin_id)
+        if not {item["student_id"] for item in records} <= {item["student_id"] for item in students}:
             raise ValueError("All students must belong to the selected class.")
-
-        self.attendance_repo.save_attendance(class_id, attendance_date.isoformat(), records, organization_id)
+        await self.attendance_repo.save_attendance(class_id, attendance_date.isoformat(), records, admin_id)
         return {"message": "Attendance saved successfully."}
 
-    def get_teacher_history(self, teacher_id, class_id=None, month=None, organization_id=None):
+    async def get_teacher_history(self, teacher_id, class_id=None, month=None, admin_id=None):
         if class_id is not None:
-            self._require_teacher_class(teacher_id, class_id, organization_id)
+            await self._require_teacher_class(teacher_id, class_id, admin_id)
         self._validate_month(month)
-        return self.attendance_repo.get_teacher_history(teacher_id, class_id, month, organization_id)
+        return await self.attendance_repo.get_teacher_history(teacher_id, class_id, month, admin_id)
 
-    def get_monthly_report(self, class_id, month, organization_id=None):
-        self.class_service.get_class(class_id, organization_id=organization_id)
+    async def get_monthly_report(self, class_id, month, admin_id):
+        await self.class_service.get_class(class_id, admin_id)
         self._validate_month(month)
-        return self.attendance_repo.get_monthly_report(class_id, month, organization_id)
+        return await self.attendance_repo.get_monthly_report(class_id, month, admin_id)
 
-    def _require_teacher_class(self, teacher_id, class_id, organization_id=None):
-        self.class_service.get_class(class_id, organization_id=organization_id)
-        if self.teacher_repo.get_teacher_id_for_class(class_id, organization_id) != teacher_id:
+    async def _require_teacher_class(self, teacher_id, class_id, admin_id):
+        await self.class_service.get_class(class_id, admin_id)
+        if await self.teacher_repo.get_teacher_id_for_class(class_id, admin_id) != teacher_id:
             raise ValueError("You can only manage attendance for your assigned classes.")
 
     @staticmethod

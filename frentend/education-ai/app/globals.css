@@ -2,7 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
@@ -48,25 +48,25 @@
 }
 
 :root {
-  color-scheme: light;
-  --background: oklch(0.98 0.01 245);
-  --foreground: oklch(0.18 0.03 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.46 0.23 264);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.03 245);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.95 0.02 245);
-  --muted-foreground: oklch(0.52 0.04 250);
-  --accent: oklch(0.94 0.03 245);
-  --accent-foreground: oklch(0.205 0 0);
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #f5f2e9;
+  --card: #111111;
+  --card-foreground: #f5f2e9;
+  --popover: #111111;
+  --popover-foreground: #f5f2e9;
+  --primary: #c6a96b;
+  --primary-foreground: #17130b;
+  --secondary: #1b1b1b;
+  --secondary-foreground: #f5f2e9;
+  --muted: #1b1b1b;
+  --muted-foreground: #a6a097;
+  --accent: #252117;
+  --accent-foreground: #f5f2e9;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: #c6a96b;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -85,24 +85,24 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #0a0a0a;
+  --foreground: #f5f2e9;
+  --card: #111111;
+  --card-foreground: #f5f2e9;
+  --popover: #111111;
+  --popover-foreground: #f5f2e9;
+  --primary: #c6a96b;
+  --primary-foreground: #17130b;
+  --secondary: #1b1b1b;
+  --secondary-foreground: #f5f2e9;
+  --muted: #1b1b1b;
+  --muted-foreground: #a6a097;
+  --accent: #252117;
+  --accent-foreground: #f5f2e9;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: #c6a96b;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -116,43 +116,6 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    color-scheme: dark;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-  }
 }
 
 body {
@@ -176,30 +139,157 @@ h6 {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-white text-foreground;
+    @apply bg-background text-foreground;
   }
 }
 
-:root,
-.dark {
+.cream {
   color-scheme: light;
-  --background: #FFFFFF;
-  --foreground: #0F172A;
-  --card: #FFFFFF;
-  --card-foreground: #0F172A;
-  --popover: #FFFFFF;
-  --popover-foreground: #0F172A;
-  --primary: #2563EB;
-  --primary-foreground: #FFFFFF;
-  --secondary: #EFF6FF;
-  --secondary-foreground: #1E3A8A;
-  --muted: #EFF6FF;
-  --muted-foreground: #475569;
-  --accent: #DBEAFE;
-  --accent-foreground: #1E3A8A;
-  --border: #DBEAFE;
-  --input: #DBEAFE;
-  --ring: #2563EB;
+  --background: #fdfbf2;
+  --foreground: #2a2420;
+  --card: #f8f3e7;
+  --card-foreground: #2a2420;
+  --popover: #fdfbf2;
+  --popover-foreground: #2a2420;
+  --primary: #8c642c;
+  --primary-foreground: #fdfbf2;
+  --secondary: #f3ebd9;
+  --secondary-foreground: #2a2420;
+  --muted: #f3ebd9;
+  --muted-foreground: #62574a;
+  --accent: #ede1c8;
+  --accent-foreground: #2a2420;
+  --border: #e6d9c2;
+  --input: #dfd2bb;
+  --ring: #9b753e;
+  --sidebar: #f8f3e7;
+  --sidebar-foreground: #2a2420;
+  --sidebar-border: #e6d9c2;
+}
+
+html.cream .app-shell {
+  background-color: #fdfbf2 !important;
+  color: #2a2420 !important;
+}
+
+html.cream .app-shell [class*="bg-[#0a0a0a]"],
+html.cream .app-shell [class*="bg-[#0b0b0b]"],
+html.cream .app-shell [class*="bg-[#111]"],
+html.cream .app-shell [class*="bg-[#111111]"],
+html.cream .app-shell [class*="bg-[#151515]"] {
+  background-color: #f5efdf !important;
+}
+
+html.cream .app-shell [class*="bg-white/"] {
+  background-color: rgb(74 52 27 / 4%) !important;
+}
+
+html.cream .app-shell [class*="bg-black/"] {
+  background-color: rgb(74 52 27 / 5%) !important;
+}
+
+html.cream .app-shell [class~="text-white"],
+html.cream .app-shell [class*="text-white/"],
+html.cream .app-shell [class*="text-[#f5f2e9]"],
+html.cream .app-shell [class*="text-gray-300"],
+html.cream .app-shell [class*="text-gray-400"] {
+  color: #2a2420 !important;
+}
+
+html.cream .app-shell [class*="text-white/"],
+html.cream .app-shell [class*="text-gray-300"],
+html.cream .app-shell [class*="text-gray-400"] {
+  color: #62574a !important;
+}
+
+html.cream .app-shell [class*="text-[#dfc27e]"],
+html.cream .app-shell [class*="text-[#e0c583]"],
+html.cream .app-shell [class*="text-[#d8bd83]"],
+html.cream .app-shell [class*="text-[#c6a96b]"] {
+  color: #78551d !important;
+}
+
+html.cream .app-shell [class*="border-white"],
+html.cream .app-shell [class*="divide-white"] > * + * {
+  border-color: rgb(74 52 27 / 16%) !important;
+}
+
+html.cream .app-shell input,
+html.cream .app-shell select,
+html.cream .app-shell textarea {
+  color: #2a2420;
+}
+
+html.cream .app-shell input::placeholder,
+html.cream .app-shell textarea::placeholder {
+  color: #827666;
+}
+
+.cream .theme-toggle {
+  border-color: #d9cbb3;
+  background-color: rgb(74 52 27 / 4%);
+  color: #51463a;
+}
+
+.cream .theme-toggle:hover {
+  background-color: rgb(74 52 27 / 9%);
+  color: #2a2420;
+}
+
+html.cream .login-shell {
+  background-color: #fdfbf2;
+  color: #2a2420;
+}
+
+html.cream .login-panel [class~="text-white"],
+html.cream .login-panel [class*="text-white/"] {
+  color: #2a2420 !important;
+}
+
+html.cream .login-panel [class*="text-white/"] {
+  color: #62574a !important;
+}
+
+html.cream .login-panel [class*="text-[#dfc27e]"],
+html.cream .login-panel [class*="text-[#f0d89d]"],
+html.cream .login-panel [class*="text-[#c6a96b]"] {
+  color: #78551d !important;
+}
+
+html.cream .login-panel [class*="bg-white/"] {
+  background-color: rgb(74 52 27 / 4%) !important;
+}
+
+html.cream .login-panel [class*="border-white"] {
+  border-color: rgb(74 52 27 / 18%) !important;
+}
+
+html.cream .login-panel input {
+  color: #2a2420;
+  caret-color: #78551d;
+}
+
+html.cream .login-panel input::placeholder {
+  color: #827666;
+}
+
+html.cream .login-hero [class~="text-white"],
+html.cream .login-hero [class*="text-white/"] {
+  color: #fff !important;
+}
+
+html.cream .app-shell .hero-card [class~="text-white"] {
+  color: #fff !important;
+}
+
+html.cream .app-shell .hero-card [class*="text-white/"] {
+  color: rgb(255 255 255 / 82%) !important;
+}
+
+html.cream .app-shell .hero-card [class*="text-[#dfc27e]"],
+html.cream .app-shell .hero-card [class*="text-[#e0c583]"],
+html.cream .app-shell .hero-card [class*="text-[#f0d89d]"] {
+  color: #eab308 !important;
 }
 
 .teacher-workspace [class~="rounded-2xl"] {

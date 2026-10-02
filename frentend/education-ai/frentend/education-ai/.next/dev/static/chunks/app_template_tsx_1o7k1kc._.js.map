@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///C:/Users/abden/Projects/frentend/education-ai/app/template.tsx"],"sourcesContent":["'use client';\n\nimport { motion } from 'framer-motion';\n\nexport default function Template({ children }: { children: React.ReactNode }) {\n  return (\n    <motion.div\n      initial={{ opacity: 0, y: 20 }}\n      animate={{ opacity: 1, y: 0 }}\n      exit={{ opacity: 0, y: -20 }}\n      transition={{ ease: 'easeInOut', duration: 0.5 }}\n    >\n      {children}\n    </motion.div>\n  );\n}\n"],"names":["Template","children","div","initial","opacity","y","animate","exit","transition","ease","duration"],"mappings":";;;;;AAEA;AAFA;;;AAIe,SAASA,SAAS,EAAEC,QAAQ,EAAiC;IAC1E,qBACE,4SAAC,gTAAM,CAACC,GAAG;QACTC,SAAS;YAAEC,SAAS;YAAGC,GAAG;QAAG;QAC7BC,SAAS;YAAEF,SAAS;YAAGC,GAAG;QAAE;QAC5BE,MAAM;YAAEH,SAAS;YAAGC,GAAG,CAAC;QAAG;QAC3BG,YAAY;YAAEC,MAAM;YAAaC,UAAU;QAAI;kBAE9CT;;;;;;AAGP;KAXwBD"}}]
+}

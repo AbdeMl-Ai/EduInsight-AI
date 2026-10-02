@@ -1,361 +1,92 @@
-from models.submission import Submission
-from models.exercise import Exercise
-from models.course import Course
-from models.teacher import Teacher
-from models.student import Student
+from datetime import datetime, timezone
+
+from bson import ObjectId
+
+from models.domain_models import Submission
 
 
 class SubmissionRepo:
+    def __init__(self, db, student_repo=None, exercise_repo=None):
+        self.collection = db["submissions"]
 
-    def __init__(self, db, student_repo, exercise_repo):
-        self.db = db
-        self.student_repo = student_repo
-        self.exercise_repo = exercise_repo
+    @staticmethod
+    def _id(value):
+        if not ObjectId.is_valid(value):
+            raise ValueError("submission/reference ID must be a valid ObjectId")
+        return str(ObjectId(value))
 
+    @staticmethod
+    def _tenant(admin_id):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
 
-    def add_submission(self, submission):
-        organization_id = getattr(submission, "organization_id", None)
-        if organization_id is None:
-            student = self.student_repo.get_student(submission.student_id)
-            organization_id = getattr(student, "organization_id", None) if student else None
-        submission.organization_id = organization_id
+    async def add_submission(self, submission: Submission, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        payload = submission.model_dump(exclude={"id"})
+        payload["admin_id"] = admin_id
+        for field in ("student_id", "class_id", "exercise_id"):
+            payload[field] = self._id(payload[field])
+        result = await self.collection.insert_one(payload)
+        return Submission.model_validate({"_id": result.inserted_id, **payload})
 
-        self.db.cursor.execute("""
-            INSERT INTO submissions
-            (
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status,
-                organization_id
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            submission.student_id,
-            submission.exercise.exercise_id,
-            submission.submission_date,
-            submission.file_path,
-            submission.status,
-            organization_id,
-        ))
+    async def get_submission(self, submission_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        doc = await self.collection.find_one({"_id": ObjectId(self._id(submission_id)), "admin_id": admin_id})
+        return Submission.model_validate(doc) if doc else None
 
-        self.db.connection.commit()
+    async def get_submission_by_student_and_exercise(self, student_id: str, exercise_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        doc = await self.collection.find_one({"admin_id": admin_id, "student_id": self._id(student_id), "exercise_id": self._id(exercise_id)})
+        return Submission.model_validate(doc) if doc else None
 
-        submission.submission_id = self.db.cursor.lastrowid
+    async def get_all_submissions(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id}).sort("submitted_at", -1)
+        return [Submission.model_validate(doc) async for doc in cursor]
 
-
-    def get_submission(self, submission_id, organization_id=None):
-
-        self.db.cursor.execute("""
-            SELECT
-                submission_id,
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status,
-                organization_id
-            FROM submissions
-            WHERE submission_id = ?""" + (" AND organization_id = ?" if organization_id is not None else ""),
-            (submission_id, organization_id) if organization_id is not None else (submission_id,))
-
-        row = self.db.cursor.fetchone()
-
-        if row is None:
-            return None
-
-        student = self.student_repo.get_student(row[1], organization_id=organization_id)
-
-        exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-
-        if student is None or exercise is None:
-            return None
-
-        return Submission(
-            row[0],
-            student.student_id,
-            exercise,
-            row[3],
-            row[4],
-            row[5],
-            row[6]
-        )
-
-    def get_submission_by_student_and_exercise(self, student_id, exercise_id, organization_id=None):
-        self.db.cursor.execute(
-            """SELECT submission_id, student_id, exercise_id,
-                     submission_date, file_path, status, organization_id
-               FROM submissions
-                 WHERE student_id = ? AND exercise_id = ?""" + (" AND organization_id = ?" if organization_id is not None else "") + """
-               ORDER BY submission_id DESC
-               LIMIT 1""",
-            (student_id, exercise_id, organization_id) if organization_id is not None else (student_id, exercise_id),
-        )
-        row = self.db.cursor.fetchone()
-        if row is None:
-            return None
-
-        exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-        if exercise is None:
-            return None
-
-        return Submission(
-            row[0],
-            row[1],
-            exercise,
-            row[3],
-            row[4],
-            row[5],
-            row[6],
-        )
-
-
-    def get_all_submissions(self, organization_id=None):
-
-        self.db.cursor.execute("""
-            SELECT
-                submission_id,
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status,
-                organization_id
-            FROM submissions
-        """ + (" WHERE organization_id = ?" if organization_id is not None else ""),
-            (organization_id,) if organization_id is not None else ())
-
-        rows = self.db.cursor.fetchall()
-
-        submissions = []
-
-        for row in rows:
-
-            student = self.student_repo.get_student(row[1], organization_id=organization_id)
-
-            exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-
-            if student is None or exercise is None:
-                continue
-
-            submission = Submission(
-                row[0],
-                student.student_id,
-                exercise,
-                row[3],
-                row[4],
-                row[5],
-                row[6]
-            )
-
-            submissions.append(submission)
-
-        return submissions
-
-
-    def update_submission(self, submission_id, organization_id=None, **kwargs):
-        fields = {
-            "student_id": kwargs.get("student_id"),
-            "exercise_id": kwargs.get("exercise").exercise_id if "exercise" in kwargs else None,
-            "submission_date": kwargs.get("submission_date"),
-            "file_path": kwargs.get("file_path"),
-            "status": kwargs.get("status"),
-        }
-        for field, value in fields.items():
-            if value is None:
-                continue
-            sql = f"UPDATE submissions SET {field} = ? WHERE submission_id = ?"
-            values = [value, submission_id]
-            if organization_id is not None:
-                sql += " AND organization_id = ?"
-                values.append(organization_id)
-            self.db.cursor.execute(sql, values)
-
-
-        self.db.connection.commit()
-
-        return True
-
-
-    def delete_submission(self, submission_id, organization_id=None):
-
-        submission = self.get_submission(submission_id, organization_id)
-
-        if submission is None:
+    async def update_submission(self, submission_id: str, admin_id: str, **updates):
+        admin_id = self._tenant(admin_id)
+        allowed = {"student_id", "class_id", "exercise_id", "submission_status", "file_path", "student_note", "score", "submitted_at", "graded_at"}
+        updates = {k: self._id(v) if k in {"student_id", "class_id", "exercise_id"} else v for k, v in updates.items() if k in allowed}
+        if not updates:
             return False
+        result = await self.collection.update_one({"_id": ObjectId(self._id(submission_id)), "admin_id": admin_id}, {"$set": updates})
+        return result.modified_count == 1
 
-        self.db.cursor.execute("""
-            DELETE FROM submissions
-            WHERE submission_id = ?""" + (" AND organization_id = ?" if organization_id is not None else ""),
-            (submission_id, organization_id) if organization_id is not None else (submission_id,))
-
-        self.db.connection.commit()
-
-        return True
-
-
-    def search_submission_by_student(self, student_id, organization_id=None):
-
-        self.db.cursor.execute("""
-            SELECT
-                submission_id,
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status, organization_id
-            FROM submissions
-            WHERE student_id = ?""" + (" AND organization_id = ?" if organization_id is not None else ""),
-            (student_id, organization_id) if organization_id is not None else (student_id,))
-
-        rows = self.db.cursor.fetchall()
-
-        submissions = []
-
-        for row in rows:
-
-            exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-
-            if exercise is None:
-                continue
-
-            submission = Submission(
-                row[0],
-                row[1],
-                exercise,
-                row[3],
-                row[4],
-                row[5], row[6]
-            )
-
-            submissions.append(submission)
-
-        return submissions
-
-
-    def search_submission_by_exercise(self, exercise_id, organization_id=None):
-
-        self.db.cursor.execute("""
-            SELECT
-                submission_id,
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status, organization_id
-            FROM submissions
-            WHERE exercise_id = ?""" + (" AND organization_id = ?" if organization_id is not None else ""),
-            (exercise_id, organization_id) if organization_id is not None else (exercise_id,))
-
-        rows = self.db.cursor.fetchall()
-
-        submissions = []
-
-        for row in rows:
-
-            submission = Submission(
-                row[0],
-                row[1],
-                self.exercise_repo.get_exercise(row[2], organization_id),
-                row[3],
-                row[4],
-                row[5], row[6]
-            )
-
-            submissions.append(submission)
-
-        return submissions
-
-
-    def count_submissions(self, organization_id=None):
-        self.db.cursor.execute(
-            "SELECT COUNT(*) FROM submissions" + (" WHERE organization_id = ?" if organization_id is not None else ""),
-            (organization_id,) if organization_id is not None else (),
+    async def upsert_grade(self, student_id: str, exercise_id: str, class_id: str, score: float, admin_id: str):
+        query = {"admin_id": admin_id, "student_id": self._id(student_id), "exercise_id": self._id(exercise_id)}
+        return await self.collection.update_one(
+            query,
+            {"$set": {"class_id": self._id(class_id), "score": score, "submission_status": "graded", "graded_at": datetime.now(timezone.utc)}},
+            upsert=True,
         )
 
-        result = self.db.cursor.fetchone()
+    async def delete_submission(self, submission_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        result = await self.collection.delete_one({"_id": ObjectId(self._id(submission_id)), "admin_id": admin_id})
+        return result.deleted_count == 1
 
-        return result[0]
+    async def search_submission_by_student(self, student_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, "student_id": self._id(student_id)}).sort("submitted_at", -1)
+        return [Submission.model_validate(doc) async for doc in cursor]
 
-    def get_submissions_by_student(self, student_id, organization_id=None):
+    async def search_submission_by_exercise(self, exercise_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id, "exercise_id": self._id(exercise_id)}).sort("submitted_at", -1)
+        return [Submission.model_validate(doc) async for doc in cursor]
 
-        self.db.cursor.execute("""
-            SELECT
-                submission_id,
-                student_id,
-                exercise_id,
-                submission_date,
-                file_path,
-                status, organization_id
-            FROM submissions
-            WHERE student_id = ?""" + (" AND organization_id = ?" if organization_id is not None else ""),
-            (student_id, organization_id) if organization_id is not None else (student_id,))
+    async def count_submissions(self, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        return await self.collection.count_documents({"admin_id": admin_id})
 
-        rows = self.db.cursor.fetchall()
+    async def get_submissions_by_student(self, student_id: str, admin_id: str):
+        return await self.search_submission_by_student(student_id, admin_id)
 
-        submissions = []
-
-        for row in rows:
-
-            exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-
-            if exercise is None:
-                continue
-
-            submission = Submission(
-                row[0],
-                row[1],
-                exercise,
-                row[3],
-                row[4],
-                row[5], row[6]
-            )
-
-            submissions.append(submission)
-
-        return submissions
-
-    def get_submissions_by_teacher(self, teacher_id, organization_id=None):
-
-        self.db.cursor.execute("""
-            SELECT
-                submissions.submission_id,
-                submissions.student_id,
-                submissions.exercise_id,
-                submissions.submission_date,
-                submissions.file_path,
-                submissions.status,
-                submissions.organization_id
-            FROM submissions
-            JOIN exercises
-                ON submissions.exercise_id = exercises.exercise_id
-            JOIN courses
-                ON exercises.course_id = courses.course_id
-            WHERE courses.teacher_id = ?""" + (" AND submissions.organization_id = ? AND courses.organization_id = ?" if organization_id is not None else ""),
-            (teacher_id, organization_id, organization_id) if organization_id is not None else (teacher_id,))
-
-        rows = self.db.cursor.fetchall()
-
-        submissions = []
-
-        for row in rows:
-
-            student = self.student_repo.get_student(row[1], organization_id=organization_id)
-            exercise = self.exercise_repo.get_exercise(row[2], organization_id)
-
-            if student is None or exercise is None:
-                continue
-
-            submission = Submission(
-                row[0],
-                student,
-                exercise,
-                row[3],
-                row[4],
-                row[5], row[6]
-            )
-
-            submissions.append(submission)
-
-        return submissions
+    async def get_submissions_by_teacher(self, teacher_id: str, admin_id: str):
+        admin_id = self._tenant(admin_id)
+        exercises = self.collection.database["exercises"].find({"admin_id": admin_id, "teacher_id": self._id(teacher_id)}, {"_id": 1})
+        exercise_ids = [str(doc["_id"]) async for doc in exercises]
+        cursor = self.collection.find({"admin_id": admin_id, "exercise_id": {"$in": exercise_ids}}).sort("submitted_at", -1)
+        return [Submission.model_validate(doc) async for doc in cursor]

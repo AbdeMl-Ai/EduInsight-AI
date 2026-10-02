@@ -1,91 +1,43 @@
 # EduInsight AI
 
-EduInsight AI is a full-stack education platform for managing classes, students, teachers, courses, exercises, submissions, grades, attendance, notifications, and academic reports.
+EduInsight AI is an education platform for managing schools/workspaces, classes, students, teachers, parents, courses, exercises, submissions, attendance, and notifications. The workspace contains a FastAPI backend and a separate Next.js frontend.
 
-The project contains:
+## Backend Capabilities
 
-- A FastAPI backend with layered services and raw SQLite persistence.
-- A Next.js App Router frontend with separate admin, teacher, and student workspaces.
-- JWT authentication with role-based access control.
-- PDF and image uploads for course materials, exercise materials, and student submissions.
-- Admin student reports with score graphs and PDF export.
+- Role-aware JWT authentication for admins, teachers, students, and parents.
+- Google OAuth sign-in with JWT bearer tokens.
+- Tenant-scoped management of classes, student/teacher records, parents, courses, and exercises.
+- Student file submissions, teacher materials, grading, attendance, and notifications.
+- Async MongoDB persistence through Motor; uploaded file bytes are kept in local upload directories.
 
-## Features
-
-### Admin
-
-- Admin setup and login.
-- Manage students, teachers, and classes.
-- Assign students to classes.
-- Assign teachers to multiple existing classes.
-- Add teachers while creating a class.
-- Search and delete administrative records.
-- View student academic reports.
-- Download reports as PDFs containing student details, class level, average score, graphs, and exercise grades.
-
-### Teacher
-
-- View assigned classes and students.
-- Create courses for assigned classes.
-- Create exercises inside owned courses.
-- Upload optional PDF or image materials for courses and exercises.
-- View uploaded materials from My Courses.
-- View student submissions for a selected exercise.
-- Open student submission PDFs or images.
-- Grade submissions and send student feedback.
-- Record and review attendance.
-- Send class announcements.
-
-### Student
-
-- View the student overview and class progress.
-- View enrolled courses and exercises.
-- Open teacher-uploaded course and exercise materials.
-- Upload PDF or image submissions for exercises.
-- View submission status and grades.
-- View progress graphs.
-- Read announcements and private feedback from the overview.
-
-## Project Structure
+## Backend Layout
 
 ```text
-app.py                         FastAPI application entry point
-ARCHITECTURE.md                Backend architecture and refactor record
-README.md                      Full project overview
-requirements.txt               Python dependencies
-
+app.py                    Uvicorn application entry point
 api/
-  main.py                      FastAPI app and router registration
-  dependencies.py              Composition root and auth dependencies
-  routes/                      HTTP endpoints
-  schemas/                     Pydantic request and response models
-
-controllers/                   Thin use-case facades
-services/                      Business rules and workflows
-repositories/                  SQLite queries and persistence
-models/                        Domain entities
-database/database.py           SQLite schema and compatibility migrations
-utils/                         Validation, security, and file storage helpers
-uploads/                       Local uploaded files at runtime
-
-tests/
-  controllers/                 Controller tests
-  repositories/                Repository tests
-  services/                    Service and business-rule tests
-
-frentend/education-ai/
-  app/                          Next.js App Router routes
-  components/admin/            Admin route entry
-  components/teacher/          Teacher route entry
-  components/student/          Student route entry
-  components/app/              Shared authenticated app implementation
-  lib/api.ts                   Typed frontend API client
-  Documentation.md             Frontend setup and architecture guide
+  main.py                 FastAPI app, lifespan, middleware, router registration
+  dependencies.py         Shared Mongo handle and Controller-Service-Repository wiring
+  routes/                 HTTP handlers
+  schemas/                Pydantic request/response DTOs
+controllers/              Async use-case delegates
+services/                 Validation, authorization, and workflows
+repositories/             Async Motor persistence
+models/                    Mongo document models
+database/                  Motor client configuration
+utils/                     Security, validation, and async file storage
+uploads/                   Local materials and submissions
+tests/                     Controller, service, schema, and utility tests
 ```
 
-## Backend Setup
+For layer responsibilities, request flow, collections, and indexes, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
-The backend is tested with Python 3.10 or newer. On Windows, create and activate the virtual environment from the project root:
+## Requirements
+
+- Python 3.10 or newer.
+- A reachable MongoDB deployment.
+- Google OAuth client credentials and a registered callback URL.
+
+Install dependencies from the workspace root. On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -94,287 +46,70 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 python -m pip install -r requirements.txt
 ```
 
-Start the API:
+Configure environment variables in the shell or your deployment environment:
+
+```powershell
+$env:MONGODB_URI = "mongodb://localhost:27017"
+$env:MONGODB_DATABASE = "eduinsight"
+$env:SECRET_KEY = "replace-with-a-long-random-secret"
+$env:GOOGLE_CLIENT_ID = "your-google-client-id"
+$env:GOOGLE_CLIENT_SECRET = "your-google-client-secret"
+$env:GOOGLE_CALLBACK_URL = "http://localhost:8000/auth/google/callback"
+$env:FRONTEND_AUTH_REDIRECT_URL = "http://localhost:3000/login"
+$env:CORS_ORIGINS = "http://localhost:3000"
+```
+
+Set a strong, stable `SECRET_KEY` in every non-development environment. Register the callback URL above in Google Cloud Console. `CORS_ORIGINS` is optional; its default permits common local frontend origins. A comma-separated list is supported.
+
+Run the API:
 
 ```powershell
 uvicorn app:app --reload
 ```
 
-The backend is available at:
-
-- API root: `http://127.0.0.1:8000/`
-- Swagger UI: `http://127.0.0.1:8000/docs`
-- ReDoc: `http://127.0.0.1:8000/redoc`
-
-The database is created automatically by `database/database.py`. Existing SQLite data is preserved. The default seeded admin account is:
-
-```text
-Email:    admin@eduinsight.ai
-Password: adminpassword
-```
-
-Change default credentials in a real deployment.
-
-## Frontend Setup
-
-The frontend is a Next.js 16 application. See [frentend/education-ai/Documentation.md](frentend/education-ai/Documentation.md) for the complete frontend guide.
-
-From the frontend directory:
-
-```powershell
-cd frentend\education-ai
-npm ci
-```
-
-Create or update `.env.local`:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
-```
-
-Start the frontend:
-
-```powershell
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-For a production build:
-
-```powershell
-npm run build
-npm run start
-```
-
-Run the backend and frontend in separate terminals.
-
-## Deployment
-
-### Render Backend
-
-The repository includes [render.yaml](render.yaml). In Render, create a
-Blueprint from the repository or configure a Python web service with:
-
-```text
-Build command: pip install -r requirements.txt
-Start command: uvicorn app:app --host 0.0.0.0 --port $PORT
-```
-
-Set the backend environment variable:
-
-```text
-CORS_ORIGINS=https://your-app.vercel.app
-```
-
-### Railway persistence
-
-The backend uses SQLite. SQLite data must be stored on a persistent Railway
-Volume, not the container filesystem. Mount a Volume at `/data` and set:
-
-```text
-EDUINSIGHT_DB_PATH=/data/eduinsight.db
-SECRET_KEY=<long-random-secret>
-```
-
-In Railway, open the service's **Volumes** settings, create a volume, and set
-its mount path to exactly `/data`. Then add `EDUINSIGHT_DB_PATH=/data/eduinsight.db`
-to the service variables and redeploy. The application now fails at startup if
-Railway is detected without this absolute path, which prevents silently creating
-an ephemeral database in the container filesystem.
-
-Without this Volume, accounts and passwords can disappear when Railway
-replaces or restarts the container. `SECRET_KEY` must remain unchanged or
-existing login sessions will become invalid.
-
-`DATABASE_URL` is not used by this backend. It uses the raw SQLite gateway in
-`database/database.py`; adding a PostgreSQL variable alone does not migrate or
-persist the application data.
-
-Do not set `DATABASE_URL` to PostgreSQL for this version. The backend does not
-contain SQLAlchemy models, a PostgreSQL driver, or PostgreSQL migrations; it
-will reject a non-SQLite `DATABASE_URL` during startup instead of appearing to
-connect while continuing to write somewhere else. A PostgreSQL migration must
-replace the raw repositories and schema layer as one deliberate migration.
-
-Multiple frontend origins can be comma-separated. For temporary testing,
-`CORS_ORIGINS=*` is supported; wildcard mode disables credentialed CORS as
-required by browsers. Render provides the `PORT` variable automatically.
-
-The backend uses local SQLite and local upload storage. These are suitable for
-development and simple demos. For production persistence, use a managed
-database and object storage because Render web-service filesystems should not
-be treated as permanent storage.
-
-### Vercel Frontend
-
-Create a Vercel project with the frontend root directory set to:
-
-```text
-frentend/education-ai
-```
-
-Vercel detects Next.js automatically. Set this environment variable in the
-Vercel project settings:
-
-```text
-NEXT_PUBLIC_API_URL=https://your-render-service.onrender.com
-```
-
-In Vercel, set the project **Root Directory** to `frentend/education-ai` and
-add `NEXT_PUBLIC_API_URL` for the **Production** environment. Redeploy after
-saving the variable. Do not use `127.0.0.1` or `localhost` there: those URLs
-refer to the Vercel build/runtime, not the local computer. The Render backend
-must also allow the deployed Vercel origin in `CORS_ORIGINS`.
-
-The production build command is `npm run build`. After deployment, update the
-Render `CORS_ORIGINS` value with the real Vercel URL and redeploy or restart
-the backend.
-
-## Architecture
-
-### Backend
-
-The backend follows a layered architecture:
-
-```text
-HTTP request
-  -> FastAPI route and schema
-  -> Controller
-  -> Service
-  -> Repository
-  -> Database gateway
-  -> SQLite
-```
-
-- Routes handle HTTP parameters, authentication dependencies, and serialization.
-- Controllers delegate use cases to services.
-- Services enforce validation, authorization, and workflow rules.
-- Repositories contain SQL and domain-model hydration.
-- `database/database.py` owns the SQLite connection and schema creation.
-- `api/dependencies.py` constructs the dependency graph.
-
-The backend does not use SQLAlchemy or another ORM.
-
-### Frontend
-
-The frontend uses explicit role routes:
-
-```text
-app/page.tsx                 Authentication entry and role redirect
-app/admin/page.tsx           Admin route
-app/teacher/page.tsx         Teacher route
-app/student/page.tsx         Student route
-```
-
-Role entry components are located under `components/admin`, `components/teacher`, and `components/student`. Authenticated users are redirected to the route matching their JWT role. Unauthenticated users see the login view.
-
-## Important API Workflows
-
-### Student submission upload
-
-```text
-POST /students/me/submissions
-Content-Type: multipart/form-data
-
-exercise_id: integer
-file: PDF or JPEG or PNG
-```
-
-Files are stored under `uploads/submissions/` with unique names. The database stores the public relative path in `file_path`.
-
-### Teacher material upload
-
-The teacher course and exercise creation endpoints accept multipart form data and an optional file:
-
-```text
-POST /teachers/me/courses
-POST /teachers/me/exercises
-```
-
-Materials are stored under `uploads/materials/`. Their paths are recorded in the `learning_materials` table and returned to teachers and students.
-
-### Public file serving
-
-The backend mounts the upload root at:
-
-```text
-/uploads
-```
-
-The frontend uses the Next.js `/api-proxy` rewrite when opening uploaded files in the browser.
-
-### Teacher class assignment
-
-```text
-POST /admin/teachers/{teacher_id}/classes
-```
-
-Request body:
-
-```json
-{
-  "class_ids": [1, 2]
-}
-```
-
-The endpoint validates class IDs, rejects duplicate assignments, and preserves the teacher's existing classes when adding new classes.
+The API root is `http://127.0.0.1:8000/`; OpenAPI documentation is at `/docs` and `/redoc`. Startup pings MongoDB and creates required indexes. Start Google sign-in at `GET /auth/google/login`; the callback redirects to the configured frontend with the bearer token in the URL fragment, or returns the token as JSON when `FRONTEND_AUTH_REDIRECT_URL` is unset. Existing admin, student, and teacher accounts are linked by their verified email. New Google users are created with the generic `user` role and must be provisioned before accessing role-specific APIs.
 
 ## Authentication
 
-Login returns a JWT containing the authenticated role. FastAPI dependencies enforce role access for admin, teacher, and student routes. The frontend stores the token and role in local storage and sends the token as a Bearer authorization header.
+The `/auth` API exposes `GET /auth/google/login` and `GET /auth/google/callback`. Google identities are stored in the `users` collection with a unique email index; matching existing role accounts receive their established role in the JWT.
 
-## File Validation
+## API Areas
 
-Supported file MIME types are:
+| Router | Base paths and responsibilities |
+| --- | --- |
+| Authentication | `/auth`: Google OAuth sign-in and JWT issuance |
+| Admin | `/admin`: workspace setup/profile, classes, students, teachers, reports, notifications |
+| Students | `/students`: admin management and student self-service |
+| Teachers | `/teachers`: admin management and teacher self-service |
+| Parents | `/parents`: admin-managed parents and student links |
+| Courses | `/courses`: course management and queries |
+| Exercises | `/exercises`: exercise management and queries |
+| Submissions | `/submissions`: uploads, queries, scoring, and deletion |
+| Notifications | `/notifications`: send, query, and read-state operations |
+| Attendance | Teacher attendance endpoints and `/admin/attendance/report` |
 
-- `application/pdf`
-- `image/jpeg`
-- `image/png`
+Protected endpoints use JWT Bearer authentication. Teachers and students carry an `admin_id` tenant claim; admin-owned operations use the admin ID as the tenant key.
 
-Uploaded files use unique names containing the owning exercise/course or student identifiers, a timestamp, and a UUID component.
+## MongoDB and Files
 
-## Testing and Validation
+`database/database.py` creates an `AsyncIOMotorClient` using `MONGODB_URI` and selects `MONGODB_DATABASE`. Application data is stored in `admins`, `students`, `teachers`, `parents`, `users`, `classes`, `courses`, `exercises`, `submissions`, `notifications`, `attendance`, and `learning_materials`. Document references are stringified Mongo IDs rather than relational foreign keys; tenant-owned repository queries include `admin_id`.
 
-Run backend tests from the project root:
+At startup, the backend creates per-collection unique phone indexes for existing contact fields and unique email/Google-subject indexes for Google identities. Existing duplicate non-empty contact values can prevent index creation and should be resolved before deployment.
+
+Course/exercise materials and student submissions are stored beneath `uploads/materials/` and `uploads/submissions/`. The backend serves the upload root at `/uploads`. The storage helpers use `aiofiles` for async reads, writes, directory creation, and deletion. Local disk is suitable for development; production should use persistent storage or object storage because container filesystems can be ephemeral.
+
+Allowed upload MIME types are PDF (`application/pdf`), JPEG (`image/jpeg`), and PNG (`image/png`). MongoDB stores paths/metadata, not the file contents.
+
+## Testing
+
+Run the backend test suite from the workspace root:
 
 ```powershell
-python -m pytest -q
+python -m pytest tests -q
 ```
 
-Run the frontend production build:
+`pytest-asyncio` is included for async tests. Current tests cover Controller delegation, Google identity/JWT behavior and startup indexes, request schemas, and async upload storage.
 
-```powershell
-cd frentend\education-ai
-npm run build
-```
+## Frontend
 
-The frontend build is the primary validation for route imports, TypeScript compilation, and App Router bundling. Backend tests cover database initialization, repositories, services, controllers, grades, attendance, authentication, and admin workflows.
-
-## Troubleshooting
-
-### Backend is unavailable
-
-Confirm the API is running on port `8000` and that `.env.local` points to the same address.
-
-### Upload links return 404
-
-Confirm the backend is running, the file exists under `uploads/`, and the path begins with `/uploads/`. Browser links should be generated through the frontend `getFileUrl()` helper.
-
-### The user is redirected to the wrong workspace
-
-Clear these local storage values and sign in again:
-
-```text
-eduinsight_access_token
-eduinsight_role
-```
-
-### Reset local database state
-
-Stop the backend, remove the local SQLite database file if a clean environment is required, and restart the API. The schema and seeded admin are recreated by the database gateway.
-
-## Additional Documentation
-
-- [Backend architecture](ARCHITECTURE.md)
-- [Frontend documentation](frentend/education-ai/Documentation.md)
+The Next.js frontend is under `frentend/education-ai/`. Its setup and frontend-specific architecture are documented in [frentend/education-ai/Documentation.md](frentend/education-ai/Documentation.md). Run the frontend separately from the backend; configure its API base URL to point at the FastAPI host.

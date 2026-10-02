@@ -1,3 +1,6 @@
+from utils.academic_catalog import normalize_academic_level
+
+
 class ExerciseValidator:
     @staticmethod
     def validation_exercise_name(exercise_name):
@@ -10,10 +13,4 @@ class ExerciseValidator:
     
     @staticmethod
     def validation_level(level):
-        level = level.strip()
-        allowed_levels = {"3AC",
-                          "TC",
-                          "1BAC",
-                          "2BAC"}
-        if level not in allowed_levels:
-            raise ValueError("Invalid level")
+        return normalize_academic_level(level)

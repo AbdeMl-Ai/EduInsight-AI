@@ -1,21 +1,31 @@
-from pydantic import BaseModel
 from datetime import datetime
+
+from pydantic import BaseModel
 
 
 class SubmissionCreate(BaseModel):
-    exercise_id: int
+    student_id: str | None = None
+    class_id: str | None = None
+    exercise_id: str
     file_path: str
 
+
 class SubmissionUpdate(BaseModel):
-    submission_date: datetime | None = None
+    submission_status: str | None = None
     file_path: str | None = None
-    status: str | None = None
+    student_note: str | None = None
+    score: float | None = None
 
 
 class SubmissionResponse(BaseModel):
-    submission_id: int
-    student_id: int
-    exercise_id: int
-    submission_date: datetime
+    id: str
+    admin_id: str
+    student_id: str
+    class_id: str
+    exercise_id: str
+    submission_status: str
     file_path: str
-    status: str
+    student_note: str = ""
+    score: float | None = None
+    submitted_at: datetime | None = None
+    graded_at: datetime | None = None

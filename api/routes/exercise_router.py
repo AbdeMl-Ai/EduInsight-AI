@@ -1,161 +1,64 @@
-from fastapi import APIRouter, HTTPException
-
-from api.schemas.exercise_schema import (
-    ExerciseResponse,
-    ExerciseCreate,
-    ExerciseUpdate
-)
+from fastapi import APIRouter, Depends, HTTPException
 
 from api.dependencies import exercise_controller, get_current_user, require_teacher
-from fastapi import Depends
+from api.schemas.exercise_schema import ExerciseCreate, ExerciseResponse, ExerciseUpdate
+
+router = APIRouter(prefix="/exercises", tags=["Exercises"])
 
 
-router = APIRouter(
-    prefix="/exercises",
-    tags=["exercises"]
-)
+def _payload(item):
+    return {"id": item.id, "admin_id": item.admin_id, "teacher_id": item.teacher_id, "class_id": item.class_id, "course_id": item.course_id, "course_title": item.course_title, "file_path": item.file_path, "max_score": item.max_score, "created_at": item.created_at}
+
+
+def _tenant(user):
+    return user.admin_id if user._token_role != "admin" else user.id
 
 
 @router.get("/", response_model=list[ExerciseResponse])
-def get_all_exercises(current_user=Depends(get_current_user)):
-
-    exercises = exercise_controller.get_all_exercises(current_user.organization_id)
-
-    return [
-        {
-            "exercise_id": exercise.exercise_id,
-            "exercise_name": exercise.exercise_name,
-            "course_id": exercise.course.course_id,
-            "max_score": exercise.max_score,
-        }
-        for exercise in exercises
-    ]
+async def get_all_exercises(user=Depends(get_current_user)):
+    return [_payload(item) for item in await exercise_controller.get_all_exercises(_tenant(user))]
 
 
-@router.get("/{exercise_id}", response_model=ExerciseResponse)
-def get_exercise(exercise_id: int, current_user=Depends(get_current_user)):
-
+@router.post("/", response_model=ExerciseResponse)
+async def create_exercise(data: ExerciseCreate, user=Depends(require_teacher)):
     try:
-        exercise = exercise_controller.get_exercise(exercise_id, current_user.organization_id)
-
-        return {
-            "exercise_id": exercise.exercise_id,
-            "exercise_name": exercise.exercise_name,
-            "course_id": exercise.course.course_id,
-            "max_score": exercise.max_score,
-        }
-
+        return _payload(await exercise_controller.create_exercise(user.id, data.course_id, data.file_path, data.max_score, user.admin_id))
     except ValueError as error:
-
-        raise HTTPException(
-            status_code=404,
-            detail=str(error)
-        )
-
-
-@router.post("/")
-def create_exercise(data: ExerciseCreate, current_user=Depends(require_teacher)):
-
-    try:
-
-        result = exercise_controller.create_exercise(
-            data.exercise_name,
-            data.course_id,
-            current_user.teacher_id,
-            data.max_score,
-        )
-
-        return {
-            "message": result
-        }
-
-    except ValueError as error:
-
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.put("/{exercise_id}")
-def update_exercise(
-    exercise_id: int,
-    data: ExerciseUpdate,
-    current_user=Depends(require_teacher)
-):
-
+async def update_exercise(exercise_id: str, data: ExerciseUpdate, user=Depends(require_teacher)):
     try:
-
-        updates = data.model_dump(exclude_none=True)
-
-        result = exercise_controller.update_exercise(
-            exercise_id,
-            current_user.teacher_id,
-            **updates
-        )
-
-        return {
-            "message": result
-        }
-
+        return {"message": await exercise_controller.update_exercise(exercise_id, user.id, user.admin_id, **data.model_dump(exclude_none=True))}
     except ValueError as error:
-
-        raise HTTPException(
-            status_code=400,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.delete("/{exercise_id}")
-def delete_exercise(exercise_id: int, current_user=Depends(require_teacher)):
-
+async def delete_exercise(exercise_id: str, user=Depends(require_teacher)):
     try:
-
-        result = exercise_controller.delete_exercise(
-            exercise_id,
-            current_user.teacher_id
-        )
-
-        return {
-            "message": result
-        }
-
+        return {"message": await exercise_controller.delete_exercise(exercise_id, user.id, user.admin_id)}
     except ValueError as error:
-
-        raise HTTPException(
-            status_code=404,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=404, detail=str(error)) from error
 
 
-@router.get("/search")
-def search_exercises(query: str, current_user=Depends(get_current_user)):
-
+@router.get("/search", response_model=list[ExerciseResponse])
+async def search_exercises(query: str, user=Depends(get_current_user)):
     try:
-
-        exercises = exercise_controller.search_exercise(query, current_user.organization_id)
-
-        return [
-            {
-                "exercise_id": exercise.exercise_id,
-                "exercise_name": exercise.exercise_name,
-                "course_id": exercise.course.course_id,
-                "max_score": exercise.max_score,
-            }
-            for exercise in exercises
-        ]
-
+        return [_payload(item) for item in await exercise_controller.search_exercise(query, _tenant(user))]
     except ValueError as error:
-
-        raise HTTPException(
-            status_code=404,
-            detail=str(error)
-        )
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.get("/count")
-def count_exercises(current_user=Depends(get_current_user)):
+async def count_exercises(user=Depends(get_current_user)):
+    return {"count": await exercise_controller.count_exercise(_tenant(user))}
 
-    return {
-        "count": exercise_controller.count_exercise(current_user.organization_id)
-    }
+
+@router.get("/{exercise_id}", response_model=ExerciseResponse)
+async def get_exercise(exercise_id: str, user=Depends(get_current_user)):
+    try:
+        return _payload(await exercise_controller.get_exercise(exercise_id, _tenant(user)))
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error

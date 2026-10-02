@@ -1,96 +1,57 @@
+from datetime import date
+
+from bson import ObjectId
+
+
 class AttendanceRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["attendance"]
+        self.students = db["students"]
 
-    def get_students_by_class(self, class_id, organization_id=None):
-        query = """SELECT student_id, full_name, email, phone_number, level
-               FROM students WHERE class_id = ?"""
-        params = [class_id]
-        if organization_id is not None:
-            query += " AND organization_id = ?"
-            params.append(organization_id)
-        query += " ORDER BY full_name"
-        self.db.cursor.execute(query, params)
-        return [
-            {
-                "student_id": row[0],
-                "full_name": row[1],
-                "email": row[2],
-                "phone_number": row[3],
-                "level": row[4],
-                "class_id": class_id,
-            }
-            for row in self.db.cursor.fetchall()
-        ]
+    @staticmethod
+    def _tenant(admin_id):
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
 
-    def save_attendance(self, class_id, attendance_date, records, organization_id=None):
-        if organization_id is not None:
-            self.db.cursor.executemany(
-                """INSERT INTO attendance (student_id, class_id, date, status, organization_id)
-                   VALUES (?, ?, ?, ?, ?)
-                   ON CONFLICT(student_id, class_id, date)
-                   DO UPDATE SET status = excluded.status,
-                                organization_id = excluded.organization_id""",
-                [
-                    (record["student_id"], class_id, attendance_date, record["status"], organization_id)
-                    for record in records
-                ],
+    async def get_students_by_class(self, class_id, admin_id):
+        admin_id = self._tenant(admin_id)
+        class_id = str(ObjectId(class_id))
+        cursor = self.students.find({"admin_id": admin_id, "$or": [{"class_id": class_id}, {"class_ids": class_id}]}).sort("full_name", 1)
+        return [{"student_id": student["_id"].__str__(), "full_name": student.get("full_name", ""), "email": student.get("email", ""), "phone_number": student.get("phone_number", ""), "level": student.get("level_academy", ""), "class_id": class_id} async for student in cursor]
+
+    async def save_attendance(self, class_id, attendance_date, records, admin_id):
+        admin_id = self._tenant(admin_id)
+        class_id = str(ObjectId(class_id))
+        saved = []
+        for record in records:
+            student_id = str(ObjectId(record["student_id"]))
+            await self.collection.update_one(
+                {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date)},
+                {"$set": {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date), "status": record["status"]}},
+                upsert=True,
             )
-        else:
-            self.db.cursor.executemany(
-                """INSERT INTO attendance (student_id, class_id, date, status)
-                   VALUES (?, ?, ?, ?)
-                   ON CONFLICT(student_id, class_id, date)
-                   DO UPDATE SET status = excluded.status""",
-                [
-                    (record["student_id"], class_id, attendance_date, record["status"])
-                    for record in records
-                ],
-            )
-        self.db.connection.commit()
+            saved.append(student_id)
+        return saved
 
-    def get_teacher_history(self, teacher_id, class_id=None, month=None, organization_id=None):
-        query = """SELECT a.student_id, s.full_name, a.class_id, a.date, a.status
-                   FROM attendance a
-                   JOIN students s ON s.student_id = a.student_id
-                   JOIN teacher_classes tc ON tc.class_id = a.class_id
-                   WHERE tc.teacher_id = ?"""
-        params = [teacher_id]
-        if organization_id is not None:
-            query += " AND a.organization_id = ? AND tc.organization_id = ?"
-            params.extend([organization_id, organization_id])
+    async def get_teacher_history(self, teacher_id, class_id=None, month=None, admin_id=None):
+        admin_id = self._tenant(admin_id)
+        classes_cursor = self.collection.database["classes"].find({"admin_id": admin_id, "teacher_id": str(ObjectId(teacher_id))}, {"_id": 1})
+        class_ids = [str(item["_id"]) async for item in classes_cursor]
+        query = {"admin_id": admin_id, "class_id": {"$in": class_ids}}
         if class_id is not None:
-            query += " AND a.class_id = ?"
-            params.append(class_id)
+            query["class_id"] = str(ObjectId(class_id))
         if month is not None:
-            query += " AND a.date LIKE ?"
-            params.append(f"{month}%")
-        query += " ORDER BY a.date DESC, s.full_name"
-        self.db.cursor.execute(query, params)
-        return self._attendance_rows()
+            query["date"] = {"$regex": f"^{month}"}
+        return await self._rows(query)
 
-    def get_monthly_report(self, class_id, month, organization_id=None):
-        query = """SELECT a.student_id, s.full_name, a.class_id, a.date, a.status
-               FROM attendance a
-               JOIN students s ON s.student_id = a.student_id
-               WHERE a.class_id = ?"""
-        params = [class_id]
-        if organization_id is not None:
-            query += " AND a.organization_id = ?"
-            params.append(organization_id)
-        query += " AND a.date LIKE ? ORDER BY a.date, s.full_name"
-        params.append(f"{month}%")
-        self.db.cursor.execute(query, params)
-        return self._attendance_rows()
+    async def get_monthly_report(self, class_id, month, admin_id):
+        return await self._rows({"admin_id": self._tenant(admin_id), "class_id": str(ObjectId(class_id)), "date": {"$regex": f"^{month}"}})
 
-    def _attendance_rows(self):
-        return [
-            {
-                "student_id": row[0],
-                "student_name": row[1],
-                "class_id": row[2],
-                "date": row[3],
-                "status": row[4],
-            }
-            for row in self.db.cursor.fetchall()
-        ]
+    async def _rows(self, query):
+        cursor = self.collection.find(query).sort([("date", 1), ("student_id", 1)])
+        rows = []
+        async for item in cursor:
+            student = await self.students.find_one({"_id": ObjectId(item["student_id"]), "admin_id": query["admin_id"]})
+            rows.append({"student_id": item["student_id"], "student_name": student.get("full_name", "") if student else "", "class_id": item["class_id"], "date": item["date"], "status": item["status"]})
+        return rows

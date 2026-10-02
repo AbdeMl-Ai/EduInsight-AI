@@ -23,9 +23,8 @@ export default function SetupPage() {
         name: String(form.get('full_name') ?? ''),
         email: String(form.get('email') ?? ''),
         phone_number: String(form.get('phone_number') ?? ''),
-        password: String(form.get('password') ?? ''),
       })
-      setMessage('Admin environment created. You can sign in now.')
+      setMessage('Admin profile created. Sign in with Google using this email address.')
       formElement.reset()
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : 'Unable to create the admin environment.')
@@ -54,10 +53,6 @@ export default function SetupPage() {
           <label className="block text-sm font-semibold text-[#0F172A]">
             Phone number
             <input name="phone_number" type="tel" inputMode="numeric" required className="mt-1.5 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm outline-none focus:border-[#0052CC]" />
-          </label>
-          <label className="block text-sm font-semibold text-[#0F172A]">
-            Password
-            <input name="password" type="password" required minLength={8} className="mt-1.5 w-full rounded-lg border border-[#CBD5E1] px-3 py-2.5 text-sm outline-none focus:border-[#0052CC]" />
           </label>
           {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
           {message && <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-[#0052CC]">{message}</p>}

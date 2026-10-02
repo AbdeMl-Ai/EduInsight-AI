@@ -21,41 +21,42 @@ def attendance_response(record):
 
 
 @router.get("/teachers/me/attendance/classes/{class_id}/students")
-def get_class_students_for_attendance(
-    class_id: int,
+async def get_class_students_for_attendance(
+    class_id: str,
     current_user=Depends(require_teacher),
 ):
     try:
-        return attendance_controller.get_class_students(current_user.teacher_id, class_id)
+        return await attendance_controller.get_class_students(current_user.id, class_id, current_user.admin_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.post("/teachers/me/attendance")
-def save_attendance(
+async def save_attendance(
     data: AttendanceSaveRequest,
     current_user=Depends(require_teacher),
 ):
     try:
-        return attendance_controller.save_attendance(
-            current_user.teacher_id,
+        return await attendance_controller.save_attendance(
+            current_user.id,
             data.class_id,
             data.date,
             [record.model_dump() for record in data.records],
+            current_user.admin_id,
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/teachers/me/attendance")
-def get_teacher_attendance_history(
-    class_id: int | None = None,
+async def get_teacher_attendance_history(
+    class_id: str | None = None,
     month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
     current_user=Depends(require_teacher),
 ):
     try:
-        records = attendance_controller.get_teacher_history(
-            current_user.teacher_id, class_id, month
+        records = await attendance_controller.get_teacher_history(
+            current_user.id, class_id, month, current_user.admin_id
         )
         return [attendance_response(record) for record in records]
     except ValueError as error:
@@ -63,13 +64,13 @@ def get_teacher_attendance_history(
 
 
 @router.get("/admin/attendance/report")
-def get_monthly_attendance_report(
-    class_id: int,
+async def get_monthly_attendance_report(
+    class_id: str,
     month: str = Query(pattern=r"^\d{4}-\d{2}$"),
     _admin=Depends(get_current_admin),
 ):
     try:
-        records = attendance_controller.get_monthly_report(class_id, month)
+        records = await attendance_controller.get_monthly_report(class_id, month, _admin.id)
         return [attendance_response(record) for record in records]
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))

@@ -19,6 +19,11 @@ import {
 } from "../../lib/api";
 import { getFileUrl } from "../../lib/api";
 import {
+  calculateAverageOutOf20,
+  getPerformanceStatus,
+  getSubjectAverages,
+} from "../../lib/academic-report";
+import {
   BarChart3,
   Bell,
   BookOpen,
@@ -164,15 +169,16 @@ const toAdminTeacher = (teacher: AdminTeacher): AdminTeacher => ({
 });
 
 // ---- Admin student report ---------------------------------------------
-// Matches AdminStudentReportResponse from the OpenAPI spec exactly:
-// GET /admin/students/{student_id}/report returns student_id, name, email,
-// class_info, and exercises_and_exams (each with a nullable score). There
-// is NO courses / submissions / attendance data on this endpoint, so we
-// must not pretend those fields exist.
+// GET /admin/students/{student_id}/report returns one scored exercise entry
+// with its subject and maximum score, plus class information.
 interface ReportExerciseEntry {
-  exercise_id: number;
+  exercise_id: string;
   exercise_name: string;
+  subject: string;
+  class_id: string;
   score: number | null;
+  max_score: number;
+  created_at: string | null;
 }
 
 interface ClassInfo {
@@ -819,7 +825,7 @@ function DynamicTeacherWorkspace({
     }
   };
 
-  const handleAddExercise = async (e: React.FormEvent) => {
+  const handleAddExercise = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log("Submitting form...");
     const form = e.currentTarget;
@@ -899,7 +905,6 @@ function DynamicTeacherWorkspace({
   const handleProfileSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
-    const password = String(data.get("password") ?? "");
     setWorkspaceError("");
     setSaving(true);
     try {
@@ -907,7 +912,6 @@ function DynamicTeacherWorkspace({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(password ? { password } : {}),
       });
       await reload();
       setWorkspaceError("Profile updated successfully.");
@@ -1008,10 +1012,6 @@ function DynamicTeacherWorkspace({
             <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">
               Phone number
               <input name="phone_number" defaultValue={teacher.phone_number ?? ""} className="rounded-lg border border-[#DBE2EA] px-3 py-2.5 font-normal outline-none focus:border-[#0052CC]" />
-            </label>
-            <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">
-              New password
-              <input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#DBE2EA] px-3 py-2.5 font-normal outline-none focus:border-[#0052CC]" />
             </label>
           </div>
           {workspaceError && <p className={`mt-4 text-sm ${workspaceError.includes("success") ? "text-emerald-600" : "text-red-600"}`}>{workspaceError}</p>}
@@ -2023,22 +2023,11 @@ function AdminDashboard({
 }
 
 function Login({ setRole }: { setRole: (role: Role) => void }) {
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
-    const form = new FormData(event.currentTarget);
-    try {
-      const session = await api.login(
-        String(form.get("email") ?? ""),
-        String(form.get("password") ?? ""),
-      );
-      api.saveSession(session);
-      window.location.href = `/${session.role}`;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to sign in");
-    }
+    api.startGoogleSignIn();
   };
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#F4F7FA] p-4 font-sans sm:p-5">
@@ -2092,56 +2081,6 @@ function Login({ setRole }: { setRole: (role: Role) => void }) {
             Sign in to your account
           </h2>
           <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#0F172A]">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                name="email"
-                placeholder="user@eduinsight.ai"
-                className="w-full rounded-lg border border-[#DBEAFE] bg-[#F3F6F9] px-4 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#64748B] focus:border-[#0052CC] focus:ring-2 focus:ring-[#BFDBFE]"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#0F172A]">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  required
-                  placeholder="••••••••"
-                  className="w-full rounded-lg border border-[#DBEAFE] bg-[#F3F6F9] px-4 py-3 text-sm text-[#0F172A] outline-none placeholder:text-[#64748B] focus:border-[#0052CC] focus:ring-2 focus:ring-[#BFDBFE] pr-11"
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <label className="flex items-center gap-2 text-[#475569]">
-                <input
-                  name="rememberMe"
-                  type="checkbox"
-                  className="rounded border-[#CBD5E1] text-[#0052CC]"
-                />{" "}
-                Remember me
-              </label>
-              <button
-                type="button"
-                className="font-semibold text-[#2563EB] hover:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
             {error && (
               <p role="alert" className="text-sm font-medium text-red-600">
                 {error}
@@ -2151,7 +2090,7 @@ function Login({ setRole }: { setRole: (role: Role) => void }) {
               type="submit"
               className="w-full rounded-lg bg-[#0052CC] py-3 text-sm font-bold text-white transition hover:bg-[#1D4ED8]"
             >
-              Sign In
+              Continue with Google
             </button>
           </form>
           <div className="hidden mt-8 space-y-3">
@@ -2211,7 +2150,6 @@ function AdminWorkspace({
   );
   const [query, setQuery] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [selectedNewStudentClassIds, setSelectedNewStudentClassIds] = useState<number[]>([]);
@@ -2257,7 +2195,6 @@ function AdminWorkspace({
     const fullName = String(data.get("full_name") ?? "").trim();
     const email = String(data.get("email") ?? "").trim();
     const phone = String(data.get("phone_number") ?? "").trim();
-    const password = String(data.get("password") ?? "");
     if (tab === "Classes") {
       if (!String(data.get("name") ?? "").trim()) nextErrors.name = "Class name is required";
       if (!String(data.get("academic_year") ?? "").trim()) nextErrors.academic_year = "Academic year is required";
@@ -2268,13 +2205,9 @@ function AdminWorkspace({
       else if (!/^\S+@\S+\.\S+$/.test(email)) nextErrors.email = "Enter a valid email address";
       if (!phone) nextErrors.phone_number = "Phone number is required";
       else if (phone.replace(/\D/g, "").length < 10) nextErrors.phone_number = "Phone number must be at least 10 digits";
-      if (!password) nextErrors.password = "Password is required";
     }
     if (tab === "Students") {
-      const selectedClasses = classes.filter((item) => selectedNewStudentClassIds.includes(item.class_id));
-      if (!selectedClasses.length) nextErrors.class_ids = "Please select at least one valid class";
-      const levels = new Set(selectedClasses.map((item) => academicLevel(item.name)));
-      if (levels.size > 1) nextErrors.class_ids = "Impossible to combine classes from different academic levels (e.g., 3AC and 1BAC).";
+      if (!selectedNewStudentClassIds.length) nextErrors.class_ids = "Please select at least one valid class";
     }
     if (Object.keys(nextErrors).length) {
       setFieldErrors(nextErrors);
@@ -2298,7 +2231,6 @@ function AdminWorkspace({
         await api.createStudent({
           full_name: fullName,
           email,
-          password,
           phone_number: phone,
           level: academicLevel(selectedClass.name),
           class_id: selectedNewStudentClassIds[0],
@@ -2309,7 +2241,6 @@ function AdminWorkspace({
         await api.createTeacher({
           full_name: String(data.get("full_name")),
           email: String(data.get("email")),
-          password: String(data.get("password")),
           phone_number: String(data.get("phone_number")),
           class_ids: data.getAll("class_ids").map(Number),
         });
@@ -2368,7 +2299,6 @@ function AdminWorkspace({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(String(data.get("password") ?? "") ? { password: String(data.get("password")) } : {}),
         class_ids: selectedTeacherClassIds,
       });
       setTeacherEditSuccess("Teacher information updated successfully.");
@@ -2402,11 +2332,6 @@ function AdminWorkspace({
     }
     const selectedClassId = selectedClassIds[0];
     const selectedClasses = classes.filter((item) => selectedClassIds.includes(item.class_id));
-    const academicLevels = new Set(selectedClasses.map((item) => academicLevel(item.name)));
-    if (academicLevels.size > 1) {
-      setStudentEditError("Impossible to combine classes from different academic levels (e.g., 3AC and 1BAC).");
-      return;
-    }
     const selectedClass = selectedClasses[0];
     setSavingStudent(true);
     try {
@@ -2414,7 +2339,6 @@ function AdminWorkspace({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(String(data.get("password") ?? "") ? { password: String(data.get("password")) } : {}),
         class_id: selectedClassId,
         class_ids: selectedClassIds,
         level: selectedClass ? academicLevel(selectedClass.name) : undefined,
@@ -2668,24 +2592,6 @@ function AdminWorkspace({
                   className="rounded-lg border border-[#DBEAFE] px-3 py-2 text-sm"
                 />
                 {fieldErrors.email && <p className="text-xs font-semibold text-rose-600">{fieldErrors.email}</p>}
-                <div className="relative">
-                  <input
-                    name="password"
-                    required
-                    type={showCreatePassword ? "text" : "password"}
-                    placeholder="Password"
-                    className="w-full rounded-lg border border-[#DBEAFE] px-3 py-2 pr-10 text-sm"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showCreatePassword ? "Hide password" : "Show password"}
-                    onClick={() => setShowCreatePassword((value) => !value)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-[#64748B]"
-                  >
-                    {showCreatePassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
-                {fieldErrors.password && <p className="text-xs font-semibold text-rose-600">{fieldErrors.password}</p>}
                 <input
                   name="phone_number"
                   required
@@ -2817,7 +2723,6 @@ function AdminWorkspace({
               <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Full name<input name="full_name" required defaultValue={editingTeacher.full_name} className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308]" /></label>
               <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Email<input name="email" type="email" required defaultValue={editingTeacher.email} className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308]" /></label>
               <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Phone number<input name="phone_number" defaultValue={editingTeacher.phone_number ?? ""} className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308]" /></label>
-              <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308]" /></label>
               <fieldset className="sm:col-span-2">
                 <legend className="text-sm font-semibold text-[#334155]">Teaching classes</legend>
                 <div className="mt-1.5 grid max-h-44 gap-2 overflow-y-auto rounded-lg border border-[#DDE8DF] p-3 sm:grid-cols-2">
@@ -2859,7 +2764,6 @@ function AdminWorkspace({
                 </div>
                 <span className="text-xs font-normal text-[#64748B]">Select one or more classes from the same academic level.</span>
               </fieldset>
-              <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155] sm:col-span-2">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308]" /></label>
             </div>
             {studentEditError && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">{studentEditError}</p>}
             {studentEditSuccess && <p role="status" className="mt-4 rounded-lg bg-[#DCFCE7] p-3 text-sm font-semibold text-[#166534]">{studentEditSuccess}</p>}
@@ -2896,7 +2800,7 @@ function AdminWorkspace({
                 <div className="mt-4 grid gap-4 sm:grid-cols-3">
                   <Stat
                     label="Average grade"
-                    value={avgScore !== null ? avgScore.toFixed(1) : "-"}
+                    value={avgScore !== null ? `${avgScore.toFixed(2)} / 20` : "-"}
                     icon={BarChart3}
                   />
                   <Stat
@@ -2965,19 +2869,10 @@ function reportCacheKey(student: AdminStudent) {
     : `email:${student.email}`;
 }
 
-// Averages over exercises_and_exams entries, ignoring ungraded (null score)
-// exercises. This matches AdminStudentReportResponse's real shape — there
-// is no separate "grades" array from the backend.
 function computeAverage(
-  entries: { score: number | null }[] | undefined,
+  entries: StudentReportData["exercises_and_exams"] | undefined,
 ) {
-  if (!entries || !entries.length) return null;
-  const graded = entries.filter(
-    (entry): entry is { score: number } =>
-      entry.score !== null && entry.score !== undefined,
-  );
-  if (!graded.length) return null;
-  return graded.reduce((sum, entry) => sum + entry.score, 0) / graded.length;
+  return entries ? calculateAverageOutOf20(entries) : null;
 }
 
 function StudentReportModal({
@@ -2994,7 +2889,12 @@ function StudentReportModal({
   const rows = exercisesAndExams.map((item, index) => ({
     label: `Ex ${index + 1}`,
     name: item.exercise_name,
-    score: item.score,
+    score:
+      item.score === null
+        ? null
+        : item.max_score > 0
+          ? (item.score / item.max_score) * 20
+          : item.score,
   }));
 
   const chartData = rows.map((row) => ({
@@ -3003,6 +2903,7 @@ function StudentReportModal({
   }));
 
   const average = computeAverage(exercisesAndExams);
+  const subjectAverages = getSubjectAverages(exercisesAndExams);
   const gradedCount = exercisesAndExams.filter(
     (e) => e.score !== null && e.score !== undefined,
   ).length;
@@ -3025,7 +2926,7 @@ function StudentReportModal({
     document.line(20, 57, pageWidth - 20, 57);
 
     document.setFontSize(12);
-    document.text(`Average score: ${average !== null ? average.toFixed(2) : "N/A"}`, 20, 68);
+    document.text(`Average score: ${average !== null ? `${average.toFixed(2)} / 20` : "N/A"}`, 20, 68);
     document.text(`Result: ${gradedCount} of ${exercisesAndExams.length} exercises graded`, 20, 76);
 
     document.setFontSize(14);
@@ -3041,7 +2942,11 @@ function StudentReportModal({
     document.text("20", graphX - 8, graphY + 3);
     document.text("0", graphX - 5, graphY + graphHeight + 3);
     const points = exercisesAndExams.map((item, index) => {
-      const score = item.score ?? 0;
+      const score = item.score === null
+        ? 0
+        : item.max_score > 0
+          ? (item.score / item.max_score) * 20
+          : item.score;
       const x = graphX + ((index + 1) / Math.max(exercisesAndExams.length, 1)) * graphWidth;
       const y = graphY + graphHeight - (Math.max(0, Math.min(score, scoreMax)) / scoreMax) * graphHeight;
       return { x, y, score };
@@ -3058,27 +2963,26 @@ function StudentReportModal({
     let y = 195;
     document.setTextColor(15, 23, 42);
     document.setFontSize(14);
-    document.text("Exercises and grades", 20, y);
+    document.text("Average by course", 20, y);
     y += 10;
-    document.setFontSize(10);
-    document.setFillColor(239, 246, 255);
-    document.rect(20, y - 6, pageWidth - 40, 9, "F");
-    document.text("#", 23, y);
-    document.text("Exercise", 38, y);
-    document.text("Score", pageWidth - 45, y);
-    y += 10;
-    exercisesAndExams.forEach((item, index) => {
+    subjectAverages.forEach((item) => {
       if (y > 275) {
         document.addPage();
         y = 22;
       }
       document.setDrawColor(226, 232, 240);
       document.line(20, y + 3, pageWidth - 20, y + 3);
-      document.text(String(index + 1), 23, y);
-      const exerciseName = document.splitTextToSize(item.exercise_name, pageWidth - 85);
-      document.text(exerciseName, 38, y);
-      document.text(item.score === null ? "N/A" : String(item.score), pageWidth - 45, y);
-      y += Math.max(10, exerciseName.length * 5 + 3);
+      const status = item.average === null
+        ? "No graded exercises"
+        : getPerformanceStatus(item.average).text;
+      document.text(`Course ${item.subject}`, 22, y);
+      document.text(
+        item.average === null ? "— / 20" : `${item.average.toFixed(2)} / 20`,
+        pageWidth - 70,
+        y,
+      );
+      document.text(status, pageWidth - 45, y + 5, { align: "right" });
+      y += 13;
     });
 
     document.setFontSize(8);
@@ -3127,7 +3031,7 @@ function StudentReportModal({
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Stat
                 label="Average score"
-                value={average !== null ? average.toFixed(2) : "-"}
+                value={average !== null ? `${average.toFixed(2)} / 20` : "-"}
                 icon={BarChart3}
                 tone="green"
               />
@@ -3170,36 +3074,33 @@ function StudentReportModal({
 
             <div className="mt-6">
               <h4 className="text-sm font-bold text-[#0F172A]">
-                Grades by exercise
+                Average by course
               </h4>
-              {rows.length ? (
-                <div className="mt-2 overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-100 text-[10px] uppercase tracking-wider text-[#475569]">
-                        <th className="py-2 pr-3 font-semibold">#</th>
-                        <th className="py-2 pr-3 font-semibold">Exercise</th>
-                        <th className="py-2 text-right font-semibold">
-                          Score
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {rows.map((row) => (
-                        <tr key={row.label}>
-                          <td className="py-2 pr-3 font-semibold text-slate-500">
-                            {row.label}
-                          </td>
-                          <td className="py-2 pr-3 text-slate-700">
-                            {row.name}
-                          </td>
-                          <td className="py-2 text-right font-bold text-[#0052CC]">
-                            {row.score !== null ? row.score : "-"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {subjectAverages.length ? (
+                <div className="mt-3 flex flex-col gap-3">
+                  {subjectAverages.map((item) => {
+                    const status = item.average === null
+                      ? null
+                      : getPerformanceStatus(item.average);
+                    return (
+                      <article
+                        key={item.subject}
+                        className="flex flex-col gap-2 rounded-lg border border-[#E2E8F0] bg-white p-4 sm:flex-row sm:items-center sm:gap-4"
+                      >
+                        <h5 className="min-w-0 flex-1 truncate text-sm font-semibold text-gray-800">
+                          Course {item.subject}
+                        </h5>
+                        <span className="text-lg font-semibold tabular-nums text-gray-800">
+                          {item.average === null
+                            ? "— / 20"
+                            : `${item.average.toFixed(2)} / 20`}
+                        </span>
+                        <span className={`text-sm font-semibold sm:w-36 sm:text-right ${status?.color ?? "text-gray-500"}`}>
+                          {status ? `- ${status.text}` : "No graded exercises"}
+                        </span>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-[#64748B]">
@@ -3225,12 +3126,10 @@ function AdminProfile({
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    const password = String(data.get("password") ?? "");
     try {
       await api.updateAdminProfile({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
-        ...(password ? { password } : {}),
       });
       await reload();
       setFeedback("Profile updated successfully.");
@@ -3256,7 +3155,6 @@ function AdminProfile({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Full name<input name="full_name" defaultValue={profile.full_name} required className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308] focus:ring-2 focus:ring-[#FEF08A]" /></label>
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Email<input name="email" type="email" defaultValue={profile.email} required className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308] focus:ring-2 focus:ring-[#FEF08A]" /></label>
-          <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155] sm:col-span-2">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#DDE8DF] px-3 py-2.5 font-normal outline-none focus:border-[#EAB308] focus:ring-2 focus:ring-[#FEF08A]" /></label>
         </div>
         {feedback && <p className={`mt-4 text-sm ${feedback.includes("successfully") ? "text-[#15803D]" : "text-rose-600"}`}>{feedback}</p>}
         <button type="submit" className="mt-6 rounded-xl bg-[#EAB308] px-5 py-2.5 text-sm font-bold text-[#422006] transition hover:bg-[#FACC15]">Save changes</button>
@@ -3511,7 +3409,7 @@ function AdminReports({ students }: { students: AdminStudent[] }) {
         />
         <Stat
           label="Class average"
-          value={classAverage !== null ? classAverage.toFixed(2) : "-"}
+          value={classAverage !== null ? `${classAverage.toFixed(2)} / 20` : "-"}
           detail={loadingClass ? "Calculating..." : undefined}
           icon={BarChart3}
           tone="green"
@@ -3563,7 +3461,7 @@ function AdminReports({ students }: { students: AdminStudent[] }) {
                     {entry?.loading
                       ? "..."
                       : average !== null
-                        ? average.toFixed(2)
+                        ? `${average.toFixed(2)} / 20`
                         : "N/A"}
                   </span>
                   <button
@@ -3663,7 +3561,6 @@ function DynamicStudentWorkspace({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(String(data.get("password") ?? "") ? { password: String(data.get("password")) } : {}),
       });
       setFeedback("Profile updated successfully.");
     } catch (error) {
@@ -3691,7 +3588,6 @@ function DynamicStudentWorkspace({
               <span className="text-sm font-semibold text-[#334155]">Academic level</span>
               <span className="text-sm text-[#64748B]">{profile.level ?? "No academic level"}</span>
             </div>
-            <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155] sm:col-span-2">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#E2E8F0] px-3 py-2.5 font-normal outline-none focus:border-[#1769E0]" /></label>
           </div>
           {feedback && <p className={`mt-4 text-sm ${feedback.includes("successfully") ? "text-emerald-600" : "text-red-600"}`}>{feedback}</p>}
           <button type="submit" className="mt-6 rounded-xl bg-[#1769E0] px-5 py-2.5 text-sm font-bold text-white">Save changes</button>
@@ -3883,7 +3779,6 @@ function DynamicStudentWorkspaceLegacy({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(String(data.get("password") ?? "") ? { password: String(data.get("password")) } : {}),
       });
       setFeedback("Profile updated successfully.");
     } catch (error) {
@@ -3906,7 +3801,6 @@ function DynamicStudentWorkspaceLegacy({
             <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Email<input name="email" type="email" defaultValue={profile.email} required className="rounded-lg border border-[#DBE2EA] px-3 py-2.5 font-normal outline-none focus:border-[#0052CC]" /></label>
             <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155]">Phone number<input name="phone_number" defaultValue={profile.phone_number ?? ""} className="rounded-lg border border-[#DBE2EA] px-3 py-2.5 font-normal outline-none focus:border-[#0052CC]" /></label>
             <div className="flex flex-col justify-end gap-1.5 rounded-lg border border-dashed border-[#E2E8F0] bg-slate-50 px-3 py-2.5"><span className="text-sm font-semibold text-[#334155]">Academic level</span><span className="text-sm text-[#64748B]">{profile.level ?? "No academic level"}</span></div>
-            <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#334155] sm:col-span-2">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="rounded-lg border border-[#DBE2EA] px-3 py-2.5 font-normal outline-none focus:border-[#0052CC]" /></label>
           </div>
           {feedback && <p className={`mt-4 text-sm ${feedback.includes("successfully") ? "text-emerald-600" : "text-red-600"}`}>{feedback}</p>}
           <button type="submit" className="mt-6 rounded-xl bg-[#0052CC] px-5 py-2.5 text-sm font-bold text-white">Save changes</button>
@@ -4213,7 +4107,6 @@ function ClassicStudentWorkspace({
         full_name: String(data.get("full_name") ?? ""),
         email: String(data.get("email") ?? ""),
         phone_number: String(data.get("phone_number") ?? ""),
-        ...(String(data.get("password") ?? "") ? { password: String(data.get("password")) } : {}),
       });
       setFeedback("Profile updated successfully.");
     } catch (error) {
@@ -4242,7 +4135,6 @@ function ClassicStudentWorkspace({
                 <span className="text-sm font-semibold text-[#0F172A]">Academic level</span>
                 <p className="mt-1 text-sm text-[#64748B]">{profile.level ?? "No academic level"}</p>
               </div>
-              <label className="text-sm font-semibold text-[#0F172A] sm:col-span-2">New password<input name="password" type="password" placeholder="Leave blank to keep current" className="mt-1.5 w-full rounded-lg border border-[#E2E8F0] px-3 py-2.5 font-normal outline-none focus:border-[#1769E0]" /></label>
           </div>{feedback && <p className="mt-4 text-sm text-emerald-600">{feedback}</p>}
           <button type="submit" className="mt-6 rounded-xl bg-[#1769E0] px-5 py-2.5 text-sm font-bold text-white">Save changes</button>
         </form>

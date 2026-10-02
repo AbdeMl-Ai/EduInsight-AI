@@ -1,113 +1,91 @@
-from models.class_group import ClassGroup
+from typing import Any
+
+from bson import ObjectId
+
+from models.domain_models import ClassDocument
 
 
 class ClassRepo:
     def __init__(self, db):
-        self.db = db
+        self.collection = db["classes"]
 
-    def _organization_for_admin(self, admin_id):
-        if admin_id is None:
-            return None
-        row = self.db.cursor.execute(
-            "SELECT organization_id FROM admins WHERE id = ?",
-            (admin_id,),
-        ).fetchone()
-        return row[0] if row else None
+    @staticmethod
+    def _class_object_id(class_id: str) -> ObjectId:
+        if not ObjectId.is_valid(class_id):
+            raise ValueError("class_id must be a valid MongoDB ObjectId")
+        return ObjectId(class_id)
 
-    def add_class(self, class_group, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        next_id = self.db.cursor.execute(
-            "SELECT COALESCE(MAX(id), 0) + 1 FROM classes"
-        ).fetchone()[0]
-        self.db.cursor.execute(
-            "INSERT INTO classes (id, name, academic_year, admin_id, organization_id) VALUES (?, ?, ?, ?, ?)",
-            (next_id, class_group.name, class_group.academic_year, admin_id, organization_id),
+    @staticmethod
+    def _require_admin_id(admin_id: str) -> str:
+        if not admin_id:
+            raise ValueError("admin_id is required")
+        return admin_id
+
+    async def add_class(
+        self, class_document: ClassDocument, admin_id: str
+    ) -> ClassDocument:
+        admin_id = self._require_admin_id(admin_id)
+        document = class_document.model_copy(update={"admin_id": admin_id})
+        payload = document.model_dump(exclude={"id"})
+        result = await self.collection.insert_one(payload)
+        return ClassDocument.model_validate({"_id": result.inserted_id, **payload})
+
+    async def get_class(self, class_id: str, admin_id: str) -> ClassDocument | None:
+        admin_id = self._require_admin_id(admin_id)
+        document = await self.collection.find_one(
+            {"_id": self._class_object_id(class_id), "admin_id": admin_id}
         )
-        self.db.connection.commit()
-        class_group.class_id = self.db.cursor.lastrowid
-        class_group.organization_id = organization_id
+        return ClassDocument.model_validate(document) if document else None
 
-    def get_class(self, class_id, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-            "SELECT id, name, academic_year, admin_id, organization_id FROM classes WHERE id = ?" + (" AND (? IS NULL OR organization_id = ?)" if organization_id is not None or admin_id is not None else ""),
-            (class_id, organization_id, organization_id) if organization_id is not None else (class_id,),
+    async def get_all_classes(self, admin_id: str) -> list[ClassDocument]:
+        admin_id = self._require_admin_id(admin_id)
+        cursor = self.collection.find({"admin_id": admin_id}).sort("class_name", 1)
+        return [ClassDocument.model_validate(document) async for document in cursor]
+
+    async def add_embedded_student(
+        self, class_id: str, admin_id: str, student_id: str, origin: str
+    ) -> ClassDocument | None:
+        admin_id = self._require_admin_id(admin_id)
+        await self.collection.update_one(
+            {"_id": self._class_object_id(class_id), "admin_id": admin_id},
+            {
+                "$addToSet": {
+                    "embedded_students": {"student_id": student_id, "origin": origin}
+                }
+            },
         )
-        row = self.db.cursor.fetchone()
-        if row is None:
-            return None
-        return ClassGroup(row[0], row[1], row[2], row[3], row[4])
+        return await self.get_class(class_id, admin_id)
 
-    def get_all_classes(self, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if organization_id is not None:
-            self.db.cursor.execute(
-                "SELECT id, name, academic_year, admin_id, organization_id FROM classes WHERE organization_id = ? ORDER BY name",
-                (organization_id,),
-            )
-        else:
-            self.db.cursor.execute(
-                "SELECT id, name, academic_year, admin_id, organization_id FROM classes ORDER BY name",
-            )
-        return [ClassGroup(row[0], row[1], row[2], row[3], row[4]) for row in self.db.cursor.fetchall()]
-
-    def get_all_classes_for_admin(self, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        self.db.cursor.execute(
-            "SELECT id, name, academic_year, admin_id, organization_id FROM classes WHERE organization_id = ? ORDER BY name",
-            (organization_id,),
+    async def remove_embedded_student(
+        self, class_id: str, admin_id: str, student_id: str
+    ) -> bool:
+        admin_id = self._require_admin_id(admin_id)
+        result = await self.collection.update_one(
+            {"_id": self._class_object_id(class_id), "admin_id": admin_id},
+            {"$pull": {"embedded_students": {"student_id": student_id}}},
         )
-        return [ClassGroup(row[0], row[1], row[2], row[3], row[4]) for row in self.db.cursor.fetchall()]
+        return result.matched_count == 1
 
-    def search_classes(self, query, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if organization_id is not None:
-            self.db.cursor.execute(
-                """SELECT id, name, academic_year, admin_id, organization_id FROM classes
-                    WHERE (name LIKE ? OR academic_year LIKE ?) AND organization_id = ? ORDER BY name""",
-                (f"%{query}%", f"%{query}%", organization_id),
+    async def update_class(
+        self, class_id: str, admin_id: str, updates: dict[str, Any]
+    ) -> ClassDocument | None:
+        admin_id = self._require_admin_id(admin_id)
+        allowed_fields = set(ClassDocument.model_fields) - {
+            "id",
+            "admin_id",
+            "created_at",
+        }
+        safe_updates = {key: value for key, value in updates.items() if key in allowed_fields}
+        if safe_updates:
+            await self.collection.update_one(
+                {"_id": self._class_object_id(class_id), "admin_id": admin_id},
+                {"$set": safe_updates},
             )
-        else:
-            self.db.cursor.execute(
-                """SELECT id, name, academic_year, admin_id, organization_id FROM classes
-                    WHERE (name LIKE ? OR academic_year LIKE ?) ORDER BY name""",
-                (f"%{query}%", f"%{query}%"),
-            )
-        return [ClassGroup(row[0], row[1], row[2], row[3], row[4]) for row in self.db.cursor.fetchall()]
+        return await self.get_class(class_id, admin_id)
 
-    def update_class(self, class_id, admin_id=None, organization_id=None, **updates):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        fields = [field for field in ("name", "academic_year") if field in updates]
-        if fields:
-            values = [updates[field] for field in fields] + [class_id]
-            if organization_id is not None:
-                values += [organization_id]
-                self.db.cursor.execute(
-                    f"UPDATE classes SET {', '.join(f'{field} = ?' for field in fields)} WHERE id = ? AND organization_id = ?",
-                    values,
-                )
-            else:
-                self.db.cursor.execute(
-                    f"UPDATE classes SET {', '.join(f'{field} = ?' for field in fields)} WHERE id = ?",
-                    values,
-                )
-            self.db.connection.commit()
-
-    def delete_class(self, class_id, admin_id=None, organization_id=None):
-        organization_id = organization_id if organization_id is not None else self._organization_for_admin(admin_id)
-        if organization_id is not None:
-            self.db.cursor.execute(
-                "DELETE FROM classes WHERE id = ? AND organization_id = ?",
-                (class_id, organization_id),
-            )
-        else:
-            self.db.cursor.execute("DELETE FROM classes WHERE id = ?", (class_id,))
-        deleted = self.db.cursor.rowcount > 0
-        self.db.connection.commit()
-        return deleted
-
-    def belongs_to_admin(self, class_id, admin_id):
-        organization_id = self._organization_for_admin(admin_id)
-        return self.db.cursor.execute(
-            "SELECT 1 FROM classes WHERE id = ? AND organization_id = ?", (class_id, organization_id)
-        ).fetchone() is not None
+    async def delete_class(self, class_id: str, admin_id: str) -> bool:
+        admin_id = self._require_admin_id(admin_id)
+        result = await self.collection.delete_one(
+            {"_id": self._class_object_id(class_id), "admin_id": admin_id}
+        )
+        return result.deleted_count == 1
