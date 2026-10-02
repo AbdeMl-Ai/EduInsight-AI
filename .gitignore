@@ -4,6 +4,12 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
 # Local runtime data
 eduinsight.db
 eduinsight.db-*
@@ -25,3 +31,7 @@ mlruns/
 
 # DVC
 .dvc/cache/
+
+.env
+uploads/
+.next/
