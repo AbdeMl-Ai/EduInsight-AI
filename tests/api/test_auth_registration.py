@@ -68,6 +68,32 @@ def test_register_rejects_existing_email(monkeypatch):
     assert repository.created is None
 
 
+@pytest.mark.parametrize("failure_method", ["get_by_email", "create"])
+def test_register_logs_unexpected_errors_and_returns_safe_500(
+    monkeypatch, caplog, failure_method
+):
+    class BrokenUserRepo:
+        async def get_by_email(self, _email):
+            if failure_method == "get_by_email":
+                raise RuntimeError("database connection details")
+            return None
+
+        async def create(self, **_user_data):
+            if failure_method == "create":
+                raise RuntimeError("database connection details")
+            raise AssertionError("create should not be called")
+
+    monkeypatch.setattr(auth_router, "user_repo", BrokenUserRepo())
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(auth_router.register(registration_request()))
+
+    assert error.value.status_code == 500
+    assert error.value.detail == "Unable to create your account. Please try again later."
+    assert "Unexpected error while creating a registration account" in caplog.text
+    assert "database connection details" in caplog.text
+
+
 def test_google_callback_uri_uses_local_default_and_requires_production_config(monkeypatch):
     monkeypatch.delenv("GOOGLE_CALLBACK_URL", raising=False)
     monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)

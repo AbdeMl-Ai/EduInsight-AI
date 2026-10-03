@@ -1,3 +1,4 @@
+import logging
 import os
 
 from authlib.integrations.starlette_client import OAuth
@@ -11,6 +12,7 @@ from api.dependencies import auth_controller, user_repo
 from api.schemas.auth_schema import LoginResponse, RegistrationRequest
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
+logger = logging.getLogger(__name__)
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -24,13 +26,13 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(data: RegistrationRequest):
-    if await user_repo.get_by_email(data.email):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
-        )
-
     try:
+        if await user_repo.get_by_email(data.email):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email already exists.",
+            )
+
         user = await user_repo.create(
             email=data.email,
             full_name=data.full_name,
@@ -44,6 +46,14 @@ async def register(data: RegistrationRequest):
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists.",
         ) from error
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Unexpected error while creating a registration account")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to create your account. Please try again later.",
+        ) from None
 
     return {
         "message": "Account created. An administrator must assign your workspace access.",
