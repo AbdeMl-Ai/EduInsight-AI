@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Apple, Eye, EyeOff, GraduationCap, LoaderCircle, LockKeyhole, Mail } from 'lucide-react';
 import axios from 'axios';
 import client from '@/lib/axios';
 import { api as sessionApi, type LoginResponse } from '@/lib/api';
+import { getRoleFromToken } from '@/lib/auth-token';
 import ThemeToggle from '@/components/app/ThemeToggle';
 
-export default function LoginPage() {
+function LoginPageContent() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
@@ -28,30 +30,40 @@ export default function LoginPage() {
 	}
 
 	useEffect(() => {
+		const queryToken = searchParams.get('access_token');
 		const authFragment = new URLSearchParams(window.location.hash.slice(1));
-		const accessToken = authFragment.get('access_token');
-		const role = authFragment.get('role');
-		if (!accessToken || !role) return;
+		const accessToken = queryToken ?? authFragment.get('access_token');
+		if (!accessToken) return;
 
-		window.history.replaceState(null, '', window.location.pathname + window.location.search);
-		if (role === 'user') {
-			setNotice('Your account was created and is pending administrator approval before workspace access.');
+		const role = getRoleFromToken(accessToken);
+		const suppliedRole =
+			searchParams.get('role') ?? authFragment.get('role');
+		const tokenType =
+			searchParams.get('token_type') ??
+			authFragment.get('token_type') ??
+			'bearer';
+
+		if (!role || (suppliedRole && suppliedRole !== role)) {
+			sessionApi.logout();
+			window.history.replaceState(null, '', window.location.pathname);
+			setError('We could not verify the role for this sign-in. Please try again.');
 			return;
 		}
 
-		if (!['student', 'teacher', 'admin'].includes(role)) {
-			setError('This account does not have a supported dashboard role. Contact your administrator.');
+		if (role === 'user') {
+			window.history.replaceState(null, '', window.location.pathname);
+			setNotice('Your account was created and is pending administrator approval before workspace access.');
 			return;
 		}
 
 		const session = {
 			access_token: accessToken,
-			token_type: authFragment.get('token_type') ?? 'bearer',
+			token_type: tokenType,
 			role: role as LoginResponse['role'],
-		} as LoginResponse;
+		};
 		sessionApi.saveSession(session);
 		routeForRole(role);
-	}, [router]);
+	}, [router, searchParams]);
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -209,5 +221,23 @@ export default function LoginPage() {
 				</div>
 			</section>
 		</main>
+	);
+}
+
+export default function LoginPage() {
+	return (
+		<Suspense
+			fallback={
+				<div
+					role="status"
+					aria-label="Loading sign in"
+					className="flex min-h-dvh items-center justify-center bg-[#0a0a0a] text-[#c6a96b]"
+				>
+					<LoaderCircle className="animate-spin" size={24} />
+				</div>
+			}
+		>
+			<LoginPageContent />
+		</Suspense>
 	);
 }
