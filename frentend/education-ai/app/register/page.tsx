@@ -4,7 +4,21 @@ import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, GraduationCap, LoaderCircle } from 'lucide-react';
 
-import { api } from '@/lib/api';
+import { ApiRequestError, api } from '@/lib/api';
+
+function registrationErrorDetails(data: unknown): unknown {
+  if (!data || typeof data !== 'object' || !('detail' in data)) return data;
+  const detail = data.detail;
+  if (!Array.isArray(detail)) return { detail };
+
+  return {
+    detail: detail.map((item: unknown) => {
+      if (!item || typeof item !== 'object') return item;
+      const { input: _input, ...safeItem } = item as Record<string, unknown>;
+      return safeItem;
+    }),
+  };
+}
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -34,6 +48,14 @@ export default function RegisterPage() {
       setPhoneNumber('');
       setPassword('');
     } catch (submissionError) {
+      if (submissionError instanceof ApiRequestError) {
+        console.error('Registration API response:', {
+          status: submissionError.status,
+          data: registrationErrorDetails(submissionError.data),
+        });
+      } else {
+        console.error('Registration request failed before receiving a response:', submissionError);
+      }
       setError(
         submissionError instanceof Error
           ? submissionError.message

@@ -148,6 +148,37 @@ function clearSession() {
   clearAuthCookie();
 }
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly data: unknown,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
+function getErrorMessage(payload: unknown, status: number): string {
+  if (payload && typeof payload === "object" && "detail" in payload) {
+    const detail = payload.detail;
+    if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail.flatMap((item: unknown) => {
+        if (!item || typeof item !== "object" || !("msg" in item)) return [];
+        const message = typeof item.msg === "string" ? item.msg : "";
+        const location =
+          "loc" in item && Array.isArray(item.loc)
+            ? item.loc.filter((part) => part !== "body").join(".")
+            : "";
+        return [location ? `${location}: ${message}` : message].filter(Boolean);
+      });
+      if (messages.length) return messages.join(" ");
+    }
+  }
+  return status ? `Request failed (${status}).` : "Request failed.";
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token =
     typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
@@ -175,13 +206,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     );
   }
 
-  const payload = await response.json().catch(() => null);
+  const responseText = await response.text();
+  let payload: unknown = null;
+  if (responseText) {
+    try {
+      payload = JSON.parse(responseText);
+    } catch {
+      payload = responseText;
+    }
+  }
   if (!response.ok) {
-    const detail =
-      payload && typeof payload.detail === "string"
-        ? payload.detail
-        : "Request failed";
-    throw new Error(detail);
+    throw new ApiRequestError(getErrorMessage(payload, response.status), response.status, payload);
   }
   return payload as T;
 }

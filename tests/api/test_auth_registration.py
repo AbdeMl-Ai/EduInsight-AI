@@ -25,12 +25,19 @@ class FakeUserRepo:
 
 
 def registration_request():
-    return RegistrationRequest(
+    request = RegistrationRequest(
         full_name=" Example Person ",
         email="Person@Example.com",
         phone_number="+1 (555) 123-4567",
         password="strong-password",
     )
+    assert set(request.model_dump()) == {
+        "full_name",
+        "email",
+        "phone_number",
+        "password",
+    }
+    return request
 
 
 def test_register_stores_a_hashed_password_and_pending_account(monkeypatch):

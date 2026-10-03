@@ -59,7 +59,7 @@ $env:FRONTEND_AUTH_REDIRECT_URL = "http://localhost:3000/login"
 $env:CORS_ORIGINS = "http://localhost:3000"
 ```
 
-Set a strong, stable `SECRET_KEY` in every non-development environment. Register the callback URL above in Google Cloud Console. `CORS_ORIGINS` is optional; its default permits common local frontend origins. A comma-separated list is supported.
+Set a strong, stable `SECRET_KEY` in every non-development environment. Register the callback URL above in Google Cloud Console. `CORS_ORIGINS` accepts a comma-separated list of exact frontend origins. In production, include your Vercel frontend origin (for example, `https://your-app.vercel.app`). Credentialed CORS does not accept `*`; the configured `FRONTEND_AUTH_REDIRECT_URL` origin is also allowed automatically.
 
 In production, set `GOOGLE_CALLBACK_URL` to the public FastAPI API host followed
 by `/auth/google/callback` and register that exact URL in Google Cloud Console.

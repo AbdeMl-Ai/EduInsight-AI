@@ -1,5 +1,6 @@
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -54,17 +55,28 @@ configured_origins = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
 )
-allow_all_origins = configured_origins.strip() == "*"
-allowed_origins = (
-    ["*"]
-    if allow_all_origins
-    else [origin.strip().rstrip("/") for origin in configured_origins.split(",") if origin.strip()]
-)
+allowed_origins = [
+    origin.strip().rstrip("/")
+    for origin in configured_origins.split(",")
+    if origin.strip()
+]
+if "*" in allowed_origins:
+    raise ValueError(
+        "CORS_ORIGINS must list explicit frontend origins when credentials are enabled."
+    )
+
+frontend_redirect = os.getenv("FRONTEND_AUTH_REDIRECT_URL")
+if frontend_redirect:
+    parsed_frontend_url = urlsplit(frontend_redirect)
+    if parsed_frontend_url.scheme and parsed_frontend_url.netloc:
+        frontend_origin = f"{parsed_frontend_url.scheme}://{parsed_frontend_url.netloc}"
+        if frontend_origin not in allowed_origins:
+            allowed_origins.append(frontend_origin)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=not allow_all_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -86,4 +98,3 @@ def root():
     return {
         "message": "EduAnalytics API is running"
     }
-
