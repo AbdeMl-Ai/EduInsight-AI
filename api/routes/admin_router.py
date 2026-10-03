@@ -4,8 +4,12 @@ from api.dependencies import (
     admin_controller,
     class_controller,
     get_current_admin,
+    notification_controller,
+    payment_service,
+    schedule_controller,
     student_controller,
     teacher_controller,
+    user_repo,
 )
 from api.schemas.admin_schemas import (
     AdminStudentCreate,
@@ -15,6 +19,7 @@ from api.schemas.admin_schemas import (
     AdminProfileUpdate,
     AdminSetupRequest,
     AdminStudentPasswordReset,
+    AdminUserCreate,
     AdminScheduleCreate,
     AdminScheduleResponse,
     AdminTeacherCreate,
@@ -27,12 +32,10 @@ from api.schemas.admin_schemas import (
     PaymentUpdate,
 )
 from api.schemas.notification_schema import AdminNotificationCreate
-from api.dependencies import notification_controller, payment_service, schedule_controller, user_repo
 from models.domain_models import ClassDocument
-from passlib.context import CryptContext
+from utils.passwords import hash_password
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def student_response(student):
@@ -124,11 +127,6 @@ async def setup_admin(data: AdminSetupRequest):
         "phone_number": admin.phone_number,
     }
 
-from api.schemas.admin_schemas import AdminUserCreate
-from passlib.context import CryptContext
-from api.dependencies import user_repo
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.post("/users/create")
 async def create_user(data: AdminUserCreate, _admin=Depends(get_current_admin)):
@@ -139,7 +137,7 @@ async def create_user(data: AdminUserCreate, _admin=Depends(get_current_admin)):
     if existing_user:
         raise HTTPException(status_code=400, detail="User with this email already exists")
         
-    hashed_password = pwd_context.hash(data.password)
+    hashed_password = hash_password(data.password)
     
     user = await user_repo.create(
         email=data.email,
@@ -300,7 +298,7 @@ async def reset_student_password(
             email=student.email,
             full_name=student.full_name,
             admin_id=_admin.id,
-            hashed_password=password_context.hash(data.password),
+            hashed_password=hash_password(data.password),
         )
         return {"message": "Student login password reset successfully."}
     except ValueError as error:
@@ -403,7 +401,7 @@ async def reset_teacher_password(
             email=teacher.email,
             full_name=teacher.full_name,
             admin_id=_admin.id,
-            hashed_password=password_context.hash(data.password),
+            hashed_password=hash_password(data.password),
         )
         return {"message": "Teacher login password reset successfully."}
     except ValueError as error:

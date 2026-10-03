@@ -1,7 +1,6 @@
 from utils.security import create_access_token
-from passlib.context import CryptContext
+from utils.passwords import verify_password
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class AuthService:
     def __init__(
@@ -67,7 +66,9 @@ class AuthService:
         role = user.role
         if role == "user" or user.account_status == "pending":
             raise ValueError("Your account is pending administrator approval.")
-        if not user.hashed_password or not pwd_context.verify(password, user.hashed_password):
+        if not user.hashed_password or not verify_password(
+            password, user.hashed_password
+        ):
             raise ValueError("Invalid email or password")
         
         if role == "student":

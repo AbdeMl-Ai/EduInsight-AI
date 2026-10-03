@@ -3,16 +3,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
-from passlib.context import CryptContext
 from pymongo import MongoClient
+
+from utils.passwords import hash_password
 
 
 EMAIL = "admin@eduinsight.com"
 DEFAULT_PASSWORD = "Admin123"
 FULL_NAME = "EduInsight Admin"
-PASSWORD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def main() -> None:
     load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -55,7 +53,7 @@ def main() -> None:
             "email": EMAIL,
             "full_name": FULL_NAME,
             "role": "admin",
-            "hashed_password": PASSWORD_CONTEXT.hash(password),
+            "hashed_password": hash_password(password),
             "admin_id": admin_id,
             "created_at": datetime.now(timezone.utc),
         }

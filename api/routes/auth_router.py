@@ -5,15 +5,14 @@ from authlib.integrations.starlette_client import OAuth
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from passlib.context import CryptContext
 from pymongo.errors import DuplicateKeyError
 
 from api.dependencies import auth_controller, user_repo
 from api.schemas.auth_schema import LoginResponse, RegistrationRequest
+from utils.passwords import hash_password
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 logger = logging.getLogger(__name__)
-password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -37,7 +36,7 @@ async def register(data: RegistrationRequest):
             email=data.email,
             full_name=data.full_name,
             role="user",
-            hashed_password=password_context.hash(data.password),
+            hashed_password=hash_password(data.password),
             phone_number=data.phone_number,
             account_status="pending",
         )

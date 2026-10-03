@@ -8,6 +8,7 @@ from bson import ObjectId
 from api.routes import auth_router
 from api.schemas.auth_schema import RegistrationRequest
 from repositories.user_repository import UserRepo
+from utils.passwords import hash_password, verify_password
 
 
 class FakeUserRepo:
@@ -51,7 +52,7 @@ def test_register_stores_a_hashed_password_and_pending_account(monkeypatch):
     assert repository.created["phone_number"] == "+1 (555) 123-4567"
     assert repository.created["role"] == "user"
     assert repository.created["account_status"] == "pending"
-    assert auth_router.password_context.verify(
+    assert verify_password(
         "strong-password", repository.created["hashed_password"]
     )
     assert result["account_status"] == "pending"
@@ -160,3 +161,13 @@ def test_admin_password_setup_activates_matching_pending_registration(method_nam
     assert collection.update[1]["$set"]["role"] == role
     assert collection.update[1]["$set"]["account_status"] == "active"
     assert collection.update[1]["$set"]["hashed_password"] == "bcrypt-hash"
+
+
+def test_password_hashing_verifies_new_and_legacy_bcrypt_hashes():
+    newly_hashed_password = hash_password("strong-password")
+    legacy_passlib_hash = "$2b$12$.OKQ3c8kdPmuuYH8HkWK0Oc.hegTkJQ3jZ8LDnm3yS6aeK5vKQeXm"
+
+    assert verify_password("strong-password", newly_hashed_password)
+    assert not verify_password("wrong-password", newly_hashed_password)
+    assert verify_password("legacy-password", legacy_passlib_hash)
+    assert not verify_password("password", "not-a-valid-hash")
