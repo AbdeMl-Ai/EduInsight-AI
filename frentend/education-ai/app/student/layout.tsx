@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import ThemeToggle from '@/components/app/ThemeToggle';
+import AuthGuard from '@/components/app/AuthGuard';
 
 type NavigationItem = {
   href: string;
@@ -35,6 +36,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
 
   return (
+    <AuthGuard role="student">
     <div className="app-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/10 bg-[#0a0a0a] px-5 py-7 md:flex">
         <Link href="/student/home" className="mb-12 flex items-center gap-3 px-2">
@@ -111,5 +113,6 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         </div>
       </nav>
     </div>
+    </AuthGuard>
   );
 }

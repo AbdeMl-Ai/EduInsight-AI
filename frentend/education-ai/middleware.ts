@@ -1,18 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
 
-const AUTH_COOKIE = 'eduinsight_access_token';
+import { hasWorkspaceAccess, type WorkspaceRole } from "@/lib/auth-token";
+
+const AUTH_COOKIE = "eduinsight_access_token";
+
+function requiredRole(pathname: string): WorkspaceRole | null {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  if (pathname === "/teacher" || pathname.startsWith("/teacher/")) return "teacher";
+  if (pathname === "/student" || pathname.startsWith("/student/")) return "student";
+  return null;
+}
 
 export function middleware(request: NextRequest) {
-  const authCookie = request.cookies.get(AUTH_COOKIE);
-  console.log('Middleware Cookie Check:', authCookie);
-  if (!authCookie?.value) {
-    const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('next', request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  return NextResponse.next();
+  const role = requiredRole(request.nextUrl.pathname);
+  if (!role) return NextResponse.next();
+
+  const token = request.cookies.get(AUTH_COOKIE)?.value;
+  if (hasWorkspaceAccess(token, role)) return NextResponse.next();
+
+  const loginUrl = new URL("/login", request.url);
+  const response = NextResponse.redirect(loginUrl);
+  response.cookies.delete(AUTH_COOKIE);
+  return response;
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ["/admin/:path*", "/teacher/:path*", "/student/:path*"],
 };

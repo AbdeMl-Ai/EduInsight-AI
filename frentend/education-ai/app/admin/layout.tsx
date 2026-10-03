@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BookOpen, GraduationCap, LayoutDashboard, UserRound, Users } from 'lucide-react';
 import ThemeToggle from '@/components/app/ThemeToggle';
+import AuthGuard from '@/components/app/AuthGuard';
 import type { LucideIcon } from 'lucide-react';
 
 const navigation: Array<{ href: string; label: string; icon: LucideIcon }> = [
@@ -17,6 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
 
   return (
+    <AuthGuard role="admin">
     <div className="app-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9]">
       <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-white/[0.07] bg-[#0a0a0a]/95 px-4 backdrop-blur-md sm:px-6">
         <Link href="/admin/home" className="flex items-center gap-2.5">
@@ -63,5 +65,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
     </div>
+    </AuthGuard>
   );
 }

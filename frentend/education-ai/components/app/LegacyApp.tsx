@@ -4823,7 +4823,7 @@ export function ConnectedApp({
   if (!role) return <Login setRole={setRole} />;
   const logout = () => {
     api.logout();
-    window.location.assign("/login");
+    window.location.replace("/login");
   };
   return (
     <div dir={language === "ar" ? "rtl" : "ltr"} className={`flex min-h-screen bg-white text-[#0F172A] ${role === "Teacher" ? "teacher-workspace" : role === "Admin" ? "admin-workspace" : ""}`}>
@@ -4967,4 +4967,3 @@ export function ConnectedApp({
     </div>
   );
 }
-

@@ -168,7 +168,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       typeof window !== "undefined" &&
       window.location.pathname !== "/login"
     ) {
-      window.location.assign("/login");
+      window.location.replace("/login");
     }
     throw new Error(
       "We could not verify your sign-in session. Please sign in with Google again.",

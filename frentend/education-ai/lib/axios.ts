@@ -43,7 +43,7 @@ api.interceptors.response.use(
       localStorage.removeItem('eduinsight_role');
       document.cookie = 'eduinsight_access_token=; Path=/; Max-Age=0; SameSite=Lax';
       if (window.location.pathname !== '/login') {
-        window.location.assign('/login');
+        window.location.replace('/login');
       }
     }
     return Promise.reject(error);

@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Bell, BookOpen, CheckCircle, GraduationCap, House, Send, UserRound, X } from 'lucide-react';
 import { getTeacherErrorMessage, getTeacherNotifications, type TeacherNotification } from '@/lib/teacher-api';
 import ThemeToggle from '@/components/app/ThemeToggle';
+import AuthGuard from '@/components/app/AuthGuard';
 import type { LucideIcon } from 'lucide-react';
 
 type NavigationItem = { href: string; label: string; icon: LucideIcon };
@@ -32,6 +33,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     return () => controller.abort();
   }, []);
   return (
+    <AuthGuard role="teacher">
     <div className="app-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9]">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/10 bg-[#0a0a0a] px-5 py-7 md:flex">
         <Link href="/teacher/home" className="mb-12 flex items-center gap-3 px-2"><span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-yellow-500/30 bg-[#2A2420] text-[#dfc27e]"><GraduationCap size={18} /></span><span className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">EDUINSIGHT AI</span></Link>
@@ -45,5 +47,6 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       </div>
       <nav aria-label="Teacher navigation" className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0b0b0b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"><div className="mx-auto grid h-[4.15rem] w-full max-w-[360px] grid-cols-4">{navigation.map(({ href, label, icon: Icon }) => { const active = isActive(pathname, href); return <Link key={href} href={href} aria-current={active ? 'page' : undefined} className={`relative flex min-w-0 flex-col items-center justify-center gap-1 transition-colors ${active ? 'text-[#dfc27e]' : 'text-white/45 hover:text-white/80'}`}>{active && <span className="absolute top-0 h-px w-8 bg-[#c6a96b]" />}<Icon size={19} strokeWidth={active ? 2 : 1.7} /><span className="max-w-full truncate text-[9px] font-medium">{label}</span></Link>; })}</div></nav>
     </div>
+    </AuthGuard>
   );
 }
