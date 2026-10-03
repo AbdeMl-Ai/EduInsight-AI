@@ -16,14 +16,39 @@ class UserRepo:
             return None
         document = await self.collection.find_one(
             {"_id": ObjectId(user_id)},
-            {"email": 1, "full_name": 1, "role": 1, "hashed_password": 1, "admin_id": 1, "created_at": 1},
+            {
+                "email": 1,
+                "full_name": 1,
+                "role": 1,
+                "hashed_password": 1,
+                "phone_number": 1,
+                "account_status": 1,
+                "google_sub": 1,
+                "admin_id": 1,
+                "created_at": 1,
+            },
         )
         return User.model_validate(document) if document else None
 
     async def get_by_email(self, email: str):
         document = await self.collection.find_one(
-            {"email": email},
-            {"email": 1, "full_name": 1, "role": 1, "hashed_password": 1, "admin_id": 1, "created_at": 1},
+            {
+                "email": {
+                    "$regex": f"^{re.escape(email.strip())}$",
+                    "$options": "i",
+                }
+            },
+            {
+                "email": 1,
+                "full_name": 1,
+                "role": 1,
+                "hashed_password": 1,
+                "phone_number": 1,
+                "account_status": 1,
+                "google_sub": 1,
+                "admin_id": 1,
+                "created_at": 1,
+            },
         )
         return User.model_validate(document) if document else None
 
@@ -34,19 +59,57 @@ class UserRepo:
         full_name: str,
         role: str,
         hashed_password: str,
-        admin_id: str | None = None
+        admin_id: str | None = None,
+        phone_number: str | None = None,
+        account_status: str | None = None,
+        google_sub: str | None = None,
     ) -> User:
         user_dict = {
             "email": email,
             "full_name": full_name,
             "role": role,
             "hashed_password": hashed_password,
+            "phone_number": phone_number,
+            "account_status": account_status,
+            "google_sub": google_sub,
             "admin_id": ObjectId(admin_id) if admin_id else None,
             "created_at": datetime.now(timezone.utc)
         }
         result = await self.collection.insert_one(user_dict)
         user_dict["_id"] = result.inserted_id
         return User.model_validate(user_dict)
+
+    async def get_or_create(
+        self,
+        *,
+        email: str,
+        full_name: str,
+        google_sub: str,
+    ) -> User:
+        user = await self.collection.find_one_and_update(
+            {
+                "email": {
+                    "$regex": f"^{re.escape(email)}$",
+                    "$options": "i",
+                }
+            },
+            {
+                "$setOnInsert": {
+                    "email": email,
+                    "full_name": full_name,
+                    "role": "user",
+                    "hashed_password": None,
+                    "phone_number": None,
+                    "account_status": "pending",
+                    "google_sub": google_sub,
+                    "admin_id": None,
+                    "created_at": datetime.now(timezone.utc),
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return User.model_validate(user)
 
     async def set_student_password(
         self,
@@ -63,11 +126,42 @@ class UserRepo:
         )
 
         if user is not None:
+            if user.get("role") == "user" and user.get("account_status") == "pending":
+                try:
+                    result = await self.collection.update_one(
+                        {
+                            "_id": user["_id"],
+                            "role": "user",
+                            "account_status": "pending",
+                        },
+                        {
+                            "$set": {
+                                "email": normalized_email,
+                                "full_name": full_name,
+                                "role": "student",
+                                "admin_id": tenant_id,
+                                "hashed_password": hashed_password,
+                                "account_status": "active",
+                            }
+                        },
+                    )
+                except DuplicateKeyError as error:
+                    raise ValueError("An account with this email already exists.") from error
+                if result.matched_count != 1:
+                    raise ValueError("The pending account could not be assigned.")
+                return
             if user.get("role") != "student" or str(user.get("admin_id")) != admin_id:
                 raise ValueError("This email belongs to a different account.")
             await self.collection.update_one(
                 {"_id": user["_id"], "role": "student", "admin_id": tenant_id},
-                {"$set": {"email": normalized_email, "full_name": full_name, "hashed_password": hashed_password}},
+                {
+                    "$set": {
+                        "email": normalized_email,
+                        "full_name": full_name,
+                        "hashed_password": hashed_password,
+                        "account_status": "active",
+                    }
+                },
             )
             return
 
@@ -79,6 +173,7 @@ class UserRepo:
                     "role": "student",
                     "admin_id": tenant_id,
                     "hashed_password": hashed_password,
+                    "account_status": "active",
                     "created_at": datetime.now(timezone.utc),
                 }
             )
@@ -104,16 +199,48 @@ class UserRepo:
                     "role": "teacher",
                     "admin_id": tenant_id,
                     "hashed_password": hashed_password,
+                    "account_status": "active",
                     "created_at": datetime.now(timezone.utc),
                 })
             except DuplicateKeyError as error:
                 raise ValueError("An account with this email already exists.") from error
             return
+        if user.get("role") == "user" and user.get("account_status") == "pending":
+            try:
+                result = await self.collection.update_one(
+                    {
+                        "_id": user["_id"],
+                        "role": "user",
+                        "account_status": "pending",
+                    },
+                    {
+                        "$set": {
+                            "email": normalized_email,
+                            "full_name": full_name,
+                            "role": "teacher",
+                            "admin_id": tenant_id,
+                            "hashed_password": hashed_password,
+                            "account_status": "active",
+                        }
+                    },
+                )
+            except DuplicateKeyError as error:
+                raise ValueError("An account with this email already exists.") from error
+            if result.matched_count != 1:
+                raise ValueError("The pending account could not be assigned.")
+            return
         if user.get("role") != "teacher" or str(user.get("admin_id")) != admin_id:
             raise ValueError("This email belongs to a different account.")
         await self.collection.update_one(
             {"_id": user["_id"], "role": "teacher", "admin_id": tenant_id},
-            {"$set": {"email": normalized_email, "full_name": full_name, "hashed_password": hashed_password}},
+            {
+                "$set": {
+                    "email": normalized_email,
+                    "full_name": full_name,
+                    "hashed_password": hashed_password,
+                    "account_status": "active",
+                }
+            },
         )
 
     async def update_student_login_identity(

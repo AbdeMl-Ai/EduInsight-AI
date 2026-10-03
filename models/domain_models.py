@@ -29,7 +29,10 @@ class User(MongoDocument):
     email: str
     full_name: str
     role: str
-    hashed_password: str
+    hashed_password: str | None = None
+    phone_number: str | None = None
+    account_status: str | None = None
+    google_sub: str | None = None
     admin_id: MongoId | None = None
     created_at: datetime = Field(default_factory=_utc_now)
 

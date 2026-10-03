@@ -61,17 +61,34 @@ $env:CORS_ORIGINS = "http://localhost:3000"
 
 Set a strong, stable `SECRET_KEY` in every non-development environment. Register the callback URL above in Google Cloud Console. `CORS_ORIGINS` is optional; its default permits common local frontend origins. A comma-separated list is supported.
 
+In production, set `GOOGLE_CALLBACK_URL` to the public FastAPI API host followed
+by `/auth/google/callback` and register that exact URL in Google Cloud Console.
+Set `FRONTEND_AUTH_REDIRECT_URL` separately to the frontend login URL (for
+example, your Vercel production domain plus `/login`). The frontend redirects
+to the API host to start Google OAuth so the API session cookie is preserved.
+The Google callback is the API URL, not the Vercel frontend URL.
+
 Run the API:
 
 ```powershell
 uvicorn app:app --reload
 ```
 
+To create the initial admin login, configure `MONGODB_URI` (and optionally
+`MONGODB_DATABASE`) in the root `.env`, then run `python seed_admin.py`.
+The script creates matching records in `users` and `admins`; the default
+password is `Admin123`. Set `ADMIN_PASSWORD` before running to choose a different
+password, and change the password after the first login.
+
 The API root is `http://127.0.0.1:8000/`; OpenAPI documentation is at `/docs` and `/redoc`. Startup pings MongoDB and creates required indexes. Start Google sign-in at `GET /auth/google/login`; the callback redirects to the configured frontend with the bearer token in the URL fragment, or returns the token as JSON when `FRONTEND_AUTH_REDIRECT_URL` is unset. Existing admin, student, and teacher accounts are linked by their verified email. New Google users are created with the generic `user` role and must be provisioned before accessing role-specific APIs.
 
 ## Authentication
 
 The `/auth` API exposes `GET /auth/google/login` and `GET /auth/google/callback`. Google identities are stored in the `users` collection with a unique email index; matching existing role accounts receive their established role in the JWT.
+
+`POST /auth/register` creates a public email/password account in `users` with a
+bcrypt-hashed password and pending status. An administrator must assign the
+account a supported role and workspace before dashboard access.
 
 ## API Areas
 

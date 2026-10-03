@@ -36,7 +36,7 @@ npm ci
 Create or update `.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 For Vercel, set `NEXT_PUBLIC_API_URL` to the deployed Render API URL, for
@@ -78,6 +78,7 @@ The production server normally runs at `http://localhost:3000`.
 | --- | --- |
 | `/` | Authentication entry. Redirects authenticated users to their role workspace. |
 | `/login` | Login screen. |
+| `/register` | Public registration using email/password or Google; workspace access waits for administrator provisioning. |
 | `/setup` | Admin setup screen. |
 | `/admin` | Admin workspace. |
 | `/teacher` | Teacher workspace. |
@@ -125,6 +126,14 @@ The client is located at `lib/api.ts`. It provides typed helpers for:
 - Teacher courses, exercises, grades, attendance, submissions, and notifications.
 - Student profiles, courses, exercises, grades, submissions, and notifications.
 - Multipart file uploads for student submissions and teacher course/exercise materials.
+
+Google sign-in redirects to the API host from `NEXT_PUBLIC_API_URL` so the
+FastAPI session cookie is preserved for the OAuth callback. Configure the
+backend's `GOOGLE_CALLBACK_URL` as its public callback URL and register that
+exact URI in Google Cloud Console. Configure `FRONTEND_AUTH_REDIRECT_URL`
+separately as the frontend login URL. On Vercel, the frontend redirect uses the
+Vercel production domain, but Google's authorized redirect URI remains the
+FastAPI API domain.
 
 JSON requests use `Content-Type: application/json`. Requests containing `FormData` intentionally do not set `Content-Type`; the browser supplies the multipart boundary.
 

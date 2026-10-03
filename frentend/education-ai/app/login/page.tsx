@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'framer-motion';
+import Link from 'next/link';
 import { Apple, Eye, EyeOff, GraduationCap, LoaderCircle, LockKeyhole, Mail } from 'lucide-react';
 import axios from 'axios';
 import client from '@/lib/axios';
@@ -17,7 +17,6 @@ export default function LoginPage() {
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState('');
 	const [notice, setNotice] = useState('');
-	const [showAccountNotice, setShowAccountNotice] = useState(false);
 
 	function routeForRole(role: string) {
 		if (role === 'student') router.replace('/student/home');
@@ -34,8 +33,13 @@ export default function LoginPage() {
 		const role = authFragment.get('role');
 		if (!accessToken || !role) return;
 
+		window.history.replaceState(null, '', window.location.pathname + window.location.search);
+		if (role === 'user') {
+			setNotice('Your account was created and is pending administrator approval before workspace access.');
+			return;
+		}
+
 		if (!['student', 'teacher', 'admin'].includes(role)) {
-			window.history.replaceState(null, '', window.location.pathname + window.location.search);
 			setError('This account does not have a supported dashboard role. Contact your administrator.');
 			return;
 		}
@@ -46,7 +50,6 @@ export default function LoginPage() {
 			role: role as LoginResponse['role'],
 		} as LoginResponse;
 		sessionApi.saveSession(session);
-		window.history.replaceState(null, '', window.location.pathname + window.location.search);
 		routeForRole(role);
 	}, [router]);
 
@@ -197,20 +200,12 @@ export default function LoginPage() {
 
 				<div className="mt-7 text-center">
 					<span className="text-xs text-white/45">Don't have an account? </span>
-					<button
-						type="button"
-						onClick={() => setShowAccountNotice((shown) => !shown)}
+					<Link
+						href="/register"
 						className="text-xs font-semibold text-[#dfc27e] underline decoration-[#dfc27e]/35 underline-offset-4 hover:text-[#f0d89d]"
 					>
 						Create Account
-					</button>
-					<AnimatePresence>
-						{showAccountNotice && (
-							<motion.p initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mx-auto mt-3 max-w-sm overflow-hidden text-xs leading-5 text-white/45">
-								Student accounts are created by your school administrator. Please contact them to get access.
-							</motion.p>
-						)}
-					</AnimatePresence>
+					</Link>
 				</div>
 			</section>
 		</main>

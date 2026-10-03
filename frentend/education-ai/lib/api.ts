@@ -190,6 +190,20 @@ export const api = {
   startGoogleSignIn: () => {
     window.location.assign(`${DIRECT_URL}/auth/google/login`);
   },
+  registerAccount: (data: {
+    full_name: string;
+    email: string;
+    phone_number: string;
+    password: string;
+  }) =>
+    request<{
+      message: string;
+      email: string;
+      account_status: "pending";
+    }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   setupAdmin: (data: { name: string; email: string; phone_number: string }) =>
     request<{ message: string; admin_id: number; email: string; phone_number: string }>(
       "/admin/setup",

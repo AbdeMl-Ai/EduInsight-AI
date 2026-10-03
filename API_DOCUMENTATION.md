@@ -24,6 +24,14 @@ IDs are represented as strings in these API schemas. Timestamps are ISO 8601 dat
 - **Success `200`:** `{"access_token":"<jwt>","token_type":"bearer","role":"student|teacher|admin|..."}`.
 - **Errors:** `401` invalid credentials; `422` missing or malformed form values.
 
+### `POST /auth/register`
+
+- **Access:** Public.
+- **Description:** Creates a pending general account in the `users` collection. The password is stored as a bcrypt hash; a workspace administrator must assign the account a supported role and workspace before dashboard access.
+- **Request:** JSON: `{ "full_name": string, "email": string, "phone_number": string, "password": string }`. Email is normalized to lowercase; passwords must be 8–72 UTF-8 bytes.
+- **Success `201`:** `{ "message": string, "email": string, "account_status": "pending" }`.
+- **Errors:** `409` email already exists; `422` invalid fields.
+
 ### `GET /auth/google/login`
 
 - **Access:** Public.
@@ -42,7 +50,9 @@ IDs are represented as strings in these API schemas. Timestamps are ISO 8601 dat
 
 ### Signup and user creation
 
-There is no public self-signup endpoint. `POST /admin/setup` is the initial administrator bootstrap, not general signup. An administrator can create a password-based login with `POST /admin/users/create`; this creates a user credential record and does not return a JWT. Admin-managed student/teacher records are created through the endpoints in their respective sections.
+`POST /admin/setup` is the initial administrator bootstrap, not general signup. An administrator can create a password-based login with `POST /admin/users/create`; this creates a user credential record and does not return a JWT. Admin-managed student/teacher records are created through the endpoints in their respective sections.
+
+Google OAuth's authorized redirect URI is the public FastAPI callback URL, configured with backend `GOOGLE_CALLBACK_URL` (for example, `https://<api-host>/auth/google/callback`). It is not the Vercel frontend URL. `FRONTEND_AUTH_REDIRECT_URL` is a separate setting that points to the frontend login page (for example, `https://<frontend-host>/login`).
 
 ## Payload and Response Shapes
 
