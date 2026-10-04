@@ -27,9 +27,9 @@ IDs are represented as strings in these API schemas. Timestamps are ISO 8601 dat
 ### `POST /auth/register`
 
 - **Access:** Public.
-- **Description:** Creates a pending general account in the `users` collection. The password is stored as a bcrypt hash; a workspace administrator must assign the account a supported role and workspace before dashboard access.
+- **Description:** Creates an active general account in the `users` collection with the `user` role. The password is stored as a bcrypt hash, and the account can sign in to the student workspace immediately.
 - **Request:** JSON: `{ "full_name": string, "email": string, "phone_number": string, "password": string }`. Email is normalized to lowercase; passwords must be 8–72 UTF-8 bytes.
-- **Success `201`:** `{ "message": string, "email": string, "account_status": "pending" }`.
+- **Success `201`:** `{ "message": string, "email": string, "role": "user", "account_status": "active" }`.
 - **Errors:** `409` email already exists; `422` invalid fields.
 
 ### `GET /auth/google/login`
@@ -77,7 +77,7 @@ The following shared schemas describe request bodies used below. Optional fields
 - Teacher update: subset of teacher profile fields (`full_name`, `email`, `phone_number`, `age`, `is_state_teacher`, `specialties`). Admin teacher update additionally accepts `class_ids`.
 - Admin teacher-class assignment: `{ "class_ids": string[] }`.
 
-Student response: `{ "student_id": string, "admin_id": string, "parent_id": string|null, "full_name": string, "age": number, "level_academy": string, "date_enjoined": string|null, "email": string, "phone_number": string, "level": string, "class_id": string|null }`.
+Student response: `{ "student_id": string, "admin_id": string|null, "parent_id": string|null, "full_name": string, "age": number, "level_academy": string, "date_enjoined": string|null, "email": string, "phone_number": string, "level": string, "class_id": string|null }`. Public `user` accounts receive their profile and empty class/course/exercise/submission/grade/notification lists until they are enrolled; write operations still require a provisioned student account.
 
 Teacher response: `{ "teacher_id": string, "admin_id": string, "full_name": string, "email": string, "phone_number": string, "age": number, "is_state_teacher": boolean, "specialties": string[], "date_enjoined": string|null, "classes": object[] }`.
 

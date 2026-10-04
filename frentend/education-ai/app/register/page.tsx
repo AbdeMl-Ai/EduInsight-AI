@@ -89,7 +89,7 @@ export default function RegisterPage() {
               Create your account
             </h1>
             <p className="mt-2 text-sm leading-6 text-white/50">
-              Sign up with your details or continue with Google.
+              Sign up with your details or continue with Google. New accounts can sign in right away.
             </p>
           </div>
 
@@ -194,7 +194,7 @@ export default function RegisterPage() {
           </button>
 
           <p className="mt-6 text-center text-xs leading-5 text-white/45">
-            New accounts need administrator approval before workspace access.
+            Your new account can sign in to the student workspace right away.
           </p>
         </div>
       </section>

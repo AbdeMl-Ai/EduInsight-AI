@@ -9,7 +9,7 @@ class StudentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     student_id: str = Field(validation_alias=AliasChoices("student_id", "id", "_id"))
-    admin_id: str
+    admin_id: str | None = None
     parent_id: str | None = None
     full_name: str
     age: int = 0

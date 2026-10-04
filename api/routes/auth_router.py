@@ -38,7 +38,7 @@ async def register(data: RegistrationRequest):
             role="user",
             hashed_password=hash_password(data.password),
             phone_number=data.phone_number,
-            account_status="pending",
+            account_status="active",
         )
     except DuplicateKeyError as error:
         raise HTTPException(
@@ -55,9 +55,10 @@ async def register(data: RegistrationRequest):
         ) from None
 
     return {
-        "message": "Account created. An administrator must assign your workspace access.",
+        "message": "Account created. You can now sign in to your student workspace.",
         "email": user.email,
-        "account_status": "pending",
+        "role": "user",
+        "account_status": "active",
     }
 
 

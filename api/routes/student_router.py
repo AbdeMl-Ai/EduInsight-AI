@@ -8,6 +8,7 @@ from api.dependencies import (
     material_controller,
     notification_controller,
     require_student,
+    require_student_workspace,
     student_controller,
     submission_controller,
 )
@@ -26,13 +27,27 @@ def _submission(item):
     return {"id": item.id, "admin_id": item.admin_id, "student_id": item.student_id, "class_id": item.class_id, "exercise_id": item.exercise_id, "submission_status": item.submission_status, "file_path": item.file_path, "student_note": item.student_note, "score": item.score, "submitted_at": item.submitted_at, "graded_at": item.graded_at}
 
 
+def _is_registered_user(user) -> bool:
+    return getattr(user, "_token_role", None) == "user"
+
+
 @router.get("/me", response_model=StudentResponse)
-async def get_my_profile(user=Depends(require_student)):
+async def get_my_profile(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return StudentResponse(
+            student_id=user.id,
+            full_name=user.full_name,
+            email=user.email,
+            phone_number=user.phone_number or "",
+            date_enjoined=user.created_at,
+        )
     return await student_controller.get_my_profile(user)
 
 
 @router.get("/me/classes")
-async def get_my_classes(user=Depends(require_student)):
+async def get_my_classes(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
     classes = []
     for class_id in class_ids:
@@ -60,7 +75,9 @@ async def update_my_profile(data: StudentUpdate, user=Depends(require_student)):
 
 
 @router.get("/me/courses")
-async def get_my_courses(user=Depends(require_student)):
+async def get_my_courses(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     tenant = user.admin_id
     class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
     if class_ids:
@@ -74,14 +91,18 @@ async def get_my_courses(user=Depends(require_student)):
 
 
 @router.get("/me/exercises")
-async def get_my_exercises(user=Depends(require_student)):
+async def get_my_exercises(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
     exercises = await student_controller.get_my_exercises(user.id, class_ids, user.admin_id)
     return [{"id": exercise.id, "course_id": exercise.course_id, "class_id": exercise.class_id, "course_title": exercise.course_title, "file_path": exercise.file_path, "material_file_path": await material_controller.get_latest_path("exercise", exercise.id, user.admin_id), "max_score": exercise.max_score, "score": exercise.score, "submission_status": exercise.submission_status} for exercise in exercises]
 
 
 @router.get("/me/submissions")
-async def get_my_submissions(user=Depends(require_student)):
+async def get_my_submissions(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     return [_submission(item) for item in await submission_controller.get_submissions_by_student(user.id, user.admin_id)]
 
 
@@ -129,13 +150,17 @@ async def delete_my_submission(submission_id: str, user=Depends(require_student)
 
 
 @router.get("/me/grades")
-async def get_my_scores(user=Depends(require_student)):
+async def get_my_scores(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     submissions = await submission_controller.get_submissions_by_student(user.id, user.admin_id)
     return [{"submission_id": item.id, "score": item.score, "exercise_id": item.exercise_id, "graded_at": item.graded_at} for item in submissions if item.score is not None]
 
 
 @router.get("/me/notifications")
-async def get_my_notifications(user=Depends(require_student)):
+async def get_my_notifications(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return []
     notifications = await notification_controller.get_student_notifications(user.id, user.admin_id)
     return [{"student_notification_id": item.id, "notification_id": item.id, "title": item.notification_type, "message": item.message, "is_read": item.is_read, "created_at": item.created_at, "admin_id": item.admin_id, "sender_id": item.sender_id, "receiver_id": item.receiver_id, "receiver_role": item.receiver_role, "notification_type": item.notification_type, "reference_link": item.reference_link} for item in notifications]
 

@@ -100,16 +100,28 @@ class UserRepo:
                     "role": "user",
                     "hashed_password": None,
                     "phone_number": None,
-                    "account_status": "pending",
                     "google_sub": google_sub,
                     "admin_id": None,
                     "created_at": datetime.now(timezone.utc),
-                }
+                },
+                "$set": {"account_status": "active"},
             },
             upsert=True,
             return_document=ReturnDocument.AFTER,
         )
         return User.model_validate(user)
+
+    async def activate_registered_user(self, user_id: str) -> None:
+        if not ObjectId.is_valid(user_id):
+            raise ValueError("Invalid user id.")
+        await self.collection.update_one(
+            {
+                "_id": ObjectId(user_id),
+                "role": "user",
+                "account_status": "pending",
+            },
+            {"$set": {"account_status": "active"}},
+        )
 
     async def set_student_password(
         self,

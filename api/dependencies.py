@@ -216,6 +216,15 @@ def require_student(current_user=Depends(get_current_user)):
     return current_user
 
 
+def require_student_workspace(current_user=Depends(get_current_user)):
+    if getattr(current_user, "_token_role", None) not in {"student", "user"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student workspace access required",
+        )
+    return current_user
+
+
 def require_teacher(current_user=Depends(get_current_user)):
     if getattr(current_user, "_token_role", None) != "teacher":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Teacher access required")

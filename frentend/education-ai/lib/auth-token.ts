@@ -35,5 +35,6 @@ export function hasWorkspaceAccess(
   token: string | undefined,
   role: WorkspaceRole,
 ): boolean {
-  return getRoleFromToken(token) === role;
+  const tokenRole = getRoleFromToken(token);
+  return tokenRole === role || (role === "student" && tokenRole === "user");
 }

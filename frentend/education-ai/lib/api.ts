@@ -234,7 +234,8 @@ export const api = {
     request<{
       message: string;
       email: string;
-      account_status: "pending";
+      role: "user";
+      account_status: "active";
     }>("/auth/register", {
       method: "POST",
       body: JSON.stringify(data),

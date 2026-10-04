@@ -63,14 +63,22 @@ class AuthService:
         if not user:
             raise ValueError("Invalid email or password")
 
-        role = user.role
-        if role == "user" or user.account_status == "pending":
-            raise ValueError("Your account is pending administrator approval.")
+        if user.account_status in {"inactive", "disabled", "suspended"}:
+            raise ValueError("This account is inactive.")
         if not user.hashed_password or not verify_password(
             password, user.hashed_password
         ):
             raise ValueError("Invalid email or password")
-        
+
+        role = user.role
+        if role == "user":
+            if user.account_status == "pending":
+                await self.user_repo.activate_registered_user(str(user.id))
+            return self._token_response(
+                {"sub": str(user.id), "role": "user"},
+                "user",
+            )
+
         if role == "student":
             account = await self.student_repo.get_student_by_email(email)
         elif role == "teacher":

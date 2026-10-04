@@ -51,11 +51,13 @@ def test_register_stores_a_hashed_password_and_pending_account(monkeypatch):
     assert repository.created["full_name"] == "Example Person"
     assert repository.created["phone_number"] == "+1 (555) 123-4567"
     assert repository.created["role"] == "user"
-    assert repository.created["account_status"] == "pending"
+    assert repository.created["account_status"] == "active"
     assert verify_password(
         "strong-password", repository.created["hashed_password"]
     )
-    assert result["account_status"] == "pending"
+    assert result["role"] == "user"
+    assert result["account_status"] == "active"
+    assert "sign in" in result["message"]
 
 
 def test_register_rejects_existing_email(monkeypatch):
@@ -161,6 +163,42 @@ def test_admin_password_setup_activates_matching_pending_registration(method_nam
     assert collection.update[1]["$set"]["role"] == role
     assert collection.update[1]["$set"]["account_status"] == "active"
     assert collection.update[1]["$set"]["hashed_password"] == "bcrypt-hash"
+
+
+def test_google_registration_creates_an_active_user_account():
+    class FakeCollection:
+        update = None
+
+        async def find_one_and_update(self, query, update, **options):
+            self.update = (query, update, options)
+            return {
+                "_id": ObjectId(),
+                "email": "person@example.com",
+                "full_name": "Example Person",
+                "role": "user",
+                "account_status": "active",
+                "google_sub": "google-subject",
+            }
+
+    collection = FakeCollection()
+
+    class FakeDatabase:
+        def __getitem__(self, _name):
+            return collection
+
+    repository = UserRepo(FakeDatabase())
+    user = asyncio.run(
+        repository.get_or_create(
+            email="person@example.com",
+            full_name="Example Person",
+            google_sub="google-subject",
+        )
+    )
+
+    assert user.role == "user"
+    assert user.account_status == "active"
+    assert collection.update[1]["$set"]["account_status"] == "active"
+    assert "account_status" not in collection.update[1]["$setOnInsert"]
 
 
 def test_password_hashing_verifies_new_and_legacy_bcrypt_hashes():

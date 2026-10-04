@@ -21,7 +21,7 @@ function LoginPageContent() {
 	const [notice, setNotice] = useState('');
 
 	function routeForRole(role: string) {
-		if (role === 'student') router.replace('/student/home');
+		if (role === 'student' || role === 'user') router.replace('/student/home');
 		else if (role === 'teacher' || role === 'admin') router.replace(`/${role}`);
 		else {
 			sessionApi.logout();
@@ -50,12 +50,6 @@ function LoginPageContent() {
 			return;
 		}
 
-		if (role === 'user') {
-			window.history.replaceState(null, '', window.location.pathname);
-			setNotice('Your account was created and is pending administrator approval before workspace access.');
-			return;
-		}
-
 		const session = {
 			access_token: accessToken,
 			token_type: tokenType,
@@ -75,7 +69,7 @@ function LoginPageContent() {
 			const { data } = await client.post<LoginResponse>('/auth/login', form, {
 				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			});
-			if (!['student', 'teacher', 'admin'].includes(data.role)) {
+			if (!['student', 'user', 'teacher', 'admin'].includes(data.role)) {
 				setError('This account does not have a supported dashboard role. Contact your administrator.');
 				return;
 			}

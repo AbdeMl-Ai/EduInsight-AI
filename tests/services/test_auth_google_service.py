@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from services.auth_service import AuthService
+from utils.passwords import hash_password
 from utils.security import decode_access_token
 
 
@@ -28,6 +29,18 @@ class FakeGoogleUserRepo:
     async def get_or_create(self, **user_data):
         self.created = user_data
         return SimpleNamespace(id="google-user-id")
+
+
+class FakeLoginUserRepo:
+    def __init__(self, user):
+        self.user = user
+        self.activated_user_id = None
+
+    async def get_by_email(self, _email):
+        return self.user
+
+    async def activate_registered_user(self, user_id):
+        self.activated_user_id = user_id
 
 
 def make_auth_service(admin=None, student=None, teacher=None):
@@ -59,6 +72,69 @@ def test_google_login_creates_identity_and_returns_bearer_jwt():
     assert payload["role"] == "user"
     assert user_repo.created["email"] == "person@example.com"
     assert user_repo.created["google_sub"] == "google-subject"
+
+
+@pytest.mark.parametrize("account_status", ["active", "pending"])
+def test_manual_user_login_issues_student_workspace_compatible_token(account_status):
+    user = SimpleNamespace(
+        id="registered-user-id",
+        role="user",
+        account_status=account_status,
+        hashed_password=hash_password("strong-password"),
+    )
+    user_repo = FakeLoginUserRepo(user)
+    service = AuthService(
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        user_repo,
+    )
+
+    result = asyncio.run(service.login("Person@Example.com", "strong-password"))
+    payload = decode_access_token(result["access_token"])
+
+    assert result["role"] == "user"
+    assert payload["sub"] == "registered-user-id"
+    assert payload["role"] == "user"
+    assert user_repo.activated_user_id == (
+        "registered-user-id" if account_status == "pending" else None
+    )
+
+
+def test_manual_user_login_rejects_an_incorrect_password():
+    user = SimpleNamespace(
+        id="registered-user-id",
+        role="user",
+        account_status="active",
+        hashed_password=hash_password("strong-password"),
+    )
+    service = AuthService(
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeLoginUserRepo(user),
+    )
+
+    with pytest.raises(ValueError, match="Invalid email or password"):
+        asyncio.run(service.login("person@example.com", "wrong-password"))
+
+
+def test_manual_user_login_rejects_explicitly_inactive_account():
+    user = SimpleNamespace(
+        id="registered-user-id",
+        role="user",
+        account_status="inactive",
+        hashed_password=hash_password("strong-password"),
+    )
+    service = AuthService(
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeLoginUserRepo(user),
+    )
+
+    with pytest.raises(ValueError, match="This account is inactive"):
+        asyncio.run(service.login("person@example.com", "strong-password"))
 
 
 def test_google_login_links_existing_admin_by_verified_email():
