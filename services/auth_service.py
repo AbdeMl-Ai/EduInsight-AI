@@ -43,18 +43,22 @@ class AuthService:
                 payload["admin_id"] = str(account.admin_id)
             return self._token_response(payload, role)
 
-        user = await self.user_repo.get_or_create(
+        admin = await self.admin_repo.get_or_create_registered_admin(
             email=email,
             full_name=str(profile.get("name") or email.split("@", 1)[0]).strip(),
-            google_sub=subject,
         )
-        if getattr(user, "role", "user") != "user":
-            raise ValueError(
-                f"User profile for {email} with role {user.role} not found."
-            )
+        user = await self.user_repo.get_or_create(
+            email=email,
+            full_name=admin.full_name,
+            google_sub=subject,
+            role="admin",
+            admin_id=admin.id,
+        )
+        if getattr(user, "role", None) != "admin":
+            raise ValueError(f"User profile for {email} is not an administrator.")
 
-        payload = {"sub": str(user.id), "role": "user"}
-        return self._token_response(payload, "user")
+        payload = {"sub": str(admin.id), "role": "admin"}
+        return self._token_response(payload, "admin")
 
     async def login(self, email: str, password: str) -> dict[str, str]:
         email = email.strip().lower()

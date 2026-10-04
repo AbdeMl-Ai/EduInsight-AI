@@ -27,9 +27,9 @@ IDs are represented as strings in these API schemas. Timestamps are ISO 8601 dat
 ### `POST /auth/register`
 
 - **Access:** Public.
-- **Description:** Creates an active general account in the `users` collection with the `user` role. The password is stored as a bcrypt hash, and the account can sign in to the student workspace immediately.
+- **Description:** Creates an active center administrator login in the `users` collection and matching profile in `admins`. The password is stored as a bcrypt hash, and the account can sign in to the admin dashboard immediately.
 - **Request:** JSON: `{ "full_name": string, "email": string, "phone_number": string, "password": string }`. Email is normalized to lowercase; passwords must be 8–72 UTF-8 bytes.
-- **Success `201`:** `{ "message": string, "email": string, "role": "user", "account_status": "active" }`.
+- **Success `201`:** `{ "message": string, "email": string, "role": "admin", "account_status": "active" }`.
 - **Errors:** `409` email already exists; `422` invalid fields.
 
 ### `GET /auth/google/login`

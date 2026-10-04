@@ -25,6 +25,14 @@ class FakeUserRepo:
         return SimpleNamespace(email=user_data["email"])
 
 
+class FakeAdminController:
+    async def setup_admin(self, full_name, email, phone_number):
+        assert full_name == "Example Person"
+        assert email == "person@example.com"
+        assert phone_number == "+1 (555) 123-4567"
+        return SimpleNamespace(id="admin-id")
+
+
 def registration_request():
     request = RegistrationRequest(
         full_name=" Example Person ",
@@ -41,28 +49,31 @@ def registration_request():
     return request
 
 
-def test_register_stores_a_hashed_password_and_pending_account(monkeypatch):
+def test_register_creates_active_admin_profile_and_hashed_login(monkeypatch):
     repository = FakeUserRepo()
     monkeypatch.setattr(auth_router, "user_repo", repository)
+    monkeypatch.setattr(auth_router, "admin_controller", FakeAdminController())
 
     result = asyncio.run(auth_router.register(registration_request()))
 
     assert repository.created["email"] == "person@example.com"
     assert repository.created["full_name"] == "Example Person"
     assert repository.created["phone_number"] == "+1 (555) 123-4567"
-    assert repository.created["role"] == "user"
+    assert repository.created["role"] == "admin"
     assert repository.created["account_status"] == "active"
+    assert repository.created["admin_id"] == "admin-id"
     assert verify_password(
         "strong-password", repository.created["hashed_password"]
     )
-    assert result["role"] == "user"
+    assert result["role"] == "admin"
     assert result["account_status"] == "active"
-    assert "sign in" in result["message"]
+    assert "admin dashboard" in result["message"]
 
 
 def test_register_rejects_existing_email(monkeypatch):
     repository = FakeUserRepo(existing=object())
     monkeypatch.setattr(auth_router, "user_repo", repository)
+    monkeypatch.setattr(auth_router, "admin_controller", FakeAdminController())
 
     with pytest.raises(HTTPException) as error:
         asyncio.run(auth_router.register(registration_request()))
@@ -87,6 +98,7 @@ def test_register_logs_unexpected_errors_and_returns_safe_500(
             raise AssertionError("create should not be called")
 
     monkeypatch.setattr(auth_router, "user_repo", BrokenUserRepo())
+    monkeypatch.setattr(auth_router, "admin_controller", FakeAdminController())
 
     with pytest.raises(HTTPException) as error:
         asyncio.run(auth_router.register(registration_request()))
@@ -165,7 +177,7 @@ def test_admin_password_setup_activates_matching_pending_registration(method_nam
     assert collection.update[1]["$set"]["hashed_password"] == "bcrypt-hash"
 
 
-def test_google_registration_creates_an_active_user_account():
+def test_google_registration_persists_the_requested_active_role():
     class FakeCollection:
         update = None
 
@@ -175,9 +187,10 @@ def test_google_registration_creates_an_active_user_account():
                 "_id": ObjectId(),
                 "email": "person@example.com",
                 "full_name": "Example Person",
-                "role": "user",
+                "role": "admin",
                 "account_status": "active",
                 "google_sub": "google-subject",
+                "admin_id": ObjectId(),
             }
 
     collection = FakeCollection()
@@ -192,13 +205,54 @@ def test_google_registration_creates_an_active_user_account():
             email="person@example.com",
             full_name="Example Person",
             google_sub="google-subject",
+            role="admin",
+            admin_id=str(ObjectId()),
         )
     )
 
-    assert user.role == "user"
+    assert user.role == "admin"
     assert user.account_status == "active"
+    assert collection.update[1]["$set"]["role"] == "admin"
     assert collection.update[1]["$set"]["account_status"] == "active"
+    assert collection.update[1]["$set"]["admin_id"] is not None
     assert "account_status" not in collection.update[1]["$setOnInsert"]
+
+
+def test_google_registration_creates_admin_profile():
+    from repositories.admin_repository import AdminRepo
+
+    class FakeCollection:
+        update = None
+
+        async def find_one_and_update(self, query, update, **options):
+            self.update = (query, update, options)
+            return {
+                "_id": ObjectId(),
+                "username": "Example Person",
+                "email": "person@example.com",
+                "role": "admin",
+                "full_name": "Example Person",
+                "phone_number": None,
+            }
+
+    collection = FakeCollection()
+
+    class FakeDatabase:
+        def __getitem__(self, _name):
+            return collection
+
+    repository = AdminRepo(FakeDatabase())
+    admin = asyncio.run(
+        repository.get_or_create_registered_admin(
+            email="Person@Example.com",
+            full_name=" Example Person ",
+        )
+    )
+
+    assert admin.role == "admin"
+    assert collection.update[0] == {"email": "person@example.com"}
+    assert collection.update[1]["$setOnInsert"]["role"] == "admin"
+    assert collection.update[2]["upsert"] is True
 
 
 def test_password_hashing_verifies_new_and_legacy_bcrypt_hashes():

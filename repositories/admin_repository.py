@@ -1,4 +1,5 @@
 from bson import ObjectId
+from pymongo import ReturnDocument
 
 from models.domain_models import Admin
 
@@ -30,6 +31,27 @@ class AdminRepo:
     async def get_admin_by_email(self, email: str):
         doc = await self.collection.find_one({"email": email})
         return Admin.model_validate(doc) if doc else None
+
+    async def get_or_create_registered_admin(
+        self, *, full_name: str, email: str, phone_number: str | None = None
+    ) -> Admin:
+        normalized_email = email.strip().lower()
+        normalized_name = full_name.strip()
+        document = await self.collection.find_one_and_update(
+            {"email": normalized_email},
+            {
+                "$setOnInsert": {
+                    "username": normalized_name,
+                    "email": normalized_email,
+                    "role": "admin",
+                    "full_name": normalized_name,
+                    "phone_number": phone_number,
+                }
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+        )
+        return Admin.model_validate(document)
 
     async def get_admin_by_phone(self, phone_number: str):
         doc = await self.collection.find_one({"phone_number": phone_number})

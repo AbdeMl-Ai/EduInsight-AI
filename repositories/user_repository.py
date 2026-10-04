@@ -85,26 +85,31 @@ class UserRepo:
         email: str,
         full_name: str,
         google_sub: str,
+        role: str,
+        admin_id: str | None,
     ) -> User:
+        normalized_email = email.strip().lower()
         user = await self.collection.find_one_and_update(
             {
                 "email": {
-                    "$regex": f"^{re.escape(email)}$",
+                    "$regex": f"^{re.escape(normalized_email)}$",
                     "$options": "i",
                 }
             },
             {
                 "$setOnInsert": {
-                    "email": email,
+                    "email": normalized_email,
                     "full_name": full_name,
-                    "role": "user",
                     "hashed_password": None,
                     "phone_number": None,
-                    "google_sub": google_sub,
-                    "admin_id": None,
                     "created_at": datetime.now(timezone.utc),
                 },
-                "$set": {"account_status": "active"},
+                "$set": {
+                    "role": role,
+                    "account_status": "active",
+                    "admin_id": ObjectId(admin_id) if admin_id else None,
+                    "google_sub": google_sub,
+                },
             },
             upsert=True,
             return_document=ReturnDocument.AFTER,

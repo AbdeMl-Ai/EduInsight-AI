@@ -234,7 +234,7 @@ export const api = {
     request<{
       message: string;
       email: string;
-      role: "user";
+      role: "admin";
       account_status: "active";
     }>("/auth/register", {
       method: "POST",

@@ -11,8 +11,15 @@ from utils.security import decode_access_token
 class FakeAccountRepo:
     def __init__(self, account=None):
         self.account = account
+        self.created_admin = None
 
     async def get_admin_by_email(self, _email):
+        return self.account
+
+    async def get_or_create_registered_admin(self, **admin_data):
+        self.created_admin = admin_data
+        if self.account is None:
+            self.account = SimpleNamespace(id="google-admin-id", full_name=admin_data["full_name"])
         return self.account
 
     async def get_student_by_email(self, _email):
@@ -28,7 +35,7 @@ class FakeGoogleUserRepo:
 
     async def get_or_create(self, **user_data):
         self.created = user_data
-        return SimpleNamespace(id="google-user-id")
+        return SimpleNamespace(id="google-user-id", role=user_data["role"])
 
 
 class FakeLoginUserRepo:
@@ -54,7 +61,7 @@ def make_auth_service(admin=None, student=None, teacher=None):
     return service, google_user_repo
 
 
-def test_google_login_creates_identity_and_returns_bearer_jwt():
+def test_google_login_creates_active_admin_and_returns_bearer_jwt():
     service, user_repo = make_auth_service()
     profile = {
         "sub": "google-subject",
@@ -67,11 +74,13 @@ def test_google_login_creates_identity_and_returns_bearer_jwt():
     payload = decode_access_token(result["access_token"])
 
     assert result["token_type"] == "bearer"
-    assert result["role"] == "user"
-    assert payload["sub"] == "google-user-id"
-    assert payload["role"] == "user"
+    assert result["role"] == "admin"
+    assert payload["sub"] == "google-admin-id"
+    assert payload["role"] == "admin"
     assert user_repo.created["email"] == "person@example.com"
     assert user_repo.created["google_sub"] == "google-subject"
+    assert user_repo.created["role"] == "admin"
+    assert user_repo.created["admin_id"] == "google-admin-id"
 
 
 @pytest.mark.parametrize("account_status", ["active", "pending"])
@@ -135,6 +144,30 @@ def test_manual_user_login_rejects_explicitly_inactive_account():
 
     with pytest.raises(ValueError, match="This account is inactive"):
         asyncio.run(service.login("person@example.com", "strong-password"))
+
+
+def test_active_admin_login_uses_the_admin_profile_id():
+    user = SimpleNamespace(
+        id="login-user-id",
+        role="admin",
+        account_status="active",
+        hashed_password=hash_password("strong-password"),
+    )
+    admin = SimpleNamespace(id="admin-profile-id")
+    user_repo = FakeLoginUserRepo(user)
+    service = AuthService(
+        FakeAccountRepo(),
+        FakeAccountRepo(),
+        FakeAccountRepo(admin),
+        user_repo,
+    )
+
+    result = asyncio.run(service.login("admin@example.com", "strong-password"))
+    payload = decode_access_token(result["access_token"])
+
+    assert result["role"] == "admin"
+    assert payload["sub"] == "admin-profile-id"
+    assert payload["role"] == "admin"
 
 
 def test_google_login_links_existing_admin_by_verified_email():

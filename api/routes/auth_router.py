@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pymongo.errors import DuplicateKeyError
 
-from api.dependencies import auth_controller, user_repo
+from api.dependencies import admin_controller, auth_controller, user_repo
 from api.schemas.auth_schema import LoginResponse, RegistrationRequest
 from utils.passwords import hash_password
 
@@ -32,13 +32,19 @@ async def register(data: RegistrationRequest):
                 detail="An account with this email already exists.",
             )
 
+        admin = await admin_controller.setup_admin(
+            data.full_name,
+            data.email,
+            data.phone_number,
+        )
         user = await user_repo.create(
             email=data.email,
             full_name=data.full_name,
-            role="user",
+            role="admin",
             hashed_password=hash_password(data.password),
             phone_number=data.phone_number,
             account_status="active",
+            admin_id=admin.id,
         )
     except DuplicateKeyError as error:
         raise HTTPException(
@@ -55,9 +61,9 @@ async def register(data: RegistrationRequest):
         ) from None
 
     return {
-        "message": "Account created. You can now sign in to your student workspace.",
+        "message": "Center administrator account created. You can now sign in to the admin dashboard.",
         "email": user.email,
-        "role": "user",
+        "role": "admin",
         "account_status": "active",
     }
 

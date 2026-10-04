@@ -89,7 +89,7 @@ export default function RegisterPage() {
               Create your account
             </h1>
             <p className="mt-2 text-sm leading-6 text-white/50">
-              Sign up with your details or continue with Google. New accounts can sign in right away.
+              Create a Center Administrator account to manage your learning center.
             </p>
           </div>
 
@@ -194,7 +194,7 @@ export default function RegisterPage() {
           </button>
 
           <p className="mt-6 text-center text-xs leading-5 text-white/45">
-            Your new account can sign in to the student workspace right away.
+            Your admin account will be ready to use as soon as registration is complete.
           </p>
         </div>
       </section>

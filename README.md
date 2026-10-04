@@ -80,15 +80,15 @@ The script creates matching records in `users` and `admins`; the default
 password is `Admin123`. Set `ADMIN_PASSWORD` before running to choose a different
 password, and change the password after the first login.
 
-The API root is `http://127.0.0.1:8000/`; OpenAPI documentation is at `/docs` and `/redoc`. Startup pings MongoDB and creates required indexes. Start Google sign-in at `GET /auth/google/login`; the callback redirects to the configured frontend with the bearer token in the URL fragment, or returns the token as JSON when `FRONTEND_AUTH_REDIRECT_URL` is unset. Existing admin, student, and teacher accounts are linked by their verified email. New Google users are created with the active `user` role and can immediately access the student workspace.
+The API root is `http://127.0.0.1:8000/`; OpenAPI documentation is at `/docs` and `/redoc`. Startup pings MongoDB and creates required indexes. Start Google sign-in at `GET /auth/google/login`; the callback redirects to the configured frontend with the bearer token in the URL fragment, or returns the token as JSON when `FRONTEND_AUTH_REDIRECT_URL` is unset. Existing admin, student, and teacher accounts are linked by their verified email. New Google users are created as active center administrators and can immediately access the admin dashboard.
 
 ## Authentication
 
 The `/auth` API exposes `GET /auth/google/login` and `GET /auth/google/callback`. Google identities are stored in the `users` collection with a unique email index; matching existing role accounts receive their established role in the JWT.
 
 `POST /auth/register` creates a public email/password account in `users` with a
-bcrypt-hashed password, the `user` role, and active status. Users can sign in
-immediately; their workspace shows no classes or courses until they are enrolled.
+bcrypt-hashed password, a matching profile in `admins`, the `admin` role, and
+active status. Center administrators can sign in immediately.
 
 ## API Areas
 
