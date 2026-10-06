@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  ArrowRight,
+  ArrowDown,
+  ArrowLeft,
   BookOpenCheck,
   ChartNoAxesCombined,
   GraduationCap,
@@ -11,220 +14,201 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { getDashboardPath, useAuth } from '@/components/app/AuthProvider';
 
 const roles = [
   {
-    number: '01',
-    title: 'For administrators',
+    number: '٠١',
+    title: 'الإدارة',
     description:
-      'Bring school operations into focus with connected management tools and clear, actionable insights.',
-    detail: 'Complete school management',
+      'أدر شؤون مدرستك من مساحة واحدة، واستفد من رؤى واضحة تساعدك على اتخاذ قرارات أفضل.',
+    detail: 'إدارة متكاملة ورؤى دقيقة',
     icon: ShieldCheck,
   },
   {
-    number: '02',
-    title: 'For teachers',
+    number: '٠٢',
+    title: 'المعلمون',
     description:
-      'Build engaging courses, assign exercises, and spend more time doing what matters: teaching.',
-    detail: 'Courses & assignments',
+      'أنشئ الدورات التعليمية، ووزّع التمارين، وتابع تقدم طلابك بسهولة.',
+    detail: 'دورات وتمارين تفاعلية',
     icon: Presentation,
   },
   {
-    number: '03',
-    title: 'For students',
+    number: '٠٣',
+    title: 'الطلاب',
     description:
-      'Follow your progress, understand your grades, and make every learning session count.',
-    detail: 'Progress & interactive learning',
+      'تابع درجاتك وتقدمك، واكتشف تجربة تعلم تفاعلية تساعدك على تحقيق أهدافك.',
+    detail: 'تقدم واضح وتعلم ممتع',
     icon: BookOpenCheck,
   },
 ];
 
+function scrollToConcept() {
+  document.getElementById('concept')?.scrollIntoView({ behavior: 'smooth' });
+}
+
 export default function Home() {
+  const router = useRouter();
+  const { session, isReady } = useAuth();
+  const navigationStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isReady || !session || navigationStartedRef.current) return;
+    navigationStartedRef.current = true;
+    router.replace(getDashboardPath(session.role));
+  }, [isReady, router, session]);
+
   return (
-    <main className="min-h-dvh overflow-hidden bg-[#0a0a0a] text-[#f5f2e9]">
-      <header className="relative z-10 border-b border-white/[0.07]">
-        <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
-          <Link href="/" className="flex items-center gap-3" aria-label="EduInsight AI home">
-            <span className="flex size-10 items-center justify-center rounded-xl border border-[#c6a96b]/30 bg-[#c6a96b]/[0.08] text-[#d9bd7d]">
-              <GraduationCap size={22} strokeWidth={1.7} />
-            </span>
-            <span className="text-xs font-semibold tracking-[0.16em] text-white">
-              EDUINSIGHT <span className="text-[#c6a96b]">AI</span>
-            </span>
-          </Link>
-
-          <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
-            <a href="#platform" className="text-sm text-white/55 transition-colors hover:text-white">
-              Platform
-            </a>
-            <a href="#roles" className="text-sm text-white/55 transition-colors hover:text-white">
-              Who it&apos;s for
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="hidden rounded-lg px-4 py-2.5 text-sm font-medium text-white/70 transition-colors hover:text-white sm:inline-flex"
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b] transition-colors hover:bg-[#d8bd83] sm:px-5 sm:text-sm"
-            >
-              Get Started <ArrowRight size={15} />
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <section id="platform" className="relative isolate">
+    <main
+      lang="ar"
+      dir="rtl"
+      className="min-h-dvh overflow-hidden bg-[#0a0a0a] text-start text-[#f5f2e9]"
+    >
+      <section className="relative isolate flex min-h-dvh flex-col justify-center overflow-hidden">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          aria-hidden="true"
+          className="absolute inset-0 -z-20 size-full object-cover"
+        >
+          <source src="/hero-bg.mp4" type="video/mp4" />
+        </video>
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_72%_43%,rgba(198,169,107,0.12),transparent_38%),radial-gradient(ellipse_at_15%_10%,rgba(198,169,107,0.05),transparent_32%)]"
+          className="absolute inset-0 -z-10 bg-[linear-gradient(90deg,rgba(10,10,10,0.48),rgba(10,10,10,0.78)_45%,rgba(10,10,10,0.96)),linear-gradient(0deg,rgba(10,10,10,0.68),transparent_42%)]"
         />
-        <div className="mx-auto grid min-h-[650px] max-w-7xl items-center gap-14 px-5 py-20 sm:px-8 md:py-24 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:px-12">
-          <div className="relative z-10 max-w-2xl">
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_28%_48%,rgba(198,169,107,0.14),transparent_42%)]"
+        />
+
+        <header className="absolute inset-x-0 top-0 z-10 border-b border-white/[0.09]">
+          <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-12">
+            <Link href="/" className="flex items-center gap-3" aria-label="الصفحة الرئيسية EDUINSIGHT AI">
+              <span className="flex size-10 items-center justify-center rounded-xl border border-[#c6a96b]/35 bg-black/25 text-[#d9bd7d] backdrop-blur-sm">
+                <GraduationCap size={22} strokeWidth={1.7} />
+              </span>
+              <span dir="ltr" className="text-xs font-semibold tracking-[0.16em] text-white">
+                EDUINSIGHT <span className="text-[#c6a96b]">AI</span>
+              </span>
+            </Link>
+
+            <nav className="hidden items-center gap-7 md:flex" aria-label="التنقل الرئيسي">
+              <a href="#concept" className="text-sm text-white/70 transition-colors hover:text-white">
+                عن المنصة
+              </a>
+              <Link href="/login" className="text-sm text-white/70 transition-colors hover:text-white">
+                تسجيل الدخول
+              </Link>
+            </nav>
+
+            <button
+              type="button"
+              onClick={scrollToConcept}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b] transition-colors hover:bg-[#d8bd83] sm:px-5 sm:text-sm"
+            >
+              ابدأ الآن <ArrowDown size={15} />
+            </button>
+          </div>
+        </header>
+
+        <div className="mx-auto grid w-full max-w-7xl flex-1 items-center gap-10 px-5 pb-16 pt-28 sm:px-8 lg:grid-cols-[1.1fr_0.9fr] lg:px-12">
+          <div className="max-w-2xl">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c6a96b]/20 bg-[#c6a96b]/[0.06] px-3.5 py-2"
+              className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#c6a96b]/25 bg-black/25 px-3.5 py-2 backdrop-blur-sm"
             >
               <Sparkles size={14} className="text-[#d9bd7d]" />
-              <span className="text-[10px] font-semibold tracking-[0.13em] text-[#dfc887]">
-                A SMARTER WAY TO LEARN
+              <span className="text-xs font-semibold tracking-wide text-[#dfc887]">
+                تعليم أذكى، ومستقبل أكثر إشراقًا
               </span>
             </motion.div>
+
             <motion.h1
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.08 }}
-              className="text-[clamp(2.75rem,7vw,5.5rem)] font-semibold leading-[1.02] tracking-[-0.055em] text-white"
+              className="text-5xl font-semibold leading-[1.15] tracking-tight text-white sm:text-6xl lg:text-7xl"
             >
-              Empowering
+              نرتقي بالتعليم
               <br />
-              education with
-              <br />
-              <span className="bg-gradient-to-r from-[#f2dfaa] via-[#d7b96f] to-[#a9823d] bg-clip-text text-transparent">
-                intelligence.
+              <span className="bg-gradient-to-l from-[#f2dfaa] via-[#d7b96f] to-[#a9823d] bg-clip-text text-transparent">
+                بقوة الذكاء الاصطناعي
               </span>
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0.2 }}
-              className="mt-7 max-w-xl text-base leading-7 text-white/55 sm:text-lg sm:leading-8"
+              className="mt-7 max-w-xl text-base leading-8 text-white/70 sm:text-lg"
             >
-              One connected learning platform for the people who make education
-              happen. Better insights for schools, teachers, and students.
+              منصة تعليمية متكاملة تجمع الإدارة والمعلمين والطلاب، وتحوّل
+              البيانات إلى رؤى تساعد الجميع على التقدم.
             </motion.p>
+
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.32 }}
               className="mt-9 flex flex-col gap-3 sm:flex-row"
             >
-              <Link
-                href="/register"
+              <button
+                type="button"
+                onClick={scrollToConcept}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] px-6 text-sm font-semibold text-[#17130b] transition-all hover:-translate-y-0.5 hover:bg-[#d8bd83]"
               >
-                Get Started <ArrowRight size={16} />
-              </Link>
+                اكتشف المنصة <ArrowLeft size={16} />
+              </button>
               <Link
                 href="/login"
-                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/15 bg-white/[0.025] px-6 text-sm font-medium text-white transition-colors hover:border-white/30 hover:bg-white/[0.06]"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/20 bg-black/20 px-6 text-sm font-medium text-white backdrop-blur-sm transition-colors hover:border-white/35 hover:bg-black/35"
               >
-                Login
+                تسجيل الدخول
               </Link>
             </motion.div>
-            <p className="mt-6 text-xs text-white/35">
-              A more connected experience for every step of learning.
+            <p className="mt-6 text-xs text-white/45">
+              تجربة واحدة متصلة لكل خطوة في رحلة التعلم.
             </p>
           </div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="relative mx-auto w-full max-w-[510px]"
-            aria-label="EduInsight learning analytics preview"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, delay: 0.28 }}
+            className="hidden justify-self-center lg:block"
+            aria-hidden="true"
           >
-            <div className="absolute -inset-8 rounded-full bg-[#c6a96b]/[0.06] blur-3xl" />
-            <div className="relative rounded-2xl border border-white/10 bg-[#10100f]/95 p-4 shadow-[0_32px_100px_rgba(0,0,0,0.45)] sm:p-6">
-              <div className="flex items-center justify-between border-b border-white/[0.08] pb-5">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-9 items-center justify-center rounded-lg bg-[#c6a96b]/10 text-[#d9bd7d]">
-                    <ChartNoAxesCombined size={18} />
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold text-white">Learning overview</p>
-                    <p className="mt-1 text-[10px] text-white/40">Your school at a glance</p>
-                  </div>
-                </div>
-                <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.07] px-2.5 py-1 text-[9px] font-medium text-emerald-200/80">
-                  LIVE INSIGHTS
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 py-5">
-                <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                  <p className="text-[10px] text-white/40">Learning activity</p>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight text-white">+24.8%</p>
-                  <p className="mt-1 text-[10px] text-[#cfb577]">Engagement this term</p>
-                </div>
-                <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                  <p className="text-[10px] text-white/40">Course progress</p>
-                  <p className="mt-2 text-2xl font-semibold tracking-tight text-white">On track</p>
-                  <p className="mt-1 text-[10px] text-white/40">Across all classrooms</p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5">
-                <div className="mb-5 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium text-white/85">Student engagement</p>
-                    <p className="mt-1 text-[10px] text-white/35">A clearer picture of progress</p>
-                  </div>
-                  <span className="text-[10px] text-white/35">THIS TERM</span>
-                </div>
-                <div className="flex h-28 items-end gap-2 sm:gap-3" aria-hidden="true">
-                  {[35, 52, 43, 69, 57, 82, 68, 94, 74, 88, 63, 100].map((height, index) => (
-                    <div
-                      key={index}
-                      className="flex-1 rounded-t-sm bg-gradient-to-t from-[#8c6a35]/55 to-[#d5b66d]"
-                      style={{ height: `${height}%`, opacity: 0.48 + (index % 4) * 0.13 }}
-                    />
-                  ))}
-                </div>
-                <div className="mt-3 flex justify-between text-[9px] text-white/30">
-                  <span>WEEK 01</span><span>WEEK 06</span><span>WEEK 12</span>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-2 px-1 text-[10px] text-white/40">
-                <span className="size-1.5 rounded-full bg-[#c6a96b]" />
-                Insights that help every learner move forward
+            <div className="flex size-64 items-center justify-center rounded-full border border-[#d5b66d]/20 bg-black/15 shadow-[0_0_100px_rgba(198,169,107,0.12)] backdrop-blur-[2px] xl:size-80">
+              <div className="flex size-48 items-center justify-center rounded-full border border-[#d5b66d]/20 bg-black/20 xl:size-60">
+                <GraduationCap className="text-[#e0c783]/90" size={104} strokeWidth={0.8} />
               </div>
             </div>
           </motion.div>
         </div>
+        <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-5 pb-7 text-xs text-white/40 sm:px-8 lg:px-12">
+          <span className="h-px w-8 bg-[#c6a96b]/55" />
+          مرّر للأسفل لاكتشاف المنصة
+        </div>
       </section>
 
-      <section id="roles" className="border-t border-white/[0.07] bg-[#0d0d0c]">
+      <section id="concept" className="scroll-mt-6 border-t border-white/[0.07] bg-[#0d0d0c]">
         <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
           <div className="mb-10 grid gap-5 sm:mb-12 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <p className="mb-3 text-[10px] font-semibold tracking-[0.2em] text-[#c6a96b]">
-                ONE PLATFORM, EVERY PERSPECTIVE
+              <p className="mb-3 text-xs font-semibold tracking-wide text-[#c6a96b]">
+                منصة واحدة، وتجربة متكاملة
               </p>
-              <h2 className="max-w-xl text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Designed around the people behind progress.
+              <h2 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl">
+                أدوات مصممة لكل من يصنع أثرًا في التعليم.
               </h2>
             </div>
-            <p className="max-w-sm text-sm leading-6 text-white/45">
-              Thoughtful tools for every role, working together in one seamless
-              learning community.
+            <p className="max-w-sm text-sm leading-7 text-white/50">
+              يجمع EDUINSIGHT AI أفراد المجتمع التعليمي في مساحة عمل واحدة،
+              مع أدوات تناسب احتياجات كل دور.
             </p>
           </div>
 
@@ -242,42 +226,40 @@ export default function Home() {
                   <span className="flex size-11 items-center justify-center rounded-xl border border-[#c6a96b]/20 bg-[#c6a96b]/[0.07] text-[#d9bd7d] transition-colors group-hover:bg-[#c6a96b]/[0.12]">
                     <Icon size={20} strokeWidth={1.7} />
                   </span>
-                  <span className="text-[10px] tracking-[0.14em] text-white/25">{number}</span>
+                  <span className="text-xs tracking-[0.14em] text-white/30">{number}</span>
                 </div>
                 <h3 className="text-lg font-semibold text-white">{title}</h3>
-                <p className="mt-3 min-h-[72px] text-sm leading-6 text-white/50">{description}</p>
+                <p className="mt-3 min-h-[72px] text-sm leading-7 text-white/55">{description}</p>
                 <div className="mt-6 border-t border-white/[0.08] pt-4 text-xs font-medium text-[#cfb577]">
                   {detail}
                 </div>
               </motion.article>
             ))}
           </div>
-        </div>
-      </section>
 
-      <section className="border-t border-white/[0.07] px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-7 rounded-2xl border border-[#c6a96b]/15 bg-gradient-to-r from-[#c6a96b]/[0.08] via-white/[0.025] to-transparent p-6 sm:p-9 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="mb-2 text-[10px] font-semibold tracking-[0.18em] text-[#c6a96b]">
-              YOUR NEXT CHAPTER STARTS HERE
-            </p>
-            <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-              Let&apos;s make learning more insightful.
-            </h2>
+          <div className="mt-12 flex flex-col gap-5 rounded-2xl border border-[#c6a96b]/15 bg-gradient-to-l from-[#c6a96b]/[0.08] via-white/[0.025] to-transparent p-6 sm:p-9 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="mb-2 text-xs font-semibold tracking-wide text-[#c6a96b]">
+                EDUINSIGHT AI
+              </p>
+              <h2 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                معًا نحو تعلم أكثر ذكاءً.
+              </h2>
+            </div>
+            <Link
+              href="/login"
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 self-start rounded-lg border border-white/15 bg-white/[0.025] px-5 text-sm font-medium text-white transition-colors hover:border-white/30 hover:bg-white/[0.06] md:self-auto"
+            >
+              تسجيل الدخول <ArrowLeft size={16} />
+            </Link>
           </div>
-          <Link
-            href="/register"
-            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 self-start rounded-lg bg-[#c6a96b] px-5 text-sm font-semibold text-[#17130b] transition-colors hover:bg-[#d8bd83] md:self-auto"
-          >
-            Get Started <ArrowRight size={16} />
-          </Link>
         </div>
       </section>
 
       <footer className="border-t border-white/[0.07] px-5 py-6 sm:px-8 lg:px-12">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 text-[10px] text-white/35 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} EduInsight AI</span>
-          <span>Built for better learning outcomes.</span>
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between">
+          <span dir="ltr">© {new Date().getFullYear()} EduInsight AI</span>
+          <span>مصمم لمخرجات تعليمية أفضل.</span>
         </div>
       </footer>
     </main>

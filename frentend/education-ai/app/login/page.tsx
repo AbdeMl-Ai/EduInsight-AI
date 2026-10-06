@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Apple, Eye, EyeOff, GraduationCap, LoaderCircle, LockKeyhole, Mail } from 'lucide-react';
@@ -8,38 +8,35 @@ import axios from 'axios';
 import client from '@/lib/axios';
 import { api as sessionApi, type LoginResponse } from '@/lib/api';
 import { getRoleFromToken } from '@/lib/auth-token';
+import { getDashboardPath, useAuth } from '@/components/app/AuthProvider';
 import LoadingScreen from '@/components/app/LoadingScreen';
 import ThemeToggle from '@/components/app/ThemeToggle';
 
 function LoginPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { session, isReady } = useAuth();
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState('');
 	const [notice, setNotice] = useState('');
-	const [redirectPath, setRedirectPath] = useState<string | null>(null);
-
-	function routeForRole(role: string) {
-		let destination: string;
-		if (role === 'student' || role === 'user') destination = '/student/home';
-		else if (role === 'teacher' || role === 'admin') destination = `/${role}`;
-		else {
-			sessionApi.logout();
-			setError('This account does not have a supported dashboard role. Contact your administrator.');
-			return;
-		}
-
-		setRedirectPath(destination);
-	}
+	const [redirectTarget, setRedirectTarget] = useState<{
+		path: string;
+		token: string;
+	} | null>(null);
+	const callbackHandledRef = useRef(false);
+	const completingLoginRef = useRef(false);
+	const navigationStartedRef = useRef(false);
 
 	useEffect(() => {
+		if (callbackHandledRef.current) return;
 		const queryToken = searchParams.get('access_token');
 		const authFragment = new URLSearchParams(window.location.hash.slice(1));
 		const accessToken = queryToken ?? authFragment.get('access_token');
 		if (!accessToken) return;
+		callbackHandledRef.current = true;
 
 		const role = getRoleFromToken(accessToken);
 		const suppliedRole =
@@ -62,8 +59,25 @@ function LoginPageContent() {
 			role: role as LoginResponse['role'],
 		};
 		sessionApi.saveSession(session);
-		routeForRole(role);
-	}, [router, searchParams]);
+		completingLoginRef.current = true;
+		setRedirectTarget({ path: getDashboardPath(role), token: accessToken });
+	}, [searchParams]);
+
+	useEffect(() => {
+		const hasOAuthCallback =
+			searchParams.has('access_token') ||
+			new URLSearchParams(window.location.hash.slice(1)).has('access_token');
+		if (
+			isReady &&
+			session &&
+			!hasOAuthCallback &&
+			!completingLoginRef.current &&
+			!navigationStartedRef.current
+		) {
+			navigationStartedRef.current = true;
+			router.replace(getDashboardPath(session.role));
+		}
+	}, [isReady, router, searchParams, session]);
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
@@ -75,12 +89,20 @@ function LoginPageContent() {
 			const { data } = await client.post<LoginResponse>('/auth/login', form, {
 				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			});
-			if (!['student', 'user', 'teacher', 'admin'].includes(data.role)) {
+			const verifiedRole = getRoleFromToken(data.access_token);
+			if (
+				!['student', 'user', 'teacher', 'admin'].includes(data.role) ||
+				verifiedRole !== data.role
+			) {
 				setError('This account does not have a supported dashboard role. Contact your administrator.');
 				return;
 			}
 			sessionApi.saveSession(data);
-			routeForRole(data.role);
+			completingLoginRef.current = true;
+			setRedirectTarget({
+				path: getDashboardPath(verifiedRole),
+				token: data.access_token,
+			});
 		} catch (requestError) {
 			if (axios.isAxiosError(requestError)) {
 				const detail = requestError.response?.data?.detail;
@@ -222,8 +244,14 @@ function LoginPageContent() {
 				</div>
 			</section>
 			</main>
-			{redirectPath && (
-				<LoadingScreen onComplete={() => router.replace(redirectPath)} />
+			{redirectTarget && session?.token === redirectTarget.token && (
+				<LoadingScreen
+					onComplete={() => {
+						if (navigationStartedRef.current) return;
+						navigationStartedRef.current = true;
+						router.replace(redirectTarget.path);
+					}}
+				/>
 			)}
 		</>
 	);

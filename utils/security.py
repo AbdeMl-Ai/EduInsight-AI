@@ -6,7 +6,7 @@ from jose import jwt
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 10080
 
 
 def create_access_token(data: dict):

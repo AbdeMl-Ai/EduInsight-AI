@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { AUTH_SESSION_CHANGED_EVENT } from '@/lib/api';
 
 const backendUrl = (
   process.env.NEXT_PUBLIC_API_URL ||
@@ -42,6 +43,7 @@ api.interceptors.response.use(
       localStorage.removeItem('eduinsight_access_token');
       localStorage.removeItem('eduinsight_role');
       document.cookie = 'eduinsight_access_token=; Path=/; Max-Age=0; SameSite=Lax';
+      window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
       if (window.location.pathname !== '/login') {
         window.location.replace('/login');
       }

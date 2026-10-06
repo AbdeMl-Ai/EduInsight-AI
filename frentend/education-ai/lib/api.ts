@@ -133,9 +133,21 @@ export type LoginResponse = {
 const TOKEN_KEY = "eduinsight_access_token";
 const ROLE_KEY = "eduinsight_role";
 const AUTH_COOKIE = "eduinsight_access_token";
+export const AUTH_SESSION_CHANGED_EVENT = "eduinsight:session-changed";
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+function readAuthCookie() {
+  if (typeof document === "undefined") return null;
+  const prefix = `${AUTH_COOKIE}=`;
+  const value = document.cookie
+    .split("; ")
+    .find((item) => item.startsWith(prefix))
+    ?.slice(prefix.length);
+  return value ? decodeURIComponent(value) : null;
+}
 
 function setAuthCookie(token: string) {
-  document.cookie = `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=3600; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+  document.cookie = `${AUTH_COOKIE}=${encodeURIComponent(token)}; Path=/; Max-Age=${SESSION_MAX_AGE_SECONDS}; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
 }
 
 function clearAuthCookie() {
@@ -146,6 +158,9 @@ function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(ROLE_KEY);
   clearAuthCookie();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
+  }
 }
 
 export class ApiRequestError extends Error {
@@ -181,7 +196,9 @@ function getErrorMessage(payload: unknown, status: number): string {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token =
-    typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
+    typeof window === "undefined"
+      ? null
+      : localStorage.getItem(TOKEN_KEY) || readAuthCookie();
   const headers = new Headers(init.headers);
   if (!(typeof FormData !== "undefined" && init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
@@ -252,10 +269,13 @@ export const api = {
     localStorage.setItem(TOKEN_KEY, session.access_token);
     localStorage.setItem(ROLE_KEY, session.role);
     setAuthCookie(session.access_token);
+    window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
   },
   getSession: () => ({
     token:
-      typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY),
+      typeof window === "undefined"
+        ? null
+        : localStorage.getItem(TOKEN_KEY) || readAuthCookie(),
     role: (typeof window === "undefined"
       ? null
       : localStorage.getItem(ROLE_KEY)) as Role | null,

@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Inter } from 'next/font/google'
+import { AuthProvider } from '@/components/app/AuthProvider'
 import './globals.css'
 
 const inter = Inter({
@@ -51,8 +52,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${inter.variable} ${dmSans.variable}`}>
       <body className="font-sans antialiased">
-        {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <AuthProvider>
+          {children}
+          {process.env.NODE_ENV === 'production' && <Analytics />}
+        </AuthProvider>
       </body>
     </html>
   )
