@@ -5,8 +5,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowUpRight, BookOpen, CalendarDays, LoaderCircle, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getTeacherClasses, getTeacherErrorMessage, getTeacherProfile, getTeacherSchedule, getTeacherStudents, type TeacherClass, type TeacherProfile, type TeacherSchedule } from '@/lib/teacher-api';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
+
+const DAY_MESSAGE_KEYS = {
+  monday: 'monday',
+  tuesday: 'tuesday',
+  wednesday: 'wednesday',
+  thursday: 'thursday',
+  friday: 'friday',
+  saturday: 'saturday',
+  sunday: 'sunday',
+} as const;
 
 export default function TeacherHomePage() {
+  const { language, messages } = useLandingLanguage();
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [schedule, setSchedule] = useState<TeacherSchedule[]>([]);
@@ -36,6 +48,7 @@ export default function TeacherHomePage() {
   }, []);
 
   const today = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+  const todayLabel = new Intl.DateTimeFormat(language === 'ar' ? 'ar' : 'en-US', { weekday: 'long' }).format(new Date());
   const todaySchedule = useMemo(() => schedule.filter((item) => item.day === today).sort((a, b) => a.start_time.localeCompare(b.start_time)), [schedule, today]);
   const allSchedule = useMemo(() => [...schedule].sort((a, b) => `${a.day}-${a.start_time}`.localeCompare(`${b.day}-${b.start_time}`)), [schedule]);
 
@@ -47,7 +60,7 @@ export default function TeacherHomePage() {
     </motion.header>
     {error && <p role="alert" className="rounded-2xl border border-rose-300/20 bg-rose-300/[0.05] p-4 text-xs text-rose-200">{error}</p>}
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3"><Stat icon={BookOpen} label="Active classes" value={loading ? null : profile?.active_classes ?? 0} /><Stat icon={Users} label="Total students" value={loading ? null : profile?.total_students ?? 0} /><Stat icon={CalendarDays} label="Today's classes" value={loading ? null : todaySchedule.length} /></div>
-    <section aria-labelledby="schedule-title"><div className="mb-4 flex items-end justify-between"><div><p className="text-[10px] font-semibold tracking-[0.18em] text-white/40">TIMETABLE</p><h2 id="schedule-title" className="mt-1 text-lg font-semibold text-white">Teaching schedule</h2></div><span className="text-[10px] text-white/35">{today}</span></div>{allSchedule.length ? <div className="space-y-3">{allSchedule.map((item, index) => <motion.article key={item.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4"><div className="min-w-[5.2rem] text-xs font-semibold tabular-nums text-[#dfc27e]">{item.start_time}<span className="mt-1 block text-[10px] font-normal text-white/35">{item.end_time}</span></div><div className="min-w-0 border-l border-[#c6a96b]/25 pl-4"><p className="text-[10px] font-semibold tracking-[0.12em] text-[#dfc27e]">{item.day}</p><h3 className="mt-1 truncate text-sm font-medium text-white">{item.class_name}</h3><p className="mt-1 text-[11px] text-white/45">{item.subject || item.level}</p></div></motion.article>)}</div> : <div className="rounded-2xl border border-white/10 px-4 py-10 text-center"><CalendarDays className="mx-auto mb-2 text-[#c6a96b]" size={21} /><p className="text-xs text-white/45">No schedule sessions assigned.</p></div>}</section>
+    <section aria-labelledby="schedule-title"><div className="mb-4 flex items-end justify-between"><div><p className="text-[10px] font-semibold tracking-[0.18em] text-white/40">{messages.timetable}</p><h2 id="schedule-title" className="mt-1 text-lg font-semibold text-white">{messages.teachingSchedule}</h2></div><span className="text-[10px] text-white/35">{todayLabel}</span></div>{allSchedule.length ? <div className="space-y-3">{allSchedule.map((item, index) => { const dayKey = item.day.toLowerCase() as keyof typeof DAY_MESSAGE_KEYS; const dayMessageKey = DAY_MESSAGE_KEYS[dayKey]; return <motion.article key={item.id} initial={{ opacity: 0, x: language === 'ar' ? 8 : -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.05 }} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-4"><div className="min-w-[5.2rem] text-xs font-semibold tabular-nums text-[#dfc27e]">{item.start_time}<span className="mt-1 block text-[10px] font-normal text-white/35">{item.end_time}</span></div><div className="min-w-0 border-s border-[#c6a96b]/25 ps-4"><p className="text-[10px] font-semibold tracking-[0.12em] text-[#dfc27e]">{dayMessageKey ? messages[dayMessageKey] : item.day}</p><h3 className="mt-1 truncate text-sm font-medium text-white">{item.class_name}</h3><p className="mt-1 text-[11px] text-white/45">{item.subject || item.level}</p></div></motion.article>; })}</div> : <div className="rounded-2xl border border-white/10 px-4 py-10 text-center"><CalendarDays className="mx-auto mb-2 text-[#c6a96b]" size={21} /><p className="text-xs text-white/45">{messages.noTeacherSessions}</p></div>}</section>
   </motion.section>;
 }
 
