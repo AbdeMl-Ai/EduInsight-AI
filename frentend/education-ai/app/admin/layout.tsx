@@ -5,17 +5,20 @@ import { usePathname } from 'next/navigation';
 import { BookOpen, GraduationCap, LayoutDashboard, UserRound, Users } from 'lucide-react';
 import ThemeToggle from '@/components/app/ThemeToggle';
 import AuthGuard from '@/components/app/AuthGuard';
+import LanguageSwitcher from '@/components/app/LanguageSwitcher';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import type { LucideIcon } from 'lucide-react';
 
-const navigation: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: '/admin/home', label: 'Overview', icon: LayoutDashboard },
-  { href: '/admin/people', label: 'People', icon: Users },
-  { href: '/admin/classes', label: 'Classes', icon: BookOpen },
-  { href: '/admin/profile', label: 'Profile', icon: UserRound },
+const navigation: Array<{ href: string; label: 'overview' | 'people' | 'classes' | 'profile'; icon: LucideIcon }> = [
+  { href: '/admin/home', label: 'overview', icon: LayoutDashboard },
+  { href: '/admin/people', label: 'people', icon: Users },
+  { href: '/admin/classes', label: 'classes', icon: BookOpen },
+  { href: '/admin/profile', label: 'profile', icon: UserRound },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { messages } = useLandingLanguage();
 
   return (
     <AuthGuard role="admin">
@@ -30,8 +33,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-3">
           <span className="hidden items-center gap-2 text-[10px] font-medium tracking-[0.12em] text-white/45 sm:flex">
             <span className="size-1.5 rounded-full bg-emerald-400" />
-            ADMIN WORKSPACE
+            {messages.adminWorkspace}
           </span>
+          <LanguageSwitcher />
           <ThemeToggle />
         </div>
       </header>
@@ -41,7 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </main>
 
       <nav
-        aria-label="Admin navigation"
+        aria-label={messages.navAdmin}
         className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0b0b0b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
       >
         <div className="mx-auto grid h-[4.2rem] w-full max-w-[560px] grid-cols-4">
@@ -58,7 +62,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 {active && <span className="absolute top-0 h-px w-8 bg-[#c6a96b]" />}
                 <Icon size={19} strokeWidth={active ? 2 : 1.7} />
-                <span className="max-w-full truncate text-[9px] font-medium">{label}</span>
+                <span className="max-w-full truncate text-[9px] font-medium">{messages[label]}</span>
               </Link>
             );
           })}

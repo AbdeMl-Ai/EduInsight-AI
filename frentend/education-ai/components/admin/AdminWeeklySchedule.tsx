@@ -149,7 +149,7 @@ function SelectField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
-        className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none transition-colors focus:border-[#c6a96b]/55 disabled:opacity-45"
+        className="min-h-11 w-full rounded-lg border border-white/10 bg-white px-3 text-xs text-gray-900 outline-none transition-colors focus:border-[#c6a96b]/55 disabled:opacity-45 dark:bg-[#151515] dark:text-white"
       >
         {children}
       </select>
@@ -355,17 +355,17 @@ export default function AdminWeeklySchedule() {
       >
         <div className="grid min-w-[850px]" style={{ gridTemplateColumns: gridColumns, gridTemplateRows: `42px repeat(${Math.max(timeSlots.length, 1)}, 44px)` }}>
           {timeSlots.map((time, row) => (
-            <div key={time} className="sticky left-0 z-10 flex items-start justify-end border-b border-white/[0.055] bg-[#0d0d0d] px-2 pt-1 text-[9px] tabular-nums text-white/35" style={{ gridColumn: 1, gridRow: row + 2 }}>{time}</div>
+            <div key={time} className="sticky start-0 z-10 flex items-start justify-end border-b border-gray-200 bg-[#f8f5ed] px-2 pt-1 text-[9px] tabular-nums text-gray-600 dark:border-white/[0.055] dark:bg-[#0d0d0d] dark:text-white/35" style={{ gridColumn: 1, gridRow: row + 2 }}>{time}</div>
           ))}
-          <div className="sticky left-0 z-20 flex items-center border-b border-white/10 bg-[#101010] px-2 text-[9px] font-semibold tracking-[0.1em] text-white/35" style={{ gridColumn: 1, gridRow: 1 }}>TIME</div>
-          {DAYS.map((item, index) => <div key={item} className="flex items-center justify-center border-b border-l border-white/10 bg-[#101010] px-1 text-[10px] font-semibold text-white/65" style={{ gridColumn: index + 2, gridRow: 1 }}>{item}</div>)}
+          <div className="sticky start-0 z-20 flex items-center border-b border-gray-200 bg-[#f0eadb] px-2 text-[9px] font-semibold tracking-[0.1em] text-gray-600 dark:border-white/10 dark:bg-[#101010] dark:text-white/35" style={{ gridColumn: 1, gridRow: 1 }}>TIME</div>
+          {DAYS.map((item, index) => <div key={item} className="flex items-center justify-center border-b border-s border-gray-200 bg-[#f0eadb] px-1 text-[10px] font-semibold text-gray-700 dark:border-white/10 dark:bg-[#101010] dark:text-white/65" style={{ gridColumn: index + 2, gridRow: 1 }}>{item}</div>)}
 
           {timeSlots.flatMap((time, row) => DAYS.map((item, column) => (
-            <div key={`${item}-${time}`} className="border-b border-l border-white/[0.055]" style={{ gridColumn: column + 2, gridRow: row + 2 }} />
+            <div key={`${item}-${time}`} className="border-b border-s border-gray-200 dark:border-white/[0.055]" style={{ gridColumn: column + 2, gridRow: row + 2 }} />
           )))}
 
           {timeSlots.length === 0 && (
-            <div className="flex items-center justify-center border-b border-l border-white/[0.055] text-xs text-white/35" style={{ gridColumn: '2 / 9', gridRow: 2 }}>
+            <div className="flex items-center justify-center border-b border-s border-gray-200 text-xs text-gray-500 dark:border-white/[0.055] dark:text-white/35" style={{ gridColumn: '2 / 9', gridRow: 2 }}>
               {loading ? <span role="status" className="inline-flex items-center gap-2"><LoaderCircle size={14} className="animate-spin text-[#c6a96b]" />Loading saved schedule…</span> : 'Add a session to set this week’s visible hours.'}
             </div>
           )}

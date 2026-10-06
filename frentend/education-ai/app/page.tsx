@@ -5,20 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
-  ArrowDown,
   ArrowRight,
   BookOpenCheck,
   GraduationCap,
-  Languages,
   Presentation,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { getDashboardPath, useAuth } from '@/components/app/AuthProvider';
-import {
-  LandingLanguageProvider,
-  useLandingLanguage,
-} from '@/components/app/LandingLanguageProvider';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
+import LanguageSwitcher from '@/components/app/LanguageSwitcher';
 
 const roleIcons = [ShieldCheck, Presentation, BookOpenCheck];
 
@@ -29,7 +25,7 @@ function scrollToConcept() {
 function LandingPage() {
   const router = useRouter();
   const { session, isReady } = useAuth();
-  const { language, messages, setLanguage } = useLandingLanguage();
+  const { language, messages } = useLandingLanguage();
   const navigationStartedRef = useRef(false);
 
   useEffect(() => {
@@ -55,7 +51,7 @@ function LandingPage() {
           muted
           playsInline
           aria-hidden="true"
-          className="absolute inset-0 -z-20 size-full object-cover"
+          className="absolute inset-x-0 top-0 -z-20 h-[58vh] w-full object-cover object-center md:inset-0 md:size-full"
         >
           <source src="/hero-bg.mp4" type="video/mp4" />
         </video>
@@ -98,24 +94,7 @@ function LandingPage() {
               </Link>
             </nav>
 
-            <button
-              type="button"
-              onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
-              lang={language === 'ar' ? 'en' : 'ar'}
-              aria-label={`${messages.languageLabel}: ${messages.switchLanguage}`}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-x-2 rounded-lg border border-white/15 bg-black/20 px-3 text-xs font-medium text-white/80 transition-colors hover:border-[#c6a96b]/45 hover:text-white sm:px-4"
-            >
-              <Languages size={15} className="text-[#d9bd7d]" />
-              <span>{messages.switchLanguage}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={scrollToConcept}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-x-2 whitespace-nowrap rounded-lg bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b] transition-colors hover:bg-[#d8bd83] sm:px-5 sm:text-sm"
-            >
-              {messages.getStarted} <ArrowDown size={15} />
-            </button>
+            <LanguageSwitcher />
           </div>
         </header>
 
@@ -137,7 +116,7 @@ function LandingPage() {
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.08 }}
-              className="text-5xl font-semibold leading-[1.15] tracking-tight text-white sm:text-6xl lg:text-7xl"
+              className="text-4xl font-semibold leading-[1.15] tracking-tight text-white sm:text-5xl lg:text-7xl"
             >
               {messages.heroTitle}
               <br />
@@ -273,9 +252,5 @@ function LandingPage() {
 }
 
 export default function Home() {
-  return (
-    <LandingLanguageProvider>
-      <LandingPage />
-    </LandingLanguageProvider>
-  );
+  return <LandingPage />;
 }

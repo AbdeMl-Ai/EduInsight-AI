@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Inter } from 'next/font/google'
 import { AuthProvider } from '@/components/app/AuthProvider'
+import { LandingLanguageProvider } from '@/components/app/LandingLanguageProvider'
 import './globals.css'
 
 const inter = Inter({
@@ -50,12 +51,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`dark ${inter.variable} ${dmSans.variable}`}>
+    <html lang="ar" dir="rtl" className={`dark ${inter.variable} ${dmSans.variable}`}>
       <body className="font-sans antialiased">
-        <AuthProvider>
-          {children}
-          {process.env.NODE_ENV === 'production' && <Analytics />}
-        </AuthProvider>
+        <LandingLanguageProvider>
+          <AuthProvider>
+            {children}
+            {process.env.NODE_ENV === 'production' && <Analytics />}
+          </AuthProvider>
+        </LandingLanguageProvider>
       </body>
     </html>
   )

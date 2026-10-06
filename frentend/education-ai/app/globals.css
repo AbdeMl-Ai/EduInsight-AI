@@ -176,7 +176,9 @@ html.cream .app-shell [class*="bg-[#0a0a0a]"],
 html.cream .app-shell [class*="bg-[#0b0b0b]"],
 html.cream .app-shell [class*="bg-[#111]"],
 html.cream .app-shell [class*="bg-[#111111]"],
-html.cream .app-shell [class*="bg-[#151515]"] {
+html.cream .app-shell [class*="bg-[#151515]"],
+html.cream .app-shell [class*="bg-[#0d0d0d]"],
+html.cream .app-shell [class*="bg-[#101010]"] {
   background-color: #f5efdf !important;
 }
 
@@ -207,6 +209,10 @@ html.cream .app-shell [class*="text-[#e0c583]"],
 html.cream .app-shell [class*="text-[#d8bd83]"],
 html.cream .app-shell [class*="text-[#c6a96b]"] {
   color: #78551d !important;
+}
+
+html.cream .app-shell [class*="text-rose-"] {
+  color: #b91c1c !important;
 }
 
 html.cream .app-shell [class*="border-white"],

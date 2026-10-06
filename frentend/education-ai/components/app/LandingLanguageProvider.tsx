@@ -10,9 +10,10 @@ import {
 } from 'react';
 import arabic from '@/locales/ar.json';
 import english from '@/locales/en.json';
+import { LANGUAGE_KEY } from '@/lib/i18n';
 
 export type LandingLanguage = 'en' | 'ar';
-const LANGUAGE_KEY = 'eduinsight_landing_language';
+const LANGUAGE_CHANGE_EVENT = 'eduinsight-language-change';
 
 const dictionaries = {
   en: english,
@@ -23,7 +24,6 @@ type LandingLanguageContextValue = {
   language: LandingLanguage;
   messages: (typeof dictionaries)[LandingLanguage];
   setLanguage: (language: LandingLanguage) => void;
-  isReady: boolean;
 };
 
 const LandingLanguageContext =
@@ -35,11 +35,13 @@ export function LandingLanguageProvider({
   children: ReactNode;
 }) {
   const [language, setCurrentLanguage] = useState<LandingLanguage>('ar');
-  const [isReady, setIsReady] = useState(false);
 
   const setLanguage = useCallback((nextLanguage: LandingLanguage) => {
     localStorage.setItem(LANGUAGE_KEY, nextLanguage);
     setCurrentLanguage(nextLanguage);
+    window.dispatchEvent(
+      new CustomEvent(LANGUAGE_CHANGE_EVENT, { detail: nextLanguage }),
+    );
   }, []);
 
   useEffect(() => {
@@ -47,7 +49,28 @@ export function LandingLanguageProvider({
     if (storedLanguage === 'en' || storedLanguage === 'ar') {
       setCurrentLanguage(storedLanguage);
     }
-    setIsReady(true);
+
+    function handleLanguageChange(event: Event) {
+      const selectedLanguage = (event as CustomEvent<unknown>).detail;
+      if (selectedLanguage === 'en' || selectedLanguage === 'ar') {
+        setCurrentLanguage(selectedLanguage);
+      }
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key !== LANGUAGE_KEY) return;
+      if (event.newValue === 'en' || event.newValue === 'ar') {
+        setCurrentLanguage(event.newValue);
+      }
+    }
+
+    window.addEventListener(LANGUAGE_CHANGE_EVENT, handleLanguageChange);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener(LANGUAGE_CHANGE_EVENT, handleLanguageChange);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -57,7 +80,7 @@ export function LandingLanguageProvider({
 
   return (
     <LandingLanguageContext.Provider
-      value={{ language, messages: dictionaries[language], setLanguage, isReady }}
+      value={{ language, messages: dictionaries[language], setLanguage }}
     >
       {children}
     </LandingLanguageContext.Provider>
