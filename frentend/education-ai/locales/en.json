@@ -1,0 +1,40 @@
+{
+  "languageLabel": "Language",
+  "switchLanguage": "العربية",
+  "homeLabel": "EDUINSIGHT AI home",
+  "navConcept": "Concept",
+  "login": "Log in",
+  "getStarted": "Get started",
+  "badge": "Smarter learning, brighter futures",
+  "heroTitle": "Empowering education",
+  "heroAccent": "with artificial intelligence",
+  "heroDescription": "One connected learning platform for administrators, teachers, and students—turning data into insights that help everyone move forward.",
+  "heroSupport": "A connected experience for every step of the learning journey.",
+  "conceptButton": "Explore the platform",
+  "scrollHint": "Scroll to discover the platform",
+  "conceptEyebrow": "One platform, connected learning",
+  "conceptTitle": "Designed for everyone shaping education.",
+  "conceptDescription": "EDUINSIGHT AI brings the learning community together in one workspace, with tools tailored to every role.",
+  "roles": [
+    {
+      "number": "01",
+      "title": "Administrators",
+      "description": "Manage your school in one place and use clear insights to make better-informed decisions.",
+      "detail": "Complete school management"
+    },
+    {
+      "number": "02",
+      "title": "Teachers",
+      "description": "Create courses, assign exercises, and follow your students’ progress with ease.",
+      "detail": "Courses and assignments"
+    },
+    {
+      "number": "03",
+      "title": "Students",
+      "description": "Track your grades and progress with an interactive learning experience that helps you reach your goals.",
+      "detail": "Progress and interactive learning"
+    }
+  ],
+  "closingTitle": "Together, toward smarter learning.",
+  "footerTagline": "Designed for better learning outcomes."
+}
