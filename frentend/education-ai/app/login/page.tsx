@@ -8,6 +8,7 @@ import axios from 'axios';
 import client from '@/lib/axios';
 import { api as sessionApi, type LoginResponse } from '@/lib/api';
 import { getRoleFromToken } from '@/lib/auth-token';
+import LoadingScreen from '@/components/app/LoadingScreen';
 import ThemeToggle from '@/components/app/ThemeToggle';
 
 function LoginPageContent() {
@@ -19,14 +20,19 @@ function LoginPageContent() {
 	const [submitting, setSubmitting] = useState(false);
 	const [error, setError] = useState('');
 	const [notice, setNotice] = useState('');
+	const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
 	function routeForRole(role: string) {
-		if (role === 'student' || role === 'user') router.replace('/student/home');
-		else if (role === 'teacher' || role === 'admin') router.replace(`/${role}`);
+		let destination: string;
+		if (role === 'student' || role === 'user') destination = '/student/home';
+		else if (role === 'teacher' || role === 'admin') destination = `/${role}`;
 		else {
 			sessionApi.logout();
 			setError('This account does not have a supported dashboard role. Contact your administrator.');
+			return;
 		}
+
+		setRedirectPath(destination);
 	}
 
 	useEffect(() => {
@@ -92,7 +98,8 @@ function LoginPageContent() {
 	}
 
 	return (
-		<main className="login-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9] md:grid md:grid-cols-[1.05fr_0.95fr]">
+		<>
+			<main className="login-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9] md:grid md:grid-cols-[1.05fr_0.95fr]">
 			<div className="fixed right-4 top-4 z-50 md:right-8 md:top-8"><ThemeToggle /></div>
 			<section className="login-hero relative isolate h-[190px] overflow-hidden md:sticky md:top-0 md:h-dvh">
 				<img
@@ -214,7 +221,11 @@ function LoginPageContent() {
 					</Link>
 				</div>
 			</section>
-		</main>
+			</main>
+			{redirectPath && (
+				<LoadingScreen onComplete={() => router.replace(redirectPath)} />
+			)}
+		</>
 	);
 }
 
