@@ -23,6 +23,7 @@ import {
   type AdminStudent,
 } from '@/lib/admin-api';
 import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 
 type ClassForm = Omit<ClassCreate, 'teacher_id'> & { teacher_id: string };
 
@@ -46,6 +47,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 }
 
 export default function AdminClassesPage() {
+  const { messages } = useLandingLanguage();
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,13 +81,13 @@ export default function AdminClassesPage() {
         setReportClassId((current) => current || classData[0]?.id || '');
       })
       .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) setError(getAdminErrorMessage(requestError, 'Classes could not be loaded.'));
+        if (!controller.signal.aborted) setError(getAdminErrorMessage(requestError, messages.classCouldNotLoad));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, messages]);
 
   function openCreate() {
     setEditingClass(null);
@@ -130,7 +132,7 @@ export default function AdminClassesPage() {
       setEditingClass(null);
       await reloadClasses();
     } catch (requestError) {
-      setFormError(getAdminErrorMessage(requestError, 'Class could not be saved.'));
+      setFormError(getAdminErrorMessage(requestError, messages.classCouldNotSave));
       await reloadClasses().catch(() => undefined);
     } finally {
       setSaving(false);
@@ -138,7 +140,7 @@ export default function AdminClassesPage() {
   }
 
   async function removeClass(classItem: AdminClass) {
-    if (!window.confirm(`Delete ${classItem.class_name}? This cannot be undone.`)) return;
+    if (!window.confirm(messages.deleteClassConfirm.replace('{name}', classItem.class_name))) return;
     setDeletingId(classItem.id);
     setError('');
     try {
@@ -147,7 +149,7 @@ export default function AdminClassesPage() {
       setAttendance(null);
       setReportClassId((current) => current === classItem.id ? '' : current);
     } catch (requestError) {
-      setError(getAdminErrorMessage(requestError, 'Class could not be deleted.'));
+      setError(getAdminErrorMessage(requestError, messages.classCouldNotDelete));
     } finally {
       setDeletingId(null);
     }
@@ -161,7 +163,7 @@ export default function AdminClassesPage() {
     try {
       setAttendance(await getAdminMonthlyAttendance(reportClassId, month));
     } catch (requestError) {
-      setReportError(getAdminErrorMessage(requestError, 'Attendance report could not be loaded.'));
+      setReportError(getAdminErrorMessage(requestError, messages.attendanceLoadError));
     } finally {
       setReportLoading(false);
     }
@@ -180,7 +182,7 @@ export default function AdminClassesPage() {
       const students = await getAdminClassStudents(classId);
       setClassStudents((current) => ({ ...current, [classId]: students }));
     } catch (requestError) {
-      setReportError(getAdminErrorMessage(requestError, 'Students could not be loaded.'));
+      setReportError(getAdminErrorMessage(requestError, messages.studentsCouldNotLoad));
     } finally {
       setStudentsLoading(null);
     }
@@ -211,7 +213,7 @@ export default function AdminClassesPage() {
         data: {
           labels: report.exercises_and_exams.map((exercise) => exercise.exercise_name),
           datasets: [{
-            label: 'Score (/20)',
+            label: messages.reportScoreLabel,
             data: scores,
             borderColor: '#c6a96b',
             backgroundColor: 'rgba(198, 169, 107, 0.18)',
@@ -227,7 +229,7 @@ export default function AdminClassesPage() {
         },
       });
       pdf.setFontSize(18);
-      pdf.text(`${report.name} | Academic Progress`, 14, 18);
+      pdf.text(`${report.name} | ${messages.reportAcademicProgress}`, 14, 18);
       pdf.setFontSize(10);
       pdf.text(report.email, 14, 25);
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 14, 32, 182, 69);
@@ -236,11 +238,11 @@ export default function AdminClassesPage() {
       let y = 112;
       pdf.setFontSize(13);
       pdf.setTextColor(42, 36, 32);
-      pdf.text('Average by course', 14, y);
+      pdf.text(messages.reportAverageByCourse, 14, y);
       y += 10;
       if (!subjectAverages.length) {
         pdf.setFontSize(10);
-        pdf.text('No subjects recorded.', 14, y);
+        pdf.text(messages.reportNoSubjects, 14, y);
       }
       for (const item of subjectAverages) {
         if (y > 275) {
@@ -251,22 +253,29 @@ export default function AdminClassesPage() {
         pdf.line(14, y + 4, 196, y + 4);
         pdf.setFontSize(10);
         pdf.setTextColor(42, 36, 32);
-        pdf.text(`Course ${item.subject}`, 16, y);
+        pdf.text(`${messages.course} ${item.subject}`, 16, y);
         pdf.text(
           item.average === null ? '— / 20' : `${item.average.toFixed(2)} / 20`,
           132,
           y,
         );
-        const status = item.average === null
-          ? 'No graded exercises'
-          : getPerformanceStatus(item.average).text;
+        const performance = item.average === null ? null : getPerformanceStatus(item.average).text;
+        const status = performance === null
+          ? messages.noGradedExercises
+          : performance === 'Excellent'
+            ? messages.performanceExcellent
+            : performance === 'Good'
+              ? messages.performanceGood
+              : performance === 'Average'
+                ? messages.performanceAverage
+                : messages.performanceNeedsAttention;
         pdf.setTextColor(98, 87, 74);
         pdf.text(status, 194, y, { align: 'right' });
         y += 12;
       }
       pdf.save(`${report.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-progress-report.pdf`);
     } catch (requestError) {
-      setReportError(getAdminErrorMessage(requestError, 'The student report could not be generated.'));
+      setReportError(getAdminErrorMessage(requestError, messages.studentReportCouldNotGenerate));
     } finally {
       setReportStudentId(null);
     }
@@ -280,19 +289,19 @@ export default function AdminClassesPage() {
     <section className="space-y-6">
       <header className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">ORGANIZATION</p>
-          <h1 className="mt-2 text-2xl font-semibold text-white">Classes</h1>
-          <p className="mt-1 text-xs text-white/45">Class groups, teaching assignments, and attendance.</p>
+          <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">{messages.organization}</p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">{messages.classes}</h1>
+          <p className="mt-1 text-xs text-white/45">{messages.classGroupsDescription}</p>
         </div>
-        <button onClick={openCreate} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-[#c6a96b] px-3 text-xs font-semibold text-[#17130b]"><Plus size={15} />New class</button>
+        <button onClick={openCreate} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-lg bg-[#c6a96b] px-3 text-xs font-semibold text-[#17130b]"><Plus size={15} />{messages.newClass}</button>
       </header>
 
-      {error && <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4 text-xs text-rose-200">{error}<button onClick={() => setAttempt((value) => value + 1)} className="ml-2 underline underline-offset-4">Try again</button></div>}
+      {error && <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4 text-xs text-rose-200">{error}<button onClick={() => setAttempt((value) => value + 1)} className="ms-2 underline underline-offset-4">{messages.tryAgain}</button></div>}
 
       <section aria-labelledby="classes-list-title">
         <div className="mb-3 flex items-center justify-between">
-          <h2 id="classes-list-title" className="text-sm font-semibold text-white">Your classes</h2>
-          <span className="text-[10px] tabular-nums text-white/40">{classes.length} total</span>
+          <h2 id="classes-list-title" className="text-sm font-semibold text-white">{messages.yourClasses}</h2>
+          <span className="text-[10px] tabular-nums text-white/40">{classes.length} {messages.total}</span>
         </div>
         {loading ? (
           <div role="status" className="space-y-3">{[0, 1, 2].map((key) => <div key={key} className="h-24 animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.025]" />)}</div>
@@ -307,29 +316,29 @@ export default function AdminClassesPage() {
                     <div className="min-w-0 flex-1">
                       <h3 className="break-words text-sm font-semibold text-white">{classItem.class_name}</h3>
                       <p className="mt-1 text-[11px] text-white/45">{classItem.subject} · {classItem.class_level}</p>
-                      <p className="mt-2 flex items-center gap-1.5 text-[10px] text-white/40"><UserRound size={13} />{teacher?.full_name ?? 'Teacher assignment unavailable'}</p>
+                      <p className="mt-2 flex items-center gap-1.5 text-[10px] text-white/40"><UserRound size={13} />{teacher?.full_name ?? messages.teacherUnavailable}</p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      <button onClick={() => toggleClassStudents(classItem.id)} aria-label={`View students in ${classItem.class_name}`} title="View students" className={`flex size-9 items-center justify-center rounded-lg ${expandedClassId === classItem.id ? 'bg-[#c6a96b]/[0.12] text-[#dfc27e]' : 'text-white/45 hover:bg-white/5 hover:text-[#dfc27e]'}`}><Users size={16} /></button>
-                      <button onClick={() => openEdit(classItem)} aria-label={`Edit ${classItem.class_name}`} title="Edit class" className="flex size-9 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRound size={16} /></button>
-                      <button onClick={() => removeClass(classItem)} disabled={deletingId === classItem.id} aria-label={`Delete ${classItem.class_name}`} title="Delete class" className="flex size-9 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">{deletingId === classItem.id ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}</button>
+                      <button onClick={() => toggleClassStudents(classItem.id)} aria-label={messages.viewStudentsIn.replace('{name}', classItem.class_name)} title={messages.viewStudents} className={`flex size-9 items-center justify-center rounded-lg ${expandedClassId === classItem.id ? 'bg-[#c6a96b]/[0.12] text-[#dfc27e]' : 'text-white/45 hover:bg-white/5 hover:text-[#dfc27e]'}`}><Users size={16} /></button>
+                      <button onClick={() => openEdit(classItem)} aria-label={`${messages.editClass}: ${classItem.class_name}`} title={messages.editClass} className="flex size-9 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRound size={16} /></button>
+                      <button onClick={() => removeClass(classItem)} disabled={deletingId === classItem.id} aria-label={`${messages.deleteClass}: ${classItem.class_name}`} title={messages.deleteClass} className="flex size-9 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">{deletingId === classItem.id ? <LoaderCircle size={15} className="animate-spin" /> : <Trash2 size={15} />}</button>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 border-t border-white/[0.07] pt-3 text-center">
-                    <div><p className="text-[9px] text-white/35">Center fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.center_rent_fee_per_student}</p></div>
-                    <div><p className="text-[9px] text-white/35">Teacher fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.teacher_teaching_fee_per_student}</p></div>
-                    <div><p className="text-[9px] text-white/35">Monthly fee</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.student_monthly_fee}</p></div>
+                    <div><p className="text-[9px] text-white/35">{messages.centerFee}</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.center_rent_fee_per_student}</p></div>
+                    <div><p className="text-[9px] text-white/35">{messages.teacherFee}</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.teacher_teaching_fee_per_student}</p></div>
+                    <div><p className="text-[9px] text-white/35">{messages.monthlyFee}</p><p className="mt-1 text-[11px] tabular-nums text-white/70">{classItem.student_monthly_fee}</p></div>
                   </div>
                   <AnimatePresence initial={false}>
                     {expandedClassId === classItem.id && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                         <div className="mt-3 border-t border-white/[0.07] pt-3">
-                          <p className="mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/40">ENROLLED STUDENTS</p>
-                          {studentsLoading === classItem.id ? <p className="py-3 text-xs text-white/40">Loading students...</p> : classStudents[classItem.id]?.length ? (
+                          <p className="mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/40">{messages.enrolledStudents}</p>
+                          {studentsLoading === classItem.id ? <p className="py-3 text-xs text-white/40">{messages.loadingStudents}</p> : classStudents[classItem.id]?.length ? (
                             <ul className="divide-y divide-white/[0.06]">
-                              {classStudents[classItem.id].map((student) => <li key={student.student_id} className="flex items-center gap-2 py-2"><span className="min-w-0 flex-1 truncate text-xs text-white/75">{student.full_name}</span><button onClick={() => downloadStudentReport(student)} disabled={reportStudentId === student.student_id} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#c6a96b]/25 px-2.5 text-[10px] font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.08] disabled:opacity-40"><FileText size={13} />{reportStudentId === student.student_id ? 'Generating' : 'Get report'}</button></li>)}
+                              {classStudents[classItem.id].map((student) => <li key={student.student_id} className="flex items-center gap-2 py-2"><span className="min-w-0 flex-1 truncate text-xs text-white/75">{student.full_name}</span><button onClick={() => downloadStudentReport(student)} disabled={reportStudentId === student.student_id} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#c6a96b]/25 px-2.5 text-[10px] font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.08] disabled:opacity-40"><FileText size={13} />{reportStudentId === student.student_id ? messages.generating : messages.getReport}</button></li>)}
                             </ul>
-                          ) : <p className="py-3 text-xs text-white/40">No students enrolled in this class.</p>}
+                          ) : <p className="py-3 text-xs text-white/40">{messages.noStudentsInClass}</p>}
                         </div>
                       </motion.div>
                     )}
@@ -341,8 +350,8 @@ export default function AdminClassesPage() {
         ) : !error ? (
           <div className="rounded-lg border border-white/10 px-5 py-10 text-center">
             <BookOpen className="mx-auto mb-3 text-[#c6a96b]" size={23} />
-            <h3 className="text-sm font-medium text-white">No classes yet</h3>
-            <p className="mt-1 text-xs text-white/40">Create a class to organize students and teachers.</p>
+            <h3 className="text-sm font-medium text-white">{messages.noClassesYet}</h3>
+            <p className="mt-1 text-xs text-white/40">{messages.createClassOrganize}</p>
           </div>
         ) : null}
       </section>
@@ -351,52 +360,52 @@ export default function AdminClassesPage() {
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-300/15 bg-emerald-300/[0.05] text-emerald-200"><CalendarDays size={17} /></span>
           <div>
-            <h2 className="text-sm font-semibold text-white">Monthly attendance</h2>
-            <p className="mt-1 text-[11px] text-white/40">Review recorded attendance for a class.</p>
+            <h2 className="text-sm font-semibold text-white">{messages.monthlyAttendance}</h2>
+            <p className="mt-1 text-[11px] text-white/40">{messages.reviewAttendance}</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <select value={reportClassId} onChange={(event) => { setReportClassId(event.target.value); setAttendance(null); }} aria-label="Select class for attendance" className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50">
-            <option value="">Choose a class</option>
+          <select value={reportClassId} onChange={(event) => { setReportClassId(event.target.value); setAttendance(null); }} aria-label={messages.selectClassAttendance} className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50">
+            <option value="">{messages.chooseClass}</option>
             {classes.map((item) => <option key={item.id} value={item.id}>{item.class_name}</option>)}
           </select>
-          <input type="month" value={month} onChange={(event) => { setMonth(event.target.value); setAttendance(null); }} aria-label="Select month" className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50" />
-          <button onClick={loadAttendance} disabled={!reportClassId || reportLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c6a96b]/25 px-4 text-xs font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.06] disabled:opacity-40">{reportLoading ? <LoaderCircle size={15} className="animate-spin" /> : <Users size={15} />}View report</button>
+          <input type="month" value={month} onChange={(event) => { setMonth(event.target.value); setAttendance(null); }} aria-label={messages.selectMonth} className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50" />
+          <button onClick={loadAttendance} disabled={!reportClassId || reportLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c6a96b]/25 px-4 text-xs font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.06] disabled:opacity-40">{reportLoading ? <LoaderCircle size={15} className="animate-spin" /> : <Users size={15} />}{messages.viewAttendanceReport}</button>
         </div>
         {reportError && <p role="alert" className="mt-3 text-xs text-rose-200">{reportError}</p>}
         {attendance && (
           attendance.length ? (
             <div className="mt-4 border-t border-white/[0.08] pt-4">
               <div className="flex items-center justify-between gap-3">
-                <div><p className="text-xs font-medium text-white">{presentCount} present records</p><p className="mt-1 text-[10px] text-white/40">{attendance.length} total recorded entries · {month}</p></div>
+                <div><p className="text-xs font-medium text-white">{messages.presentRecords.replace('{count}', String(presentCount))}</p><p className="mt-1 text-[10px] text-white/40">{messages.totalAttendanceEntries.replace('{count}', String(attendance.length))} · {month}</p></div>
                 <span className="text-lg font-semibold tabular-nums text-emerald-200">{attendancePercent}%</span>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-300 transition-[width]" style={{ width: `${attendancePercent}%` }} /></div>
               <ul className="mt-3 divide-y divide-white/[0.06]">
-                {attendance.slice(0, 8).map((record, index) => <li key={`${record.student_id}-${record.date}-${index}`} className="flex items-center justify-between gap-3 py-2 text-[11px]"><span className="truncate text-white/65">{record.student_name || 'Student'}</span><span className="shrink-0 text-white/35">{record.date}</span><span className={record.status === 'present' ? 'shrink-0 text-emerald-200' : 'shrink-0 text-rose-200'}>{record.status}</span></li>)}
+                {attendance.slice(0, 8).map((record, index) => <li key={`${record.student_id}-${record.date}-${index}`} className="flex items-center justify-between gap-3 py-2 text-[11px]"><span className="truncate text-white/65">{record.student_name || messages.student}</span><span className="shrink-0 text-white/35">{record.date}</span><span className={record.status === 'present' ? 'shrink-0 text-emerald-200' : 'shrink-0 text-rose-200'}>{record.status === 'present' ? messages.present : messages.absent}</span></li>)}
               </ul>
             </div>
-          ) : <p className="mt-4 border-t border-white/[0.08] pt-4 text-xs text-white/40">No attendance records for this class and month.</p>
+          ) : <p className="mt-4 border-t border-white/[0.08] pt-4 text-xs text-white/40">{messages.noAttendanceForMonth}</p>
         )}
       </section>
 
       <AnimatePresence>
         {formOpen && (
           <motion.div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setFormOpen(false); }}>
-            <motion.section role="dialog" aria-modal="true" aria-label={editingClass ? 'Edit class' : 'Create class'} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-white/10 bg-[#111111] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-xl sm:p-5">
-              <div className="mb-5 flex items-center justify-between"><h2 className="text-base font-semibold text-white">{editingClass ? 'Edit class' : 'New class'}</h2><button onClick={() => setFormOpen(false)} aria-label="Close" className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
+            <motion.section role="dialog" aria-modal="true" aria-label={editingClass ? messages.editClass : messages.createClass} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-xl border border-white/10 bg-[#111111] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-xl sm:p-5">
+              <div className="mb-5 flex items-center justify-between"><h2 className="text-base font-semibold text-white">{editingClass ? messages.editClass : messages.newClass}</h2><button onClick={() => setFormOpen(false)} aria-label={messages.close} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
               <form onSubmit={saveClass} className="space-y-4">
-                <Field label="Class name" value={form.class_name} onChange={(event) => setForm((current) => ({ ...current, class_name: event.target.value }))} required />
-                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Subject</span><select required value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose a subject</option>{SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject}</option>)}</select></label>
-                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Academic level</span><select required value={form.class_level} onChange={(event) => setForm((current) => ({ ...current, class_level: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose an academic level</option>{ACADEMIC_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
-                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Teacher</span><select required value={form.teacher_id} onChange={(event) => setForm((current) => ({ ...current, teacher_id: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose a teacher</option>{teachers.map((teacher) => <option key={teacher.teacher_id} value={teacher.teacher_id}>{teacher.full_name}</option>)}</select>{teachers.length === 0 && <span className="text-[10px] text-amber-100/65">Add a teacher before creating a class.</span>}</label>
+                <Field label={messages.className} value={form.class_name} onChange={(event) => setForm((current) => ({ ...current, class_name: event.target.value }))} required />
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.subject}</span><select required value={form.subject} onChange={(event) => setForm((current) => ({ ...current, subject: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseSubject}</option>{SUBJECTS.map((subject) => <option key={subject} value={subject}>{subject === 'Math' ? messages.subjectMath : subject === 'PC' ? messages.subjectPhysicsChemistry : subject === 'SVT' ? messages.subjectBiologyGeology : subject === 'English' ? messages.subjectEnglish : messages.subjectFrench}</option>)}</select></label>
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.academicLevel}</span><select required value={form.class_level} onChange={(event) => setForm((current) => ({ ...current, class_level: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseAcademicLevel}</option>{ACADEMIC_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
+                <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.teacher}</span><select required value={form.teacher_id} onChange={(event) => setForm((current) => ({ ...current, teacher_id: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseTeacher}</option>{teachers.map((teacher) => <option key={teacher.teacher_id} value={teacher.teacher_id}>{teacher.full_name}</option>)}</select>{teachers.length === 0 && <span className="text-[10px] text-amber-100/65">{messages.addTeacherBeforeClass}</span>}</label>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field label="Center fee / student" type="number" min="0" step="0.01" value={form.center_rent_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, center_rent_fee_per_student: Number(event.target.value) }))} required />
-                  <Field label="Teacher fee / student" type="number" min="0" step="0.01" value={form.teacher_teaching_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, teacher_teaching_fee_per_student: Number(event.target.value) }))} required />
-                  <Field label="Student monthly fee" type="number" min="0" step="0.01" value={form.student_monthly_fee} onChange={(event) => setForm((current) => ({ ...current, student_monthly_fee: Number(event.target.value) }))} required />
+                  <Field label={messages.centerFeePerStudent} type="number" min="0" step="0.01" value={form.center_rent_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, center_rent_fee_per_student: Number(event.target.value) }))} required />
+                  <Field label={messages.teacherFeePerStudent} type="number" min="0" step="0.01" value={form.teacher_teaching_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, teacher_teaching_fee_per_student: Number(event.target.value) }))} required />
+                  <Field label={messages.studentMonthlyFee} type="number" min="0" step="0.01" value={form.student_monthly_fee} onChange={(event) => setForm((current) => ({ ...current, student_monthly_fee: Number(event.target.value) }))} required />
                 </div>
                 {formError && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{formError}</p>}
-                <div className="flex gap-2 border-t border-white/[0.08] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs text-white/60">Cancel</button><button type="submit" disabled={saving || !teachers.length} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{saving && <LoaderCircle size={15} className="animate-spin" />}{saving ? 'Saving' : editingClass ? 'Save changes' : 'Create class'}</button></div>
+                <div className="flex gap-2 border-t border-white/[0.08] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs text-white/60">{messages.cancel}</button><button type="submit" disabled={saving || !teachers.length} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{saving && <LoaderCircle size={15} className="animate-spin" />}{saving ? messages.saving : editingClass ? messages.saveChanges : messages.createClass}</button></div>
               </form>
             </motion.section>
           </motion.div>

@@ -40,6 +40,7 @@ import {
   type StudentReport,
 } from '@/lib/admin-api';
 import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 
 type PeopleTab = 'Students' | 'Teachers';
 type FormMode = 'add-student' | 'edit-student' | 'add-teacher' | 'edit-teacher' | null;
@@ -49,7 +50,7 @@ function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase() || '?';
 }
 
-function studentClassLabel(student: AdminStudent, classes: AdminClass[]) {
+function studentClassLabel(student: AdminStudent, classes: AdminClass[], noClassLabel: string) {
   const ids = student.class_ids?.length ? student.class_ids : student.class_id ? [student.class_id] : [];
   const labels = ids
     .map((id) => classes.find((item) => item.id === id))
@@ -62,7 +63,7 @@ function studentClassLabel(student: AdminStudent, classes: AdminClass[]) {
       );
       return duplicateName ? `${item.class_name} · #${item.id.slice(-5)}` : item.class_name;
     });
-  return labels.length ? labels.join(', ') : student.level_academy || student.level || 'No class assigned';
+  return labels.length ? labels.join(', ') : student.level_academy || student.level || noClassLabel;
 }
 
 function conflictingStudentSubject(classIds: string[], classes: AdminClass[]) {
@@ -90,6 +91,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 }
 
 export default function AdminPeoplePage() {
+  const { messages } = useLandingLanguage();
   const [tab, setTab] = useState<PeopleTab>('Students');
   const [students, setStudents] = useState<AdminStudent[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
@@ -136,18 +138,18 @@ export default function AdminPeoplePage() {
         setClasses(classData);
       })
       .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) setError(getAdminErrorMessage(requestError, 'People could not be loaded.'));
+        if (!controller.signal.aborted) setError(getAdminErrorMessage(requestError, messages.peopleLoadError));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     checkAdminPaymentDue().catch(() => undefined);
     return () => controller.abort();
-  }, [attempt]);
+  }, [attempt, messages]);
 
   const filteredStudents = useMemo(() => students.filter((item) =>
-    `${item.full_name} ${item.email} ${studentClassLabel(item, classes)}`.toLowerCase().includes(query.toLowerCase()),
-  ), [students, classes, query]);
+    `${item.full_name} ${item.email} ${studentClassLabel(item, classes, messages.noClassAssigned)}`.toLowerCase().includes(query.toLowerCase()),
+  ), [students, classes, query, messages]);
   const filteredTeachers = useMemo(() => teachers.filter((item) =>
     `${item.full_name} ${item.email} ${item.specialties.join(' ')}`.toLowerCase().includes(query.toLowerCase()),
   ), [teachers, query]);
@@ -175,7 +177,7 @@ export default function AdminPeoplePage() {
   async function submitStudent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (studentSubjectConflict) {
-      setFormError('A student can only join one class per subject.');
+      setFormError(messages.studentSubjectLimit);
       return;
     }
     setSaving(true);
@@ -203,12 +205,12 @@ export default function AdminPeoplePage() {
             await resetAdminStudentPassword(editingStudent.student_id, password);
           } catch (passwordError) {
             await reloadPeople();
-            setFormNotice('Profile saved, but the password reset failed.');
-            setFormError(getAdminErrorMessage(passwordError, 'Password reset failed.'));
+            setFormNotice(messages.profileSavedPasswordFailed);
+            setFormError(getAdminErrorMessage(passwordError, messages.passwordResetFailed));
             return;
           }
         }
-        setFormNotice('Student profile updated.');
+        setFormNotice(messages.studentProfileUpdated);
       } else {
         const selectedClass = classes.find((item) => item.id === selectedClassIds[0]);
         const created = await createAdminStudent({
@@ -224,16 +226,16 @@ export default function AdminPeoplePage() {
             await resetAdminStudentPassword(created.student_id, password);
           } catch (passwordError) {
             await reloadPeople();
-            setFormNotice('Student profile was created, but login setup failed. Open the student info sheet to retry.');
-            setFormError(getAdminErrorMessage(passwordError, 'Password setup failed.'));
+            setFormNotice(messages.studentCreatedPasswordFailed);
+            setFormError(getAdminErrorMessage(passwordError, messages.passwordSetupFailed));
             return;
           }
         }
-        setFormNotice(password ? 'Student and login created.' : 'Student profile created. Set a login password from the info sheet.');
+        setFormNotice(password ? messages.studentAndLoginCreated : messages.studentCreatedSetPassword);
       }
       await reloadPeople();
     } catch (requestError) {
-      setFormError(getAdminErrorMessage(requestError, 'Unable to save this student.'));
+      setFormError(getAdminErrorMessage(requestError, messages.unableSaveStudent));
     } finally {
       setSaving(false);
     }
@@ -261,19 +263,19 @@ export default function AdminPeoplePage() {
             await resetAdminTeacherPassword(editingTeacher.teacher_id, password);
           } catch (passwordError) {
             await reloadPeople();
-            setFormNotice('Teacher profile saved, but the password reset failed.');
-            setFormError(getAdminErrorMessage(passwordError, 'Password reset failed.'));
+            setFormNotice(messages.teacherProfileSavedPasswordFailed);
+            setFormError(getAdminErrorMessage(passwordError, messages.passwordResetFailed));
             return;
           }
         }
-        setFormNotice(password ? 'Teacher profile and login updated.' : 'Teacher profile updated.');
+        setFormNotice(password ? messages.teacherProfileLoginUpdated : messages.teacherProfileUpdated);
       } else {
         await createAdminTeacher(teacherData);
-        setFormNotice('Teacher profile created.');
+        setFormNotice(messages.teacherProfileCreated);
       }
       await reloadPeople();
     } catch (requestError) {
-      setFormError(getAdminErrorMessage(requestError, 'Unable to save this teacher.'));
+      setFormError(getAdminErrorMessage(requestError, messages.unableSaveTeacher));
     } finally {
       setSaving(false);
     }
@@ -299,9 +301,9 @@ export default function AdminPeoplePage() {
     try {
       await resetAdminStudentPassword(infoStudent.student_id, resetPassword);
       setResetPassword('');
-      setResetNotice('Password reset. Share the new password with the student using a secure channel.');
+      setResetNotice(messages.passwordResetShareSecurely);
     } catch (requestError) {
-      setResetError(getAdminErrorMessage(requestError, 'Could not reset this password.'));
+      setResetError(getAdminErrorMessage(requestError, messages.couldNotResetPassword));
     } finally {
       setResetBusy(false);
     }
@@ -315,7 +317,7 @@ export default function AdminPeoplePage() {
     try {
       setPaymentSummary(await getAdminPaymentSummary(target.id, target.role));
     } catch (requestError) {
-      setPaymentError(getAdminErrorMessage(requestError, 'Payment details could not be loaded.'));
+      setPaymentError(getAdminErrorMessage(requestError, messages.paymentDetailsLoadError));
     } finally {
       setPaymentLoading(false);
     }
@@ -328,14 +330,14 @@ export default function AdminPeoplePage() {
     try {
       setPaymentSummary(await updateAdminPaymentState(paymentTarget.id, paymentTarget.role, paymentSummary.paid_months));
     } catch (requestError) {
-      setPaymentError(getAdminErrorMessage(requestError, 'Payment state could not be saved.'));
+      setPaymentError(getAdminErrorMessage(requestError, messages.paymentStateSaveError));
     } finally {
       setPaymentSaving(false);
     }
   }
 
   async function removeStudent(student: AdminStudent) {
-    if (!window.confirm(`Delete ${student.full_name}? This cannot be undone.`)) return;
+    if (!window.confirm(messages.deletePersonConfirm.replace('{name}', student.full_name))) return;
     setDeletingId(student.student_id);
     setError('');
     try {
@@ -343,21 +345,21 @@ export default function AdminPeoplePage() {
       if (infoStudent?.student_id === student.student_id) setInfoStudent(null);
       await reloadPeople();
     } catch (requestError) {
-      setError(getAdminErrorMessage(requestError, 'Student could not be deleted.'));
+      setError(getAdminErrorMessage(requestError, messages.personDeletedError));
     } finally {
       setDeletingId(null);
     }
   }
 
   async function removeTeacher(teacher: AdminTeacher) {
-    if (!window.confirm(`Delete ${teacher.full_name}? This cannot be undone.`)) return;
+    if (!window.confirm(messages.deletePersonConfirm.replace('{name}', teacher.full_name))) return;
     setDeletingId(teacher.teacher_id);
     setError('');
     try {
       await deleteAdminTeacher(teacher.teacher_id);
       await reloadPeople();
     } catch (requestError) {
-      setError(getAdminErrorMessage(requestError, 'Teacher could not be deleted.'));
+      setError(getAdminErrorMessage(requestError, messages.personDeletedError));
     } finally {
       setDeletingId(null);
     }
@@ -369,17 +371,17 @@ export default function AdminPeoplePage() {
   return (
     <section className="space-y-5">
       <header>
-        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">DIRECTORY</p>
+        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">{messages.directory}</p>
         <div className="mt-2 flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold text-white">People</h1>
-            <p className="mt-1 text-xs text-white/45">Manage students, teachers, and account access.</p>
+            <h1 className="text-2xl font-semibold text-white">{messages.directoryTitle}</h1>
+            <p className="mt-1 text-xs text-white/45">{messages.managePeople}</p>
           </div>
-          <span className="text-[10px] tabular-nums text-white/35">{tab === 'Students' ? students.length : teachers.length} total</span>
+          <span className="text-[10px] tabular-nums text-white/35">{tab === 'Students' ? students.length : teachers.length} {messages.total}</span>
         </div>
       </header>
 
-      <div className="grid grid-cols-2 rounded-lg border border-white/10 bg-white/[0.025] p-1" role="tablist" aria-label="People type">
+      <div className="grid grid-cols-2 rounded-lg border border-white/10 bg-white/[0.025] p-1" role="tablist" aria-label={messages.peopleType}>
         {(['Students', 'Teachers'] as const).map((item) => (
           <button
             key={item}
@@ -388,25 +390,25 @@ export default function AdminPeoplePage() {
             onClick={() => { setTab(item); setQuery(''); }}
             className={`min-h-10 rounded-md text-xs font-semibold transition-colors ${tab === item ? 'bg-[#c6a96b]/[0.12] text-[#e0c783]' : 'text-white/45 hover:text-white/75'}`}
           >
-            {item}
+            {item === 'Students' ? messages.students : messages.teachers}
           </button>
         ))}
       </div>
 
       <label className="relative block">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/35" />
+        <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-white/35" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={`Search ${tab.toLowerCase()}`}
-          className="min-h-11 w-full rounded-lg border border-white/10 bg-white/[0.025] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c6a96b]/50"
+          placeholder={tab === 'Students' ? messages.searchStudents : messages.searchTeachers}
+          className="min-h-11 w-full rounded-lg border border-white/10 bg-white/[0.025] ps-9 pe-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-[#c6a96b]/50"
         />
       </label>
 
       {error && (
         <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4">
           <p className="text-xs leading-5 text-rose-200">{error}</p>
-          <button onClick={() => setAttempt((value) => value + 1)} className="mt-2 min-h-9 text-xs font-semibold text-[#dfc27e] underline underline-offset-4">Try again</button>
+          <button onClick={() => setAttempt((value) => value + 1)} className="mt-2 min-h-9 text-xs font-semibold text-[#dfc27e] underline underline-offset-4">{messages.tryAgain}</button>
         </div>
       )}
 
@@ -420,30 +422,30 @@ export default function AdminPeoplePage() {
             {filteredStudents.map((student) => (
               <article key={student.student_id} className="flex min-w-0 items-center gap-3 py-3.5">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#c6a96b]/25 bg-[#c6a96b]/[0.07] text-[11px] font-semibold text-[#dfc27e]">{initials(student.full_name)}</span>
-                <button onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); }} className="min-w-0 flex-1 text-left">
+                <button onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); }} className="min-w-0 flex-1 text-start">
                   <span className="block truncate text-sm font-semibold text-white">{student.full_name}</span>
                   <span className="mt-1 block truncate text-[10px] text-white/45">{student.email}</span>
-                  <span className="mt-0.5 block truncate text-[10px] text-white/35">{studentClassLabel(student, classes)}</span>
+                  <span className="mt-0.5 block truncate text-[10px] text-white/35">{studentClassLabel(student, classes, messages.noClassAssigned)}</span>
                 </button>
                 <button
                   onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); }}
-                  aria-label={`View account info for ${student.full_name}`}
-                  title="Student account info"
+                  aria-label={`${messages.viewAccountInfo}: ${student.full_name}`}
+                  title={messages.studentAccountInfo}
                   className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"
                 >
                   <Eye size={17} />
                 </button>
-                <button onClick={() => openPayments({ id: student.student_id, name: student.full_name, role: 'student' })} aria-label={`Open payments for ${student.full_name}`} title="Payments" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
-                <button onClick={() => openForm('edit-student', student)} aria-label={`Edit ${student.full_name}`} title="Edit student" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]">
+                <button onClick={() => openPayments({ id: student.student_id, name: student.full_name, role: 'student' })} aria-label={`${messages.payments}: ${student.full_name}`} title={messages.payments} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
+                <button onClick={() => openForm('edit-student', student)} aria-label={`${messages.editStudent}: ${student.full_name}`} title={messages.editStudent} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]">
                   <UserRoundPen size={16} />
                 </button>
-                <button onClick={() => removeStudent(student)} disabled={deletingId === student.student_id} aria-label={`Delete ${student.full_name}`} title="Delete student" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
+                <button onClick={() => removeStudent(student)} disabled={deletingId === student.student_id} aria-label={`${messages.deleteStudent}: ${student.full_name}`} title={messages.deleteStudent} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
                   {deletingId === student.student_id ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
                 </button>
               </article>
             ))}
           </div>
-        ) : <EmptyPeople label="students" onAdd={() => openForm('add-student')} />
+        ) : <EmptyPeople label={messages.students} singular={messages.student} onAdd={() => openForm('add-student')} />
       ) : !error ? (
         filteredTeachers.length ? (
           <div className="divide-y divide-white/[0.07] rounded-lg border border-white/10 bg-white/[0.02] px-3 sm:px-4">
@@ -453,23 +455,23 @@ export default function AdminPeoplePage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-white">{teacher.full_name}</p>
                   <p className="mt-1 truncate text-[11px] text-white/45">{teacher.email}</p>
-                  <p className="mt-1 truncate text-[10px] text-white/35">{teacher.classes.length} assigned {teacher.classes.length === 1 ? 'class' : 'classes'}</p>
+                  <p className="mt-1 truncate text-[10px] text-white/35">{teacher.classes.length} {teacher.classes.length === 1 ? messages.classAssigned : messages.classesAssigned}</p>
                 </div>
-                <button onClick={() => openPayments({ id: teacher.teacher_id, name: teacher.full_name, role: 'teacher' })} aria-label={`Open payments for ${teacher.full_name}`} title="Payments" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
-                <button onClick={() => openForm('edit-teacher', undefined, teacher)} aria-label={`Edit ${teacher.full_name}`} title="Edit teacher" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRoundPen size={16} /></button>
-                <button onClick={() => removeTeacher(teacher)} disabled={deletingId === teacher.teacher_id} aria-label={`Delete ${teacher.full_name}`} title="Delete teacher" className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
+                <button onClick={() => openPayments({ id: teacher.teacher_id, name: teacher.full_name, role: 'teacher' })} aria-label={`${messages.payments}: ${teacher.full_name}`} title={messages.payments} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
+                <button onClick={() => openForm('edit-teacher', undefined, teacher)} aria-label={`${messages.editTeacher}: ${teacher.full_name}`} title={messages.editTeacher} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRoundPen size={16} /></button>
+                <button onClick={() => removeTeacher(teacher)} disabled={deletingId === teacher.teacher_id} aria-label={`${messages.deleteTeacher}: ${teacher.full_name}`} title={messages.deleteTeacher} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
                   {deletingId === teacher.teacher_id ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
                 </button>
               </article>
             ))}
           </div>
-        ) : <EmptyPeople label="teachers" onAdd={() => openForm('add-teacher')} />
+        ) : <EmptyPeople label={messages.teachers} singular={messages.teacher} onAdd={() => openForm('add-teacher')} />
       ) : null}
 
       <button
         onClick={() => openForm(tab === 'Students' ? 'add-student' : 'add-teacher')}
-        aria-label={`Add ${tab === 'Students' ? 'student' : 'teacher'}`}
-        title={`Add ${tab === 'Students' ? 'student' : 'teacher'}`}
+        aria-label={tab === 'Students' ? messages.addStudent : messages.addTeacher}
+        title={tab === 'Students' ? messages.addStudent : messages.addTeacher}
         className="fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-40 flex size-14 items-center justify-center rounded-full border border-[#eed49a]/30 bg-[#c6a96b] text-[#17130b] shadow-[0_8px_30px_rgba(0,0,0,0.45)] transition-transform hover:scale-105 sm:right-8"
       >
         <Plus size={23} />
@@ -479,12 +481,12 @@ export default function AdminPeoplePage() {
         {paymentTarget && (
           <motion.div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget && !paymentSaving) setPaymentTarget(null); }}>
             <motion.section role="dialog" aria-modal="true" aria-label={`${paymentTarget.name} payments`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="w-full max-w-lg rounded-t-xl border border-white/10 bg-[#111111] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-xl sm:p-5">
-              <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#dfc27e]">FINANCIALS</p><h2 className="mt-1 text-base font-semibold text-white">{paymentTarget.name}</h2></div><button onClick={() => setPaymentTarget(null)} disabled={paymentSaving} aria-label="Close payments" className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
+              <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#dfc27e]">{messages.financials}</p><h2 className="mt-1 text-base font-semibold text-white">{paymentTarget.name}</h2></div><button onClick={() => setPaymentTarget(null)} disabled={paymentSaving} aria-label={messages.closePayments} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
               {paymentLoading ? <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" /> : paymentSummary && <>
-                <div className="grid grid-cols-2 gap-2"><div className="rounded-lg border border-[#c6a96b]/15 bg-[#c6a96b]/[0.05] p-3"><p className="text-[10px] text-white/40">{paymentTarget.role === 'student' ? 'Monthly fee' : 'Monthly payout'}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#dfc27e]">{paymentSummary.monthly_amount.toFixed(2)} MAD</p></div><div className="rounded-lg border border-white/10 bg-white/[0.025] p-3"><p className="text-[10px] text-white/40">Status</p><p className={`mt-1 text-sm font-semibold ${paymentSummary.due ? 'text-rose-200' : 'text-emerald-200'}`}>{paymentSummary.due ? 'Payment due' : 'Up to date'}</p></div></div>
-                <div className="mt-5"><p className="mb-2 text-[11px] font-medium text-white/55">Paid months</p><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((label, index) => { const month = index + 1; const checked = paymentSummary.paid_months.includes(month); return <label key={label} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${checked ? 'border-[#c6a96b]/40 bg-[#c6a96b]/[0.1] text-[#dfc27e]' : 'border-white/10 text-white/55'}`}><input type="checkbox" checked={checked} onChange={() => setPaymentSummary((current) => current ? { ...current, paid_months: checked ? current.paid_months.filter((item) => item !== month) : [...current.paid_months, month].sort((a, b) => a - b) } : current)} className="size-3.5 accent-[#c6a96b]" />{label}</label>; })}</div></div>
+                <div className="grid grid-cols-2 gap-2"><div className="rounded-lg border border-[#c6a96b]/15 bg-[#c6a96b]/[0.05] p-3"><p className="text-[10px] text-white/40">{paymentTarget.role === 'student' ? messages.monthlyFee : messages.monthlyPayout}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#dfc27e]">{paymentSummary.monthly_amount.toFixed(2)} MAD</p></div><div className="rounded-lg border border-white/10 bg-white/[0.025] p-3"><p className="text-[10px] text-white/40">{messages.status}</p><p className={`mt-1 text-sm font-semibold ${paymentSummary.due ? 'text-rose-200' : 'text-emerald-200'}`}>{paymentSummary.due ? messages.paymentDue : messages.upToDate}</p></div></div>
+                <div className="mt-5"><p className="mb-2 text-[11px] font-medium text-white/55">{messages.paidMonths}</p><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{messages.monthsShort.map((label, index) => { const month = index + 1; const checked = paymentSummary.paid_months.includes(month); return <label key={label} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${checked ? 'border-[#c6a96b]/40 bg-[#c6a96b]/[0.1] text-[#dfc27e]' : 'border-white/10 text-white/55'}`}><input type="checkbox" checked={checked} onChange={() => setPaymentSummary((current) => current ? { ...current, paid_months: checked ? current.paid_months.filter((item) => item !== month) : [...current.paid_months, month].sort((a, b) => a - b) } : current)} className="size-3.5 accent-[#c6a96b]" />{label}</label>; })}</div></div>
                 {paymentError && <p role="alert" className="mt-3 text-xs text-rose-200">{paymentError}</p>}
-                <button onClick={savePayments} disabled={paymentSaving} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{paymentSaving && <LoaderCircle size={15} className="animate-spin" />}Save payment state</button>
+                <button onClick={savePayments} disabled={paymentSaving} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{paymentSaving && <LoaderCircle size={15} className="animate-spin" />}{messages.savePaymentState}</button>
               </>}
               {!paymentLoading && !paymentSummary && paymentError && <p role="alert" className="text-xs text-rose-200">{paymentError}</p>}
             </motion.section>
@@ -494,16 +496,16 @@ export default function AdminPeoplePage() {
 
       <AnimatePresence>
         {formMode && (
-          <Sheet title={`${isEditing ? 'Edit' : 'Add'} ${isStudentForm ? 'student' : 'teacher'}`} onClose={closeForm}>
+          <Sheet title={`${isEditing ? messages.peopleEdit : messages.peopleAdd} ${isStudentForm ? messages.student : messages.teacher}`} onClose={closeForm}>
             <form onSubmit={isStudentForm ? submitStudent : submitTeacher} className="space-y-4">
-              <Field label="Full name" name="full_name" defaultValue={editingStudent?.full_name ?? editingTeacher?.full_name ?? ''} autoComplete="name" required />
-              <Field label="Email" name="email" type="email" defaultValue={editingStudent?.email ?? editingTeacher?.email ?? ''} autoComplete="email" required />
-              <Field label="Phone number" name="phone_number" defaultValue={editingStudent?.phone_number ?? editingTeacher?.phone_number ?? ''} autoComplete="tel" required />
+              <Field label={messages.fullName} name="full_name" defaultValue={editingStudent?.full_name ?? editingTeacher?.full_name ?? ''} autoComplete="name" required />
+              <Field label={messages.email} name="email" type="email" defaultValue={editingStudent?.email ?? editingTeacher?.email ?? ''} autoComplete="email" required />
+              <Field label={messages.phoneNumber} name="phone_number" defaultValue={editingStudent?.phone_number ?? editingTeacher?.phone_number ?? ''} autoComplete="tel" required />
               {isStudentForm ? (
                 <>
-                  <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Academic level</span><select name="level" required defaultValue={editingStudent?.level_academy || editingStudent?.level || ACADEMIC_LEVELS[0]} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">Choose an academic level</option>{ACADEMIC_LEVELS.map((levelOption) => <option key={levelOption} value={levelOption}>{levelOption}</option>)}</select></label>
+                  <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.academicLevel}</span><select name="level" required defaultValue={editingStudent?.level_academy || editingStudent?.level || ACADEMIC_LEVELS[0]} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseAcademicLevel}</option>{ACADEMIC_LEVELS.map((levelOption) => <option key={levelOption} value={levelOption}>{levelOption}</option>)}</select></label>
                   <div className="space-y-2">
-                    <p className="text-[11px] font-medium text-white/55">Classes</p>
+                    <p className="text-[11px] font-medium text-white/55">{messages.classLabelPlural}</p>
                     {classes.length ? classes.map((classItem) => (
                       <label key={classItem.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-white/[0.07] px-3 text-xs text-white/75 hover:bg-white/[0.03]">
                         <input
@@ -515,7 +517,7 @@ export default function AdminPeoplePage() {
                               : selectedClassIds.filter((id) => id !== classItem.id);
                             const conflict = conflictingStudentSubject(nextIds, classes);
                             if (conflict) {
-                              setFormError('A student can only join one class per subject.');
+                              setFormError(messages.studentSubjectLimit);
                               return;
                             }
                             setFormError('');
@@ -527,25 +529,25 @@ export default function AdminPeoplePage() {
                         <span className="min-w-0 flex-1 truncate">{classItem.class_name}</span>
                         <span className="shrink-0 text-[10px] text-white/35">{classItem.class_level}{classes.some((other) => other.id !== classItem.id && other.class_name === classItem.class_name && other.class_level === classItem.class_level) ? ` · #${classItem.id.slice(-5)}` : ''}</span>
                       </label>
-                    )) : <p className="rounded-lg border border-amber-200/15 bg-amber-200/[0.04] p-3 text-xs text-amber-100/75">Create a class before assigning students. You can still save this profile without a class.</p>}
-                    {studentSubjectConflict && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">A student can only join one class per subject within the same academic level.</p>}
+                    )) : <p className="rounded-lg border border-amber-200/15 bg-amber-200/[0.04] p-3 text-xs text-amber-100/75">{messages.createClassBeforeStudent}</p>}
+                    {studentSubjectConflict && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{messages.studentOneClassSubjectLevel}</p>}
                   </div>
                   <Field
-                    label={isEditing ? 'New password (optional)' : 'Initial password (optional)'}
+                    label={isEditing ? messages.newPasswordOptional : messages.initialPasswordOptional}
                     name="password"
                     type="password"
                     minLength={8}
                     maxLength={72}
                     autoComplete="new-password"
-                    placeholder="Leave blank to set later from account info"
+                    placeholder={messages.leaveBlankForLater}
                   />
-                  <p className="-mt-2 text-[10px] leading-4 text-white/35">Passwords are stored as one-way hashes and cannot be retrieved after saving.</p>
+                  <p className="-mt-2 text-[10px] leading-4 text-white/35">{messages.passwordsHashed}</p>
                 </>
               ) : (
                 <>
-                  <Field label="Specialties (comma separated)" name="specialties" defaultValue={editingTeacher?.specialties.join(', ') ?? ''} />
+                  <Field label={messages.specialtiesCommaSeparated} name="specialties" defaultValue={editingTeacher?.specialties.join(', ') ?? ''} />
                   <div className="space-y-2">
-                    <p className="text-[11px] font-medium text-white/55">Assigned classes</p>
+                    <p className="text-[11px] font-medium text-white/55">{messages.assignedClasses}</p>
                     {classes.map((classItem) => (
                       <label key={classItem.id} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-white/[0.07] px-3 text-xs text-white/75 hover:bg-white/[0.03]">
                         <input
@@ -559,29 +561,29 @@ export default function AdminPeoplePage() {
                         <span className="shrink-0 text-[10px] text-white/35">{classItem.class_level}</span>
                       </label>
                     ))}
-                    {classes.length === 0 && <p className="text-xs text-white/40">No classes exist yet.</p>}
+                    {classes.length === 0 && <p className="text-xs text-white/40">{messages.noClassesExist}</p>}
                   </div>
                   {isEditing && <>
                     <Field
-                      label="New password (optional)"
+                      label={messages.newPasswordOptional}
                       name="password"
                       type="password"
                       minLength={8}
                       maxLength={72}
                       autoComplete="new-password"
-                      placeholder="Leave blank to set later from account info"
+                      placeholder={messages.leaveBlankForLater}
                     />
-                    <p className="-mt-2 text-[10px] leading-4 text-white/35">Passwords are stored as one-way hashes and cannot be retrieved after saving.</p>
+                    <p className="-mt-2 text-[10px] leading-4 text-white/35">{messages.passwordsHashed}</p>
                   </>}
                 </>
               )}
               {formError && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{formError}</p>}
               {formNotice && <p role="status" className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.04] p-3 text-xs text-emerald-200">{formNotice}</p>}
               <div className="flex gap-2 border-t border-white/[0.08] pt-4">
-                <button type="button" onClick={closeForm} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs font-medium text-white/60 disabled:opacity-40">Close</button>
+                <button type="button" onClick={closeForm} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs font-medium text-white/60 disabled:opacity-40">{messages.close}</button>
                 <button type="submit" disabled={saving || (isStudentForm && Boolean(studentSubjectConflict))} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-60">
                   {saving && <LoaderCircle size={15} className="animate-spin" />}
-                  {saving ? 'Saving' : isEditing ? 'Save changes' : `Add ${isStudentForm ? 'student' : 'teacher'}`}
+                  {saving ? messages.saving : isEditing ? messages.saveChanges : isStudentForm ? messages.addStudent : messages.addTeacher}
                 </button>
               </div>
             </form>
@@ -591,85 +593,92 @@ export default function AdminPeoplePage() {
 
       <AnimatePresence>
         {infoStudent && (
-          <Sheet title="Student account" onClose={() => { setInfoStudent(null); setResetPassword(''); setResetError(''); setResetNotice(''); }}>
+          <Sheet title={messages.studentAccount} onClose={() => { setInfoStudent(null); setResetPassword(''); setResetError(''); setResetNotice(''); }}>
             <div className="flex items-center gap-3 border-b border-white/[0.08] pb-4">
               <span className="flex size-12 items-center justify-center rounded-full border border-[#c6a96b]/25 bg-[#c6a96b]/[0.07] text-xs font-semibold text-[#dfc27e]">{initials(infoStudent.full_name)}</span>
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-white">{infoStudent.full_name}</h3>
-                <p className="mt-1 truncate text-[11px] text-white/45">{studentClassLabel(infoStudent, classes)}</p>
+                <p className="mt-1 truncate text-[11px] text-white/45">{studentClassLabel(infoStudent, classes, messages.noClassAssigned)}</p>
               </div>
             </div>
             <dl className="space-y-3 py-4">
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.12em] text-white/35">Login email</dt>
+                <dt className="text-[10px] uppercase tracking-[0.12em] text-white/35">{messages.loginEmail}</dt>
                 <dd className="mt-1 break-all text-sm text-white/85">{infoStudent.email}</dd>
               </div>
               <div className="rounded-lg border border-white/[0.08] bg-white/[0.025] p-3">
-                <dt className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/45"><ShieldCheck size={14} className="text-emerald-300" />Password</dt>
-                <dd className="mt-1 text-xs leading-5 text-white/60">Existing passwords are securely hashed and cannot be viewed. Set a new one below if needed.</dd>
+                <dt className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-white/45"><ShieldCheck size={14} className="text-emerald-300" />{messages.password}</dt>
+                <dd className="mt-1 text-xs leading-5 text-white/60">{messages.passwordsSecureHashed}</dd>
               </div>
             </dl>
             <section className="border-t border-white/[0.08] py-4">
               <div className="flex items-center justify-between gap-3">
-                <div><h3 className="text-xs font-semibold text-white">Academic report</h3><p className="mt-1 text-[10px] text-white/40">Course averages are weighted on a 20-point scale.</p></div>
+                <div><h3 className="text-xs font-semibold text-white">{messages.academicReport}</h3><p className="mt-1 text-[10px] text-white/40">{messages.courseAverages20}</p></div>
                 <button
                   type="button"
                   onClick={async () => {
                     setReportLoading(true);
                     setReportError('');
                     try { setStudentReport(await getAdminStudentReport(infoStudent.student_id)); }
-                    catch (requestError) { setReportError(getAdminErrorMessage(requestError, 'Report could not be loaded.')); }
+                    catch (requestError) { setReportError(getAdminErrorMessage(requestError, messages.studentReportCouldNotGenerate)); }
                     finally { setReportLoading(false); }
                   }}
                   disabled={reportLoading}
                   className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-[10px] font-semibold text-[#dfc27e] disabled:opacity-50"
-                >{reportLoading && <LoaderCircle size={13} className="animate-spin" />}{reportLoading ? 'Loading' : 'View report'}</button>
+                >{reportLoading && <LoaderCircle size={13} className="animate-spin" />}{reportLoading ? messages.loading : messages.viewReport}</button>
               </div>
               {reportError && <p role="alert" className="mt-3 text-[11px] text-rose-200">{reportError}</p>}
               {studentReport && studentReport.student_id === infoStudent.student_id && (
                 <div className="mt-3 rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
-                  <p className="text-[10px] text-white/45">{studentReport.class_info?.name ?? 'No class information'}</p>
+                  <p className="text-[10px] text-white/45">{studentReport.class_info?.name ?? messages.noClassInformation}</p>
                   {studentReport.exercises_and_exams.length ? (
                     <ul className="mt-3 flex flex-col gap-3">
                       {getSubjectAverages(studentReport.exercises_and_exams).map((item) => {
-                        const status = item.average === null
-                          ? null
-                          : getPerformanceStatus(item.average);
+                        const performance = item.average === null ? null : getPerformanceStatus(item.average);
+                        const statusText = performance === null
+                          ? messages.noGradedExercises
+                          : performance.text === 'Excellent'
+                            ? messages.performanceExcellent
+                            : performance.text === 'Good'
+                              ? messages.performanceGood
+                              : performance.text === 'Average'
+                                ? messages.performanceAverage
+                                : messages.performanceNeedsAttention;
                         return (
                           <li key={item.subject} className="flex flex-col gap-2 rounded-lg border border-white/10 bg-white/[0.025] p-3 sm:flex-row sm:items-center sm:gap-4">
                             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
-                              Course {item.subject}
+                              {messages.course} {item.subject}
                             </span>
                             <span className="text-base font-semibold tabular-nums text-white">
                               {item.average === null ? '—' : `${item.average.toFixed(2)} / 20`}
                             </span>
-                            <span className={`text-xs font-semibold sm:w-36 sm:text-right ${status?.color ?? 'text-white/40'}`}>
-                              {status?.text ?? 'No graded exercises'}
+                            <span className={`text-xs font-semibold sm:w-36 sm:text-right ${performance?.color ?? 'text-white/40'}`}>
+                              {statusText}
                             </span>
                           </li>
                         );
                       })}
                     </ul>
-                  ) : <p className="mt-2 text-[11px] text-white/40">No graded work available.</p>}
+                  ) : <p className="mt-2 text-[11px] text-white/40">{messages.noGradedWork}</p>}
                 </div>
               )}
             </section>
             <form onSubmit={handleResetPassword} className="space-y-3 border-t border-white/[0.08] pt-4">
               <Field
-                label="Set a new password"
+                label={messages.setNewPassword}
                 type="password"
                 autoComplete="new-password"
                 minLength={8}
                 maxLength={72}
                 value={resetPassword}
                 onChange={(event) => setResetPassword(event.target.value)}
-                placeholder="At least 8 characters"
+                placeholder={messages.atLeast8Characters}
               />
               {resetError && <p role="alert" className="text-xs text-rose-200">{resetError}</p>}
               {resetNotice && <p role="status" className="text-xs text-emerald-200">{resetNotice}</p>}
               <button disabled={resetBusy || resetPassword.length < 8} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:cursor-not-allowed disabled:opacity-40">
                 {resetBusy ? <LoaderCircle size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
-                {resetBusy ? 'Resetting password' : 'Reset student password'}
+                {resetBusy ? messages.resettingPassword : messages.resetStudentPassword}
               </button>
             </form>
           </Sheet>
@@ -679,18 +688,20 @@ export default function AdminPeoplePage() {
   );
 }
 
-function EmptyPeople({ label, onAdd }: { label: string; onAdd: () => void }) {
+function EmptyPeople({ label, singular, onAdd }: { label: string; singular: string; onAdd: () => void }) {
+  const { messages } = useLandingLanguage();
   return (
     <div className="rounded-lg border border-white/10 px-5 py-12 text-center">
       <Users className="mx-auto mb-3 text-[#c6a96b]" size={23} strokeWidth={1.6} />
-      <h2 className="text-sm font-medium text-white">No {label} found</h2>
-      <p className="mt-1 text-xs text-white/40">Add a {label.slice(0, -1)} to get started.</p>
-      <button onClick={onAdd} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b]"><Plus size={15} />Add {label.slice(0, -1)}</button>
+      <h2 className="text-sm font-medium text-white">{messages.noLabelFound.replace('{label}', label)}</h2>
+      <p className="mt-1 text-xs text-white/40">{messages.addToGetStarted.replace('{label}', singular)}</p>
+      <button onClick={onAdd} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b]"><Plus size={15} />{messages.addLabel.replace('{label}', singular)}</button>
     </div>
   );
 }
 
 function Sheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+  const { messages } = useLandingLanguage();
   return (
     <motion.div
       className="fixed inset-0 z-[70] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5"
@@ -710,7 +721,7 @@ function Sheet({ title, children, onClose }: { title: string; children: React.Re
       >
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold text-white">{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-white"><X size={18} /></button>
+          <button type="button" onClick={onClose} aria-label={messages.closeDialog} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-white"><X size={18} /></button>
         </div>
         {children}
       </motion.section>
