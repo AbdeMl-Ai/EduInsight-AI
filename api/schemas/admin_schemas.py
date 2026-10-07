@@ -54,6 +54,7 @@ class ClassResponse(BaseModel):
     id: str
     admin_id: str
     teacher_id: str
+    teacher_name: str = ""
     class_name: str
     subject: str
     class_level: str

@@ -527,7 +527,7 @@ export default function AdminPeoplePage() {
                         />
                         <BookOpen size={14} className="text-[#dfc27e]" />
                         <span className="min-w-0 flex-1 truncate">{classItem.class_name}</span>
-                        <span className="shrink-0 text-[10px] text-white/35">{classItem.class_level}{classes.some((other) => other.id !== classItem.id && other.class_name === classItem.class_name && other.class_level === classItem.class_level) ? ` · #${classItem.id.slice(-5)}` : ''}</span>
+                        <span className="shrink-0 text-[10px] text-white/35">{classItem.teacher_name}</span>
                       </label>
                     )) : <p className="rounded-lg border border-amber-200/15 bg-amber-200/[0.04] p-3 text-xs text-amber-100/75">{messages.createClassBeforeStudent}</p>}
                     {studentSubjectConflict && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{messages.studentOneClassSubjectLevel}</p>}

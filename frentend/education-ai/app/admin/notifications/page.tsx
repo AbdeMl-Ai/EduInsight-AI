@@ -105,7 +105,7 @@ export default function AdminNotificationsPage() {
         <p className="mt-1 text-xs text-white/45">Send an update to a class or an individual student.</p>
       </header>
 
-      {error && <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4"><p className="text-xs text-rose-200">{error}</p><button onClick={() => setAttempt((value) => value + 1)} className="mt-2 text-xs font-semibold text-[#dfc27e] underline underline-offset-4">Try again</button></div>}
+      {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-100 p-4 dark:border-red-700/40 dark:bg-red-900/30"><p className="text-xs text-red-800 dark:text-red-300">{error}</p><button onClick={() => setAttempt((value) => value + 1)} className="mt-2 text-xs font-semibold text-[#8a6a24] underline underline-offset-4 dark:text-[#dfc27e]">Try again</button></div>}
 
       <motion.form initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} onSubmit={submit} className="space-y-4 rounded-lg border border-white/10 bg-white/[0.025] p-4 sm:p-5">
         <div className="grid grid-cols-3 rounded-lg border border-white/10 bg-black/20 p-1" role="tablist" aria-label="Notification recipient">
@@ -122,7 +122,7 @@ export default function AdminNotificationsPage() {
 
         <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">Message</span><textarea required minLength={1} maxLength={5000} rows={4} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Write your announcement" className="w-full resize-y rounded-lg border border-white/10 bg-white/[0.035] px-3 py-3 text-sm leading-5 text-white outline-none placeholder:text-white/25 focus:border-[#c6a96b]/55" /><span className="block text-right text-[10px] tabular-nums text-white/30">{message.length}/5000</span></label>
 
-        {feedback && <p role="status" className="rounded-lg border border-emerald-300/15 bg-emerald-300/[0.04] p-3 text-xs text-emerald-200">{feedback}</p>}
+        {feedback && <p role="status" className="rounded-lg border border-green-200 bg-green-100 p-3 text-xs text-green-800 dark:border-green-700/40 dark:bg-green-900/30 dark:text-green-300">{feedback}</p>}
         <button type="submit" disabled={loading || sending || (mode !== 'teacher' && !classes.length) || (mode === 'student' && !studentId) || (mode === 'teacher' && !teacherId)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:cursor-not-allowed disabled:opacity-45">{sending ? <LoaderCircle size={15} className="animate-spin" /> : <Send size={15} />}{sending ? 'Sending' : 'Send notification'}</button>
       </motion.form>
 

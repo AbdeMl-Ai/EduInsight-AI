@@ -77,11 +77,12 @@ def teacher_response(teacher):
     }
 
 
-def class_response(class_group):
+def class_response(class_group, teacher_name=""):
     return {
         "id": class_group.id,
         "admin_id": class_group.admin_id,
         "teacher_id": class_group.teacher_id,
+        "teacher_name": teacher_name,
         "class_name": class_group.class_name,
         "subject": class_group.subject,
         "class_level": class_group.class_level,
@@ -173,14 +174,18 @@ async def create_class(data: ClassCreate, _admin=Depends(get_current_admin)):
             ClassDocument(admin_id=_admin.admin_id, **data.model_dump()),
             _admin.admin_id,
         )
-        return class_response(created_class)
+        teacher = await teacher_controller.get_teacher(created_class.teacher_id, _admin.admin_id)
+        return class_response(created_class, teacher.full_name)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
 
 @router.get("/classes", response_model=list[ClassResponse])
 async def list_classes(_admin=Depends(get_current_admin)):
-    return [class_response(item) for item in await admin_controller.get_classes(_admin.admin_id)]
+    classes = await admin_controller.get_classes(_admin.admin_id)
+    teachers = await teacher_controller.get_all_teachers(_admin.admin_id)
+    teacher_names = {teacher.id: teacher.full_name for teacher in teachers if teacher.id is not None}
+    return [class_response(item, teacher_names.get(item.teacher_id, "")) for item in classes]
 
 
 @router.get("/classes/{class_id}/students")

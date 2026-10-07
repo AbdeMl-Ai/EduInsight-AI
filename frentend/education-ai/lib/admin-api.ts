@@ -43,6 +43,7 @@ export type AdminClass = {
   id: string;
   admin_id: string;
   teacher_id: string;
+  teacher_name: string;
   class_name: string;
   subject: string;
   class_level: string;
@@ -118,7 +119,7 @@ export type StudentUpdate = {
   class_ids?: string[];
 };
 
-export type ClassCreate = Omit<AdminClass, 'id' | 'admin_id'>;
+export type ClassCreate = Omit<AdminClass, 'id' | 'admin_id' | 'teacher_name'>;
 export type ClassUpdate = Partial<ClassCreate>;
 
 export type StudentCreate = {
