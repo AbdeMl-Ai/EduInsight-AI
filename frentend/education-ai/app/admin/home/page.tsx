@@ -65,9 +65,11 @@ export default function AdminHomePage() {
           className="absolute inset-0 size-full object-cover object-center opacity-55"
         />
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent" />
-        <div className="absolute right-4 top-4 rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-white/65 backdrop-blur-sm sm:right-6 sm:top-6">ADMIN OFFICE</div>
         <div className="relative z-10 flex h-full max-w-xl flex-col items-start justify-end">
-          <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">ADMINISTRATION</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">ADMINISTRATION</p>
+            <div className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-white/65 backdrop-blur-sm">ADMIN OFFICE</div>
+          </div>
           <h1 className="mt-3 break-words text-2xl font-semibold text-white sm:text-3xl">
             {loading ? 'Welcome back' : `Welcome back, ${profile?.full_name || 'Admin'}!`}
             <span className="ml-2" aria-hidden="true">👋</span>
