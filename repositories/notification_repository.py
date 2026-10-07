@@ -34,14 +34,16 @@ class NotificationRepo:
         doc = await self.collection.find_one({"_id": ObjectId(self._id(notification_id)), "admin_id": admin_id})
         return Notification.model_validate(doc) if doc else None
 
-    async def get_all_notifications(self, admin_id: str):
+    async def get_all_notifications(self, admin_id: str, receiver_id: str):
         admin_id = self._tenant(admin_id)
-        cursor = self.collection.find({"admin_id": admin_id}).sort("created_at", -1)
+        cursor = self.collection.find(
+            {"admin_id": admin_id, "receiver_id": self._id(receiver_id)}
+        ).sort("created_at", -1)
         return [Notification.model_validate(doc) async for doc in cursor]
 
     async def get_admin_notifications(self, admin_id: str):
         admin_id = self._tenant(admin_id)
-        return await self.get_all_notifications(admin_id)
+        return await self.get_all_notifications(admin_id, admin_id)
 
     async def exists_by_reference(self, reference_link: str, admin_id: str):
         admin_id = self._tenant(admin_id)
@@ -71,11 +73,32 @@ class NotificationRepo:
         result = await self.collection.delete_one({"_id": ObjectId(self._id(notification_id)), "admin_id": admin_id})
         return result.deleted_count == 1
 
-    async def search_notification(self, query: str, admin_id: str):
+    async def search_notification(self, query: str, admin_id: str, receiver_id: str):
         admin_id = self._tenant(admin_id)
-        cursor = self.collection.find({"admin_id": admin_id, "message": {"$regex": query, "$options": "i"}})
+        cursor = self.collection.find(
+            {
+                "admin_id": admin_id,
+                "receiver_id": self._id(receiver_id),
+                "message": {"$regex": query, "$options": "i"},
+            }
+        )
         return [Notification.model_validate(doc) async for doc in cursor]
 
-    async def count_notifications(self, admin_id: str):
+    async def count_notifications(self, admin_id: str, receiver_id: str):
         admin_id = self._tenant(admin_id)
-        return await self.collection.count_documents({"admin_id": admin_id})
+        return await self.collection.count_documents(
+            {"admin_id": admin_id, "receiver_id": self._id(receiver_id)}
+        )
+
+    async def get_notification_for_receiver(
+        self, notification_id: str, receiver_id: str, admin_id: str
+    ):
+        admin_id = self._tenant(admin_id)
+        doc = await self.collection.find_one(
+            {
+                "_id": ObjectId(self._id(notification_id)),
+                "admin_id": admin_id,
+                "receiver_id": self._id(receiver_id),
+            }
+        )
+        return Notification.model_validate(doc) if doc else None

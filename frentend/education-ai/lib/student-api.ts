@@ -62,6 +62,8 @@ export type StudentGrade = {
 export type StudentNotification = {
   student_notification_id: string;
   notification_id: string;
+  sender_id: string | null;
+  sender_name: string;
   title: string;
   message: string;
   is_read: boolean;

@@ -74,11 +74,31 @@ class NotificationService:
             raise ValueError("Notification not found.")
         return notification
 
-    async def get_all_notifications(self, admin_id):
-        return await self.notification_repo.get_all_notifications(admin_id)
+    async def get_all_notifications(self, admin_id, receiver_id):
+        return await self.notification_repo.get_all_notifications(admin_id, receiver_id)
 
     async def get_admin_notifications(self, admin_id):
         return await self.notification_repo.get_admin_notifications(admin_id)
+
+    async def get_notification_for_receiver(self, notification_id, receiver_id, admin_id):
+        notification = await self.notification_repo.get_notification_for_receiver(
+            notification_id, receiver_id, admin_id
+        )
+        if notification is None:
+            raise ValueError("Notification not found.")
+        return notification
+
+    async def get_sender_name(self, sender_id, admin_id):
+        if sender_id is None:
+            admin = await self.admin_repo.get_admin(admin_id)
+            return (admin.full_name or admin.username or "Admin") if admin else "Admin"
+        teacher = await self.teacher_repo.get_teacher(sender_id, admin_id)
+        if teacher is not None:
+            return teacher.full_name
+        student = await self.student_repo.get_student(sender_id, admin_id)
+        if student is not None:
+            return student.full_name
+        return "Unknown sender"
 
     async def get_teacher_notifications(self, teacher_id, admin_id):
         if await self.teacher_repo.get_teacher(teacher_id, admin_id) is None:
@@ -135,10 +155,12 @@ class NotificationService:
             raise ValueError("Notification not found.")
         return "Notification deleted successfully."
 
-    async def search_notification(self, query, admin_id):
+    async def search_notification(self, query, admin_id, receiver_id):
         if not query.strip():
             raise ValueError("Search query cannot be empty.")
-        return await self.notification_repo.search_notification(query.strip(), admin_id)
+        return await self.notification_repo.search_notification(
+            query.strip(), admin_id, receiver_id
+        )
 
-    async def count_notifications(self, admin_id):
-        return await self.notification_repo.count_notifications(admin_id)
+    async def count_notifications(self, admin_id, receiver_id):
+        return await self.notification_repo.count_notifications(admin_id, receiver_id)

@@ -55,6 +55,8 @@ export type AdminClass = {
 export type AdminNotification = {
   id: string;
   notification_id: string;
+  sender_id: string | null;
+  sender_name: string;
   notification_type: string;
   title: string;
   message: string;

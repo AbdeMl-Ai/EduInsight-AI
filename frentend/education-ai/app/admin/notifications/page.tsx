@@ -72,6 +72,14 @@ export default function AdminNotificationsPage() {
   const classStudents = useMemo(() => students.filter((student) =>
     (student.class_ids?.length ? student.class_ids : student.class_id ? [student.class_id] : []).includes(classId),
   ), [students, classId]);
+  const latestNotifications = useMemo(() => {
+    const latestBySender = new Map<string, AdminNotification>();
+    for (const notification of notifications) {
+      const senderId = notification.sender_id ?? 'admin';
+      if (!latestBySender.has(senderId)) latestBySender.set(senderId, notification);
+    }
+    return [...latestBySender.values()];
+  }, [notifications]);
 
   async function refreshNotifications() {
     setNotifications(await getAdminNotifications());
@@ -127,10 +135,10 @@ export default function AdminNotificationsPage() {
       </motion.form>
 
       <section aria-labelledby="recent-messages-heading">
-        <div className="mb-3 flex items-center justify-between"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-white/40">ACTIVITY</p><h2 id="recent-messages-heading" className="mt-1 text-sm font-semibold text-white">Recent notifications</h2></div><span className="text-[10px] text-white/35">{notifications.length}</span></div>
-        {loading ? <div role="status" className="space-y-3">{[0, 1].map((item) => <div key={item} className="h-20 animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.025]" />)}</div> : notifications.length ? (
+        <div className="mb-3 flex items-center justify-between"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-white/40">ACTIVITY</p><h2 id="recent-messages-heading" className="mt-1 text-sm font-semibold text-white">Recent notifications</h2></div><span className="text-[10px] text-white/35">{latestNotifications.length}</span></div>
+        {loading ? <div role="status" className="space-y-3">{[0, 1].map((item) => <div key={item} className="h-20 animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.025]" />)}</div> : latestNotifications.length ? (
           <div className="divide-y divide-white/[0.07] rounded-lg border border-white/10 bg-white/[0.02] px-4">
-            {notifications.slice(0, 8).map((notification) => <article key={notification.id} className="flex gap-3 py-3.5"><span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/20 bg-[#c6a96b]/[0.05] text-[#dfc27e]"><Bell size={15} /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><h3 className="truncate text-xs font-medium text-white/80">{notification.title || notification.notification_type}</h3><time className="shrink-0 text-[9px] text-white/35">{formatDate(notification.created_at)}</time></div><p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-white/45">{notification.message}</p></div></article>)}
+            {latestNotifications.slice(0, 8).map((notification) => <article key={notification.id} className="flex gap-3 py-3.5"><span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/20 bg-[#c6a96b]/[0.05] text-[#dfc27e]"><Bell size={15} /></span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><h3 className="truncate text-xs font-medium text-white/80">{notification.sender_name}</h3><time className="shrink-0 text-[9px] text-white/35">{formatDate(notification.created_at)}</time></div><p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-5 text-white/45">{notification.message}</p></div></article>)}
           </div>
         ) : <div className="rounded-lg border border-white/10 px-4 py-8 text-center"><Bell className="mx-auto mb-2 text-[#c6a96b]" size={20} /><p className="text-xs text-white/45">No notifications yet.</p><p className="mt-1 text-[10px] text-white/30">Messages sent to classes or students appear here.</p></div>}
       </section>

@@ -93,7 +93,23 @@ async def get_my_schedule(user=Depends(require_teacher)):
 @router.get("/notifications")
 async def get_my_notifications(user=Depends(require_teacher)):
     notifications = await notification_controller.get_teacher_notifications(user.id, user.admin_id)
-    return [{"id": item.id, "message": item.message, "notification_type": item.notification_type, "is_read": item.is_read, "created_at": item.created_at, "reference_link": item.reference_link} for item in notifications]
+    results = []
+    for item in notifications:
+        sender_name = await notification_controller.get_sender_name(
+            item.sender_id, user.admin_id
+        )
+        results.append({
+            "id": item.id,
+            "sender_id": item.sender_id,
+            "sender_name": sender_name,
+            "title": sender_name,
+            "message": item.message,
+            "notification_type": item.notification_type,
+            "is_read": item.is_read,
+            "created_at": item.created_at,
+            "reference_link": item.reference_link,
+        })
+    return results
 
 
 @router.post("/messages")

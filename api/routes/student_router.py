@@ -162,7 +162,27 @@ async def get_my_notifications(user=Depends(require_student_workspace)):
     if _is_registered_user(user):
         return []
     notifications = await notification_controller.get_student_notifications(user.id, user.admin_id)
-    return [{"student_notification_id": item.id, "notification_id": item.id, "title": item.notification_type, "message": item.message, "is_read": item.is_read, "created_at": item.created_at, "admin_id": item.admin_id, "sender_id": item.sender_id, "receiver_id": item.receiver_id, "receiver_role": item.receiver_role, "notification_type": item.notification_type, "reference_link": item.reference_link} for item in notifications]
+    results = []
+    for item in notifications:
+        sender_name = await notification_controller.get_sender_name(
+            item.sender_id, user.admin_id
+        )
+        results.append({
+            "student_notification_id": item.id,
+            "notification_id": item.id,
+            "title": sender_name,
+            "sender_name": sender_name,
+            "message": item.message,
+            "is_read": item.is_read,
+            "created_at": item.created_at,
+            "admin_id": item.admin_id,
+            "sender_id": item.sender_id,
+            "receiver_id": item.receiver_id,
+            "receiver_role": item.receiver_role,
+            "notification_type": item.notification_type,
+            "reference_link": item.reference_link,
+        })
+    return results
 
 
 @router.get("/", response_model=list[StudentResponse])

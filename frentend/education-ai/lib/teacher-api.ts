@@ -68,6 +68,9 @@ export type TeacherSchedule = {
 
 export type TeacherNotification = {
   id: string;
+  sender_id: string | null;
+  sender_name: string;
+  title: string;
   message: string;
   notification_type: string;
   is_read: boolean;

@@ -92,7 +92,10 @@ def class_response(class_group, teacher_name=""):
     }
 
 
-def notification_response(notification):
+async def notification_response(notification):
+    sender_name = await notification_controller.get_sender_name(
+        notification.sender_id, notification.admin_id
+    )
     return {
         "id": notification.id,
         "admin_id": notification.admin_id,
@@ -105,9 +108,10 @@ def notification_response(notification):
         "is_read": notification.is_read,
         "created_at": notification.created_at,
         "notification_id": notification.id,
-        "title": notification.notification_type,
+        "title": sender_name,
+        "sender_name": sender_name,
         "teacher_id": notification.sender_id or "",
-        "teacher_name": "Admin" if notification.sender_id is None else "Teacher",
+        "teacher_name": sender_name,
     }
 
 
@@ -444,10 +448,8 @@ async def assign_teacher(teacher_id: str, data: TeacherClassAssignment, _admin=D
 
 @router.get("/notifications")
 async def list_admin_notifications(admin=Depends(get_current_admin)):
-    return [
-        notification_response(item)
-        for item in await notification_controller.get_admin_notifications(admin.id)
-    ]
+    notifications = await notification_controller.get_admin_notifications(admin.id)
+    return [await notification_response(item) for item in notifications]
 
 
 @router.post("/notifications")

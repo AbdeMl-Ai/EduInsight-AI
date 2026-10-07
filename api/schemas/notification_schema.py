@@ -18,6 +18,7 @@ class NotificationResponse(BaseModel):
     title: str | None = None
     teacher_id: str | None = None
     teacher_name: str | None = None
+    sender_name: str | None = None
 
 
 class AdminNotificationCreate(BaseModel):

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
@@ -51,6 +51,14 @@ export default function TeacherLayout({
   const { language, messages } = useLandingLanguage();
   const [notifications, setNotifications] = useState<TeacherNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const latestNotifications = useMemo(() => {
+    const latestBySender = new Map<string, TeacherNotification>();
+    for (const notification of notifications) {
+      const senderId = notification.sender_id ?? 'admin';
+      if (!latestBySender.has(senderId)) latestBySender.set(senderId, notification);
+    }
+    return [...latestBySender.values()];
+  }, [notifications]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -194,12 +202,15 @@ export default function TeacherLayout({
                     </button>
                   </div>
                   <div className="mt-5 flex-1 space-y-2 overflow-y-auto">
-                    {notifications.length ? (
-                      notifications.slice(0, 12).map((item) => (
+                    {latestNotifications.length ? (
+                      latestNotifications.slice(0, 12).map((item) => (
                         <article
                           key={item.id}
                           className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"
                         >
+                          <p className="mb-1 text-[11px] font-semibold text-[#dfc27e]">
+                            {item.sender_name}
+                          </p>
                           <p className="text-xs leading-5 text-white/75">
                             {item.message}
                           </p>
