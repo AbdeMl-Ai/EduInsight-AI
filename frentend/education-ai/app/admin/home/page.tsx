@@ -75,7 +75,7 @@ export default function AdminHomePage() {
             <span className="ml-2" aria-hidden="true">👋</span>
           </h1>
           <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">Manage your learning community from one place.</p>
-          <Link href="/admin/people" className="mt-4 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#dfc27e] hover:text-[#f0d89d]">
+          <Link href="/admin/people" className="mt-6 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#dfc27e] hover:text-[#f0d89d]">
             Manage people <ArrowUpRight size={15} />
           </Link>
         </div>
