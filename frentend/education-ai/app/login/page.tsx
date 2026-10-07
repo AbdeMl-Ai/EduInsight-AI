@@ -122,7 +122,6 @@ function LoginPageContent() {
 	return (
 		<>
 			<main className="login-shell min-h-dvh bg-[#0a0a0a] text-[#f5f2e9] md:grid md:grid-cols-[1.05fr_0.95fr]">
-			<div className="fixed right-4 top-4 z-50 md:right-8 md:top-8"><ThemeToggle /></div>
 			<section className="login-hero relative isolate h-[190px] overflow-hidden md:sticky md:top-0 md:h-dvh">
 				<img
 					src="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1800&q=85"
@@ -131,7 +130,7 @@ function LoginPageContent() {
 				/>
 				<div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/45 to-black/20 md:bg-gradient-to-r md:from-black/25 md:via-black/35 md:to-[#0a0a0a]" />
 				<div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 px-5 pb-5 md:inset-y-0 md:flex-col md:items-start md:justify-between md:px-12 md:py-12 lg:px-16">
-					<div className="flex items-center gap-3">
+					<div className="flex items-center gap-2">
 						<span className="flex size-10 items-center justify-center rounded-lg border border-[#d2b778]/45 bg-black/35 text-[#e0c783] backdrop-blur-sm">
 							<GraduationCap size={21} strokeWidth={1.7} />
 						</span>
@@ -144,7 +143,8 @@ function LoginPageContent() {
 				</div>
 			</section>
 
-			<section className="login-panel mx-auto flex w-full max-w-[520px] flex-col justify-center px-5 pb-9 pt-4 sm:px-10 md:min-h-dvh md:px-12 lg:px-16">
+			<section className="login-panel relative mx-auto flex w-full max-w-[520px] flex-col justify-center px-5 pb-9 pt-16 sm:px-10 md:min-h-dvh md:px-12 md:pt-4 lg:px-16">
+				<div className="absolute end-5 top-4 z-50 sm:end-10 md:end-12 md:top-8 lg:end-16"><ThemeToggle /></div>
 				<div className="mb-7 md:mb-9">
 					<p className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-[#c6a96b]">STUDENT ACCESS</p>
 					<h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Welcome back</h1>
