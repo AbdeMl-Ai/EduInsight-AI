@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, Bell, BookOpen, GraduationCap, Send, Users } from 'lucide-react';
 import AdminWeeklySchedule from '@/components/admin/AdminWeeklySchedule';
+import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import {
   getAdminErrorMessage,
   getAdminProfile,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/admin-api';
 
 export default function AdminHomePage() {
+  const { messages } = useLandingLanguage();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
@@ -65,19 +67,20 @@ export default function AdminHomePage() {
           className="absolute inset-0 size-full object-cover object-center opacity-55"
         />
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/80 to-transparent" />
-        <div className="relative z-10 flex h-full max-w-xl flex-col items-start justify-end">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">ADMINISTRATION</p>
-            <div className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-white/65 backdrop-blur-sm">ADMIN OFFICE</div>
+        <div className="relative z-10 flex h-full w-full flex-col items-start">
+          <div className="max-w-xl">
+            <h1 className="break-words text-2xl font-semibold text-white sm:text-3xl">
+              {messages.welcomeBack.replace('{name}', profile?.full_name || messages.adminName)}
+              <span className="ms-2" aria-hidden="true">👋</span>
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-white/70">{messages.manageCommunityDesc}</p>
           </div>
-          <h1 className="mt-3 break-words text-2xl font-semibold text-white sm:text-3xl">
-            {loading ? 'Welcome back' : `Welcome back, ${profile?.full_name || 'Admin'}!`}
-            <span className="ml-2" aria-hidden="true">👋</span>
-          </h1>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">Manage your learning community from one place.</p>
-          <Link href="/admin/people" className="mt-6 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#dfc27e] hover:text-[#f0d89d]">
-            Manage people <ArrowUpRight size={15} />
-          </Link>
+          <div className="mt-auto flex w-full items-end justify-between gap-4">
+            <Link href="/admin/people" className="inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#dfc27e] hover:text-[#f0d89d]">
+              {messages.managePeopleLink} <ArrowUpRight size={15} />
+            </Link>
+            <div className="rounded-full border border-white/15 bg-black/30 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-white/65 backdrop-blur-sm">{messages.adminOffice}</div>
+          </div>
         </div>
       </motion.header>
 
