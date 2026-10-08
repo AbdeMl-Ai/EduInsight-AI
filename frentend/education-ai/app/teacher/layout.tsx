@@ -8,6 +8,7 @@ import {
   Bell,
   BookOpen,
   CheckCircle,
+  ClipboardCheck,
   GraduationCap,
   House,
   Send,
@@ -27,13 +28,14 @@ import type { LucideIcon } from 'lucide-react';
 
 type NavigationItem = {
   href: string;
-  label: 'home' | 'classes' | 'grading' | 'profile';
+  label: 'home' | 'classes' | 'attendance' | 'grading' | 'profile';
   icon: LucideIcon;
 };
 
 const navigation: NavigationItem[] = [
   { href: '/teacher/home', label: 'home', icon: House },
   { href: '/teacher/classes', label: 'classes', icon: BookOpen },
+  { href: '/teacher/attendance', label: 'attendance', icon: ClipboardCheck },
   { href: '/teacher/grading', label: 'grading', icon: CheckCircle },
   { href: '/teacher/profile', label: 'profile', icon: UserRound },
 ];
@@ -245,7 +247,7 @@ export default function TeacherLayout({
           aria-label={messages.navTeacher}
           className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#0b0b0b]/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
         >
-          <div className="mx-auto grid h-[4.15rem] w-full max-w-[360px] grid-cols-4">
+          <div className="mx-auto grid h-[4.15rem] w-full max-w-[420px] grid-cols-5">
             {navigation.map(({ href, label, icon: Icon }) => {
               const active = isActive(pathname, href);
               return (
