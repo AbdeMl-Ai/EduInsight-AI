@@ -30,11 +30,24 @@ export type ApiClass = {
 export type AttendanceStudent = ApiStudent;
 
 export type AttendanceRecord = {
-  student_id: number;
+  student_id: string;
   student_name?: string;
-  class_id: number;
+  class_id: string;
   date: string;
+  session_id?: string | null;
   status: "present" | "absent";
+};
+
+export type TeacherScheduleSession = {
+  id: string;
+  class_id: string;
+  class_name: string;
+  subject: string;
+  level: string;
+  day: string;
+  start_time: string;
+  end_time: string;
+  teacher_name: string;
 };
 
 export type Course = {
@@ -350,20 +363,23 @@ export const api = {
     request<{ admin_id: number; full_name: string; email: string }>(
       "/admin/me",
     ),
-  getAttendanceStudents: (classId: number) =>
+  getAttendanceStudents: (classId: string) =>
     request<AttendanceStudent[]>(
       `/teachers/me/attendance/classes/${classId}/students`,
     ),
+  getTeacherSchedule: () =>
+    request<TeacherScheduleSession[]>("/teachers/me/schedule"),
   saveAttendance: (
-    classId: number,
+    classId: string,
+    sessionId: string,
     date: string,
-    records: { student_id: number; status: "present" | "absent" }[],
+    records: { student_id: string; status: "present" | "absent" }[],
   ) =>
     request<{ message: string }>("/teachers/me/attendance", {
       method: "POST",
-      body: JSON.stringify({ class_id: classId, date, records }),
+      body: JSON.stringify({ class_id: classId, session_id: sessionId, date, records }),
     }),
-  getTeacherAttendance: (classId?: number, month?: string) =>
+  getTeacherAttendance: (classId?: string, month?: string) =>
     request<AttendanceRecord[]>(
       `/teachers/me/attendance${classId || month ? `?${new URLSearchParams({ ...(classId ? { class_id: String(classId) } : {}), ...(month ? { month } : {}) })}` : ""}`,
     ),

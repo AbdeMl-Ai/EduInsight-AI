@@ -112,6 +112,21 @@ export type AttendanceRecord = {
   status: 'present' | 'absent';
 };
 
+export type AttendanceStudentSummary = {
+  student_id: string;
+  student_name: string;
+  present_sessions: number;
+  absent_sessions: number;
+  total_sessions: number;
+  attendance_percentage: number;
+};
+
+export type AttendanceClassSummary = {
+  class_id: string;
+  total_sessions: number;
+  students: AttendanceStudentSummary[];
+};
+
 export type StudentUpdate = {
   full_name: string;
   email: string;
@@ -237,6 +252,14 @@ export async function deleteAdminClass(classId: string) {
 export async function getAdminMonthlyAttendance(classId: string, month: string, signal?: AbortSignal) {
   const { data } = await api.get<AttendanceRecord[]>('/admin/attendance/report', {
     params: { class_id: classId, month },
+    signal,
+  });
+  return data;
+}
+
+export async function getAdminAttendanceSummary(classId: string, signal?: AbortSignal) {
+  const { data } = await api.get<AttendanceClassSummary>('/admin/attendance/report/summary', {
+    params: { class_id: classId },
     signal,
   });
   return data;

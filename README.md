@@ -80,6 +80,43 @@ The script creates matching records in `users` and `admins`; the default
 password is `Admin123`. Set `ADMIN_PASSWORD` before running to choose a different
 password, and change the password after the first login.
 
+### Seed demo workspace data
+
+`mock_data.json` and `seed.py` add a demo Admin, five Teachers, ten Classes,
+twenty Students, and matching login records. All demo accounts use the
+`DemoPass123!` password from the JSON file; set `SEED_PASSWORD` in the
+container environment to override it. The script accepts either `MONGODB_URI`
+or `MONGO_URI` and either `MONGODB_DATABASE` or `MONGO_DATABASE`. It inserts
+missing records and refreshes its own deterministic demo records. When demo
+emails change from the previous `@example.test` values, it updates matching
+mock profiles and login accounts by identity; it does not delete records.
+Passwords are hashed with the application helper. Use only in a development or
+test database.
+
+Validate the JSON without connecting to MongoDB:
+
+```powershell
+python seed.py --validate-only
+```
+
+If the backend container is named `backend` and the project files are available
+under `/app`, run:
+
+```powershell
+docker exec -it backend python /app/seed.py --data /app/mock_data.json
+```
+
+If the files are not mounted into the container, copy them first:
+
+```powershell
+docker cp .\seed.py backend:/app/seed.py
+docker cp .\mock_data.json backend:/app/mock_data.json
+```
+
+Replace `backend` and `/app` with the actual container name and project path
+used by your Docker setup. For Docker Compose, use the backend service name with
+`docker compose exec <service> python seed.py --data mock_data.json`.
+
 The API root is `http://127.0.0.1:8000/`; OpenAPI documentation is at `/docs` and `/redoc`. Startup pings MongoDB and creates required indexes. Start Google sign-in at `GET /auth/google/login`; the callback redirects to the configured frontend with the bearer token in the URL fragment, or returns the token as JSON when `FRONTEND_AUTH_REDIRECT_URL` is unset. Existing admin, student, and teacher accounts are linked by their verified email. New Google users are created as active center administrators and can immediately access the admin dashboard.
 
 ## Authentication

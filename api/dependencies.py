@@ -126,7 +126,7 @@ material_service = MaterialService(material_repo)
 parent_service = ParentService(parent_repo, student_repo)
 class_service = ClassService(class_repo, teacher_repo)
 schedule_service = ScheduleService(schedule_repo, teacher_repo, class_service)
-attendance_service = AttendanceService(attendance_repo, teacher_repo, class_service)
+attendance_service = AttendanceService(attendance_repo, teacher_repo, class_service, schedule_repo)
 admin_service = AdminService(admin_repo, student_service, teacher_service, class_service)
 auth_service = AuthService(
     student_repo,

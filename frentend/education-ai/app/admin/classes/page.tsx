@@ -12,13 +12,13 @@ import {
   getAdminClasses,
   getAdminClassStudents,
   getAdminErrorMessage,
-  getAdminMonthlyAttendance,
+  getAdminAttendanceSummary,
   getAdminStudentReport,
   getAdminTeachers,
   updateAdminClass,
   type AdminClass,
   type AdminTeacher,
-  type AttendanceRecord,
+  type AttendanceClassSummary,
   type ClassCreate,
   type AdminStudent,
 } from '@/lib/admin-api';
@@ -60,8 +60,7 @@ export default function AdminClassesPage() {
   const [formError, setFormError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reportClassId, setReportClassId] = useState('');
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [attendance, setAttendance] = useState<AttendanceRecord[] | null>(null);
+  const [attendance, setAttendance] = useState<AttendanceClassSummary | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState('');
   const [expandedClassId, setExpandedClassId] = useState<string | null>(null);
@@ -156,12 +155,12 @@ export default function AdminClassesPage() {
   }
 
   async function loadAttendance() {
-    if (!reportClassId || !month) return;
+    if (!reportClassId) return;
     setReportLoading(true);
     setReportError('');
     setAttendance(null);
     try {
-      setAttendance(await getAdminMonthlyAttendance(reportClassId, month));
+      setAttendance(await getAdminAttendanceSummary(reportClassId));
     } catch (requestError) {
       setReportError(getAdminErrorMessage(requestError, messages.attendanceLoadError));
     } finally {
@@ -282,9 +281,6 @@ export default function AdminClassesPage() {
   }
 
   const selectedTeacher = (teacherId: string) => teachers.find((teacher) => teacher.teacher_id === teacherId);
-  const presentCount = attendance?.filter((record) => record.status === 'present').length ?? 0;
-  const attendancePercent = attendance?.length ? Math.round((presentCount / attendance.length) * 100) : 0;
-
   return (
     <section className="space-y-6">
       <header className="flex items-end justify-between gap-3">
@@ -360,32 +356,53 @@ export default function AdminClassesPage() {
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-emerald-300/15 bg-emerald-300/[0.05] text-emerald-200"><CalendarDays size={17} /></span>
           <div>
-            <h2 className="text-sm font-semibold text-white">{messages.monthlyAttendance}</h2>
-            <p className="mt-1 text-[11px] text-white/40">{messages.reviewAttendance}</p>
+            <h2 className="text-sm font-semibold text-white">Attendance analytics</h2>
+            <p className="mt-1 text-[11px] text-white/40">Each rate covers every attendance session recorded for the class.</p>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
           <select value={reportClassId} onChange={(event) => { setReportClassId(event.target.value); setAttendance(null); }} aria-label={messages.selectClassAttendance} className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50">
             <option value="">{messages.chooseClass}</option>
             {classes.map((item) => <option key={item.id} value={item.id}>{item.class_name}</option>)}
           </select>
-          <input type="month" value={month} onChange={(event) => { setMonth(event.target.value); setAttendance(null); }} aria-label={messages.selectMonth} className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50" />
           <button onClick={loadAttendance} disabled={!reportClassId || reportLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c6a96b]/25 px-4 text-xs font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.06] disabled:opacity-40">{reportLoading ? <LoaderCircle size={15} className="animate-spin" /> : <Users size={15} />}{messages.viewAttendanceReport}</button>
         </div>
         {reportError && <p role="alert" className="mt-3 text-xs text-rose-200">{reportError}</p>}
         {attendance && (
-          attendance.length ? (
-            <div className="mt-4 border-t border-white/[0.08] pt-4">
-              <div className="flex items-center justify-between gap-3">
-                <div><p className="text-xs font-medium text-white">{messages.presentRecords.replace('{count}', String(presentCount))}</p><p className="mt-1 text-[10px] text-white/40">{messages.totalAttendanceEntries.replace('{count}', String(attendance.length))} · {month}</p></div>
-                <span className="text-lg font-semibold tabular-nums text-emerald-200">{attendancePercent}%</span>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-300 transition-[width]" style={{ width: `${attendancePercent}%` }} /></div>
+          <div className="mt-4 border-t border-white/[0.08] pt-4">
+            <p className="text-xs font-medium text-white">
+              {attendance.total_sessions} total session{attendance.total_sessions === 1 ? '' : 's'} · {attendance.students.length} students
+            </p>
+            {attendance.students.length ? (
               <ul className="mt-3 divide-y divide-white/[0.06]">
-                {attendance.slice(0, 8).map((record, index) => <li key={`${record.student_id}-${record.date}-${index}`} className="flex items-center justify-between gap-3 py-2 text-[11px]"><span className="truncate text-white/65">{record.student_name || messages.student}</span><span className="shrink-0 text-white/35">{record.date}</span><span className={record.status === 'present' ? 'shrink-0 text-emerald-200' : 'shrink-0 text-rose-200'}>{record.status === 'present' ? messages.present : messages.absent}</span></li>)}
+                {attendance.students.map((student) => (
+                  <li key={student.student_id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,2fr)_auto]">
+                    <span className="truncate text-xs font-medium text-white/75">{student.student_name}</span>
+                    <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
+                      <div
+                        role="img"
+                        aria-label={`${student.attendance_percentage}% attendance`}
+                        className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10"
+                      >
+                        <div
+                          className="h-full rounded-full bg-emerald-300 transition-[width]"
+                          style={{ width: `${Math.min(100, Math.max(0, student.attendance_percentage))}%` }}
+                        />
+                      </div>
+                      <span className="w-12 shrink-0 text-right text-xs font-semibold tabular-nums text-emerald-200">
+                        {student.attendance_percentage.toLocaleString(undefined, { maximumFractionDigits: 2 })}%
+                      </span>
+                    </div>
+                    <span className="text-right text-[10px] tabular-nums text-white/40">
+                      {student.present_sessions}/{student.total_sessions} present
+                    </span>
+                  </li>
+                ))}
               </ul>
-            </div>
-          ) : <p className="mt-4 border-t border-white/[0.08] pt-4 text-xs text-white/40">{messages.noAttendanceForMonth}</p>
+            ) : (
+              <p className="mt-3 text-xs text-white/40">No students are enrolled in this class.</p>
+            )}
+          </div>
         )}
       </section>
 

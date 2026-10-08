@@ -7,6 +7,7 @@ import {
   type ApiStudent,
   type AttendanceRecord,
   type AttendanceStudent,
+  type TeacherScheduleSession,
   type Grade,
   type Course,
   type Exercise,
@@ -93,6 +94,13 @@ const initialsFor = (value: unknown) =>
     .join("")
     .slice(0, 2)
     .toUpperCase();
+
+const localDateISO = () => {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+};
 
 const blue = "#0052CC";
 
@@ -664,6 +672,8 @@ function DynamicTeacherWorkspace({
   exercises,
   grades,
   attendance,
+  schedule,
+  scheduleError,
   teacherNotifications,
   onAttendanceSaved,
   reload,
@@ -675,12 +685,15 @@ function DynamicTeacherWorkspace({
   exercises: TeacherExercise[];
   grades: Grade[];
   attendance: AttendanceRecord[];
+  schedule: TeacherScheduleSession[];
+  scheduleError: string | null;
   teacherNotifications: TeacherNotification[];
-  onAttendanceSaved: () => void;
+  onAttendanceSaved: () => Promise<void>;
   reload: () => Promise<void>;
 }) {
   const [profileImage, setProfileImage] = useState("");
   const [classId, setClassId] = useState(teacher.classes[0]?.class_id ?? 0);
+  const [attendanceSessionId, setAttendanceSessionId] = useState("");
   const [exerciseId, setExerciseId] = useState(exercises[0]?.exercise_id ?? 0);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
 
@@ -708,10 +721,10 @@ function DynamicTeacherWorkspace({
     }
   }, [exerciseId]);
 
-  const [statuses, setStatuses] = useState<Record<number, "present" | "absent">>(() =>
+  const [statuses, setStatuses] = useState<Record<string, "present" | "absent">>(() =>
     Object.fromEntries(
       students.map((student) => [student.student_id, "absent"]),
-    ) as Record<number, "present" | "absent">,
+    ) as Record<string, "present" | "absent">,
   );
   const [saving, setSaving] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
@@ -752,14 +765,27 @@ function DynamicTeacherWorkspace({
   }, [courses, newExerciseCourseId]);
 
   const selectedStudents = students.filter(
-    (student) => student.class_id === classId,
+    (student) => String(student.class_id) === String(classId),
   );
   const selectedExercise = exercises.find(
     (exercise) => exercise.exercise_id === exerciseId,
   );
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
+  const todayDay = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date());
+  const todaySessions = useMemo(
+    () => schedule.filter((session) => session.day === todayDay),
+    [schedule, todayDay],
+  );
+  const selectedAttendanceSession = todaySessions.find(
+    (session) => session.id === attendanceSessionId,
+  );
+  const attendanceClassId = selectedAttendanceSession?.class_id ?? "";
+  const attendanceStudents = useMemo(
+    () => students.filter((student) => String(student.class_id) === attendanceClassId),
+    [students, attendanceClassId],
+  );
   const todayAttendance = attendance.filter(
-    (record) => record.date === today && record.class_id === classId,
+    (record) => record.date === today && String(record.class_id) === String(classId),
   );
   const presentCount = todayAttendance.filter(
     (record) => record.status === "present",
@@ -769,29 +795,42 @@ function DynamicTeacherWorkspace({
     : 0;
 
   useEffect(() => {
+    if (!todaySessions.some((session) => session.id === attendanceSessionId)) {
+      setAttendanceSessionId(todaySessions[0]?.id ?? "");
+    }
+  }, [todaySessions, attendanceSessionId]);
+
+  useEffect(() => {
     const current = Object.fromEntries(
-      students.map((student) => [student.student_id, "absent"] as const),
-    ) as Record<number, "present" | "absent">;
+      attendanceStudents.map((student) => [String(student.student_id), "absent"] as const),
+    ) as Record<string, "present" | "absent">;
     attendance
-      .filter((record) => record.date === today && record.class_id === classId)
+      .filter((record) => record.date === today && record.class_id === attendanceClassId)
       .forEach((record) => {
         current[record.student_id] = record.status;
       });
     setStatuses(current);
-  }, [students, attendance, classId, today]);
+  }, [attendanceStudents, attendance, attendanceClassId, today]);
 
   const saveAttendance = async () => {
+    if (!attendanceClassId || !selectedAttendanceSession) return;
     setSaving(true);
+    setWorkspaceError(null);
     try {
       await api.saveAttendance(
-        classId,
+        attendanceClassId,
+        selectedAttendanceSession.id,
         today,
-        selectedStudents.map((student) => ({
-          student_id: student.student_id,
-          status: statuses[student.student_id] ?? "absent",
+        attendanceStudents.map((student) => ({
+          student_id: String(student.student_id),
+          status: statuses[String(student.student_id)] ?? "absent",
         })),
       );
-      onAttendanceSaved();
+      await onAttendanceSaved();
+    } catch (error) {
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Unable to save attendance.",
+      );
     } finally {
       setSaving(false);
     }
@@ -921,6 +960,148 @@ function DynamicTeacherWorkspace({
       setSaving(false);
     }
   };
+
+  if (active === "Attendance") {
+    const presentStudents = attendanceStudents.filter(
+      (student) => statuses[String(student.student_id)] === "present",
+    );
+    const absentStudents = attendanceStudents.filter(
+      (student) => statuses[String(student.student_id)] !== "present",
+    );
+    const attendanceColumn = (
+      title: string,
+      status: "present" | "absent",
+      listedStudents: AttendanceStudent[],
+    ) => (
+      <section className="overflow-hidden rounded-xl border border-[#DBE2EA] bg-white">
+        <h3 className="border-b border-[#E2E8F0] px-4 py-3 text-sm font-bold text-[#0F172A]">
+          {title} <span className="text-[#64748B]">({listedStudents.length})</span>
+        </h3>
+        {listedStudents.length ? (
+          <ul className="divide-y divide-slate-100">
+            {listedStudents.map((student) => {
+              const nextStatus = status === "present" ? "absent" : "present";
+              return (
+                <li key={student.student_id} className="flex items-center gap-3 px-4 py-3">
+                  <Avatar initials={initialsFor(student.full_name)} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#334155]">
+                    {student.full_name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setStatuses((current) => ({
+                        ...current,
+                        [String(student.student_id)]: nextStatus,
+                      }))
+                    }
+                    className={`shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold ${
+                      nextStatus === "present"
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        : "bg-rose-50 text-rose-700 hover:bg-rose-100"
+                    }`}
+                  >
+                    Mark {nextStatus === "present" ? "present" : "absent"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="px-4 py-8 text-center text-sm text-[#64748B]">
+            No students in this column.
+          </p>
+        )}
+      </section>
+    );
+
+    return (
+      <section className="space-y-5">
+        <header>
+          <p className="text-sm text-[#475569]">Today&apos;s scheduled class</p>
+          <h2 className="mt-1 text-2xl font-bold text-[#0F172A]">Attendance</h2>
+        </header>
+        {scheduleError && (
+          <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+            {scheduleError}
+          </p>
+        )}
+        {todaySessions.length ? (
+          <>
+            <label className="block max-w-xl space-y-2 text-sm font-semibold text-[#334155]">
+              Select today&apos;s class
+              <select
+                value={attendanceSessionId}
+                onChange={(event) => {
+                  setAttendanceSessionId(event.target.value);
+                  setWorkspaceError(null);
+                }}
+                className="w-full rounded-lg border border-[#DBE2EA] bg-white px-3 py-3 text-sm outline-none focus:border-[#0052CC]"
+              >
+                {todaySessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.class_name} · {session.start_time}–{session.end_time}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedAttendanceSession && (
+              <section className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  ["Session Name", selectedAttendanceSession.class_name],
+                  ["Subject (Mada)", selectedAttendanceSession.subject],
+                  ["Level", selectedAttendanceSession.level],
+                  ["Teacher Name", selectedAttendanceSession.teacher_name || teacher.full_name],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-[#0F172A]">{value || "—"}</p>
+                  </div>
+                ))}
+                <p className="text-xs text-[#475569] sm:col-span-2 lg:col-span-4">
+                  {today} · {selectedAttendanceSession.start_time}–{selectedAttendanceSession.end_time}
+                </p>
+              </section>
+            )}
+            {workspaceError && (
+              <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+                {workspaceError}
+              </p>
+            )}
+            {attendanceClassId ? (
+              <>
+                <div className="grid items-start gap-4 md:grid-cols-2">
+                  {attendanceColumn("Li 7dro (Present)", "present", presentStudents)}
+                  {attendanceColumn("Li ma 7drox (Absent)", "absent", absentStudents)}
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs text-[#64748B]">
+                    {attendanceStudents.length} students · {today}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={saveAttendance}
+                    disabled={saving || !attendanceStudents.length}
+                    className="rounded-lg bg-[#0052CC] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save attendance"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="rounded-xl border border-dashed border-[#CBD5E1] p-6 text-sm text-[#64748B]">
+                Choose a scheduled session to load its students.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="rounded-xl border border-dashed border-[#CBD5E1] p-6 text-sm text-[#64748B]">
+            There are no sessions scheduled for today.
+          </p>
+        )}
+      </section>
+    );
+  }
 
   if (active === "Notifications") {
     const matchingStudents = students.filter((student) =>
@@ -4606,6 +4787,8 @@ export function ConnectedApp({
   );
   const [teacherGrades, setTeacherGrades] = useState<Grade[]>([]);
   const [teacherAttendance, setTeacherAttendance] = useState<AttendanceRecord[]>([]);
+  const [teacherSchedule, setTeacherSchedule] = useState<TeacherScheduleSession[]>([]);
+  const [teacherScheduleError, setTeacherScheduleError] = useState<string | null>(null);
   const [teacherNotifications, setTeacherNotifications] = useState<TeacherNotification[]>([]);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [studentProfile, setStudentProfile] = useState<ApiStudent | null>(null);
@@ -4720,7 +4903,7 @@ export function ConnectedApp({
         const results = await Promise.allSettled([
           Promise.all(
             normalizedTeacher.classes.map((item) =>
-              api.getAttendanceStudents(item.class_id),
+              api.getAttendanceStudents(String(item.class_id)),
             ),
           ),
           api.getTeacherCourses(),
@@ -4728,6 +4911,7 @@ export function ConnectedApp({
           api.getTeacherGrades(),
           api.getTeacherAttendance(),
           api.getNotifications(),
+          api.getTeacherSchedule(),
         ]);
         const valueOr = <T,>(index: number, fallback: T): T =>
           results[index].status === "fulfilled" ? results[index].value as T : fallback;
@@ -4737,6 +4921,7 @@ export function ConnectedApp({
         const apiGrades = asArray<Grade>(valueOr(3, []));
         const apiAttendance = asArray<AttendanceRecord>(valueOr(4, []));
         const apiNotifications = asArray<TeacherNotification>(valueOr(5, []));
+        const apiSchedule = asArray<TeacherScheduleSession>(valueOr(6, []));
         if (!cancelled) {
           setTeacherStudents(classStudentGroups.flat().filter(Boolean));
           setTeacherCourses(apiCourses);
@@ -4744,6 +4929,14 @@ export function ConnectedApp({
           setTeacherGrades(apiGrades);
           setTeacherAttendance(apiAttendance);
           setTeacherNotifications(apiNotifications);
+          setTeacherSchedule(apiSchedule);
+          setTeacherScheduleError(
+            results[6].status === "rejected"
+              ? results[6].reason instanceof Error
+                ? results[6].reason.message
+                : "Unable to load today's schedule."
+              : null,
+          );
         }
       };
 
@@ -4887,6 +5080,8 @@ export function ConnectedApp({
                 exercises={teacherExercises}
                 grades={teacherGrades}
                 attendance={teacherAttendance}
+                schedule={teacherSchedule}
+                scheduleError={teacherScheduleError}
                 teacherNotifications={teacherNotifications}
                 reload={async () => {
                   if ((window as any).reloadTeacherData) {

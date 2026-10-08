@@ -85,7 +85,7 @@ async def get_my_schedule(user=Depends(require_teacher)):
         sessions = await schedule_controller.list_sessions(user.admin_id)
     except Exception:
         logger.exception("Unable to load schedule for teacher %s", user.id)
-        return []
+        raise HTTPException(status_code=500, detail="Unable to load teacher schedule.")
     return [session for session in sessions if session.get("teacher_id") == user.id]
 
 

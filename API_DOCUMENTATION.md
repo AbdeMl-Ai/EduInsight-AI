@@ -97,7 +97,7 @@ Teacher response: `{ "teacher_id": string, "admin_id": string, "full_name": stri
 - `AdminNotificationCreate`: `{ "message": string, "student_id": string|null, "class_id": string|null }`; message length is 1–5000 and exactly one recipient (`student_id` or `class_id`) is required.
 - `TeacherNotificationCreate`: `{ "message": string, "class_id": string|null, "student_id": string|null, "reference_link": string|null }`.
 - `NotificationCreate`: `{ "receiver_id": string, "receiver_role": string="student", "message": string, "reference_link": string|null }`.
-- `AttendanceSaveRequest`: `{ "class_id": string, "date": "YYYY-MM-DD", "records": [{ "student_id": string, "status": "present"|"absent" }] }`.
+- `AttendanceSaveRequest`: `{ "class_id": string, "session_id": string|null, "date": "YYYY-MM-DD", "records": [{ "student_id": string, "status": "present"|"absent" }] }`. `session_id` identifies a scheduled lesson; omitted/null values remain compatible with legacy date-only entries.
 - Notification response fields: `id`, `admin_id`, `sender_id`, `receiver_id`, `receiver_role`, `notification_type`, `message`, `reference_link`, `is_read`, `created_at`; compatibility aliases `notification_id`, `title`, `teacher_id`, and `teacher_name` may also be present.
 
 ## Administrator Endpoints
@@ -268,9 +268,10 @@ These routes are registered without a prefix. Teacher operations require teacher
 | Method & route | Description and parameters | Request | Success response | Handler-specific errors |
 |---|---|---|---|---|
 | `GET /teachers/me/attendance/classes/{class_id}/students` | Get students in an assigned class for attendance. | Path: `class_id`. | Array of class student objects. | `400` class not assigned/invalid; `401/403`. |
-| `POST /teachers/me/attendance` | Save class attendance. | JSON `AttendanceSaveRequest`. | `{ "message": "Attendance saved successfully." }`. | `400` empty records, invalid status, duplicate student, wrong class membership, or invalid month/date; `401/403/422`. |
-| `GET /teachers/me/attendance` | Fetch teacher attendance history. Query: optional `class_id`; optional `month` matching `YYYY-MM`. | None. | Array of `{ "student_id": string, "student_name": string|null, "class_id": string, "date": string, "status": "present"|"absent" }`. | `400` invalid class/month; `401/403/422`. |
-| `GET /admin/attendance/report` | Fetch monthly attendance report for a class. Required query: `class_id`, `month` (`YYYY-MM`). | None. | Array of attendance record objects. | `400` invalid class/month; `401/403/422`. |
+| `POST /teachers/me/attendance` | Save attendance for a scheduled class session. | JSON `AttendanceSaveRequest`. | `{ "message": "Attendance saved successfully." }`. | `400` empty records, invalid status, duplicate student, wrong class membership, mismatched session, or invalid month/date; `401/403/422`. |
+| `GET /teachers/me/attendance` | Fetch teacher attendance history. Query: optional `class_id`; optional `month` matching `YYYY-MM`. | None. | Array of `{ "student_id": string, "student_name": string|null, "class_id": string, "date": string, "session_id": string|null, "status": "present"|"absent" }`. | `400` invalid class/month; `401/403/422`. |
+| `GET /admin/attendance/report` | Fetch monthly attendance records for a class. Required query: `class_id`, `month` (`YYYY-MM`). | None. | Array of attendance record objects. | `400` invalid class/month; `401/403/422`. |
+| `GET /admin/attendance/report/summary` | Fetch the cumulative attendance rate for every currently enrolled student in a class. Required query: `class_id`. The session count is based on distinct `(session_id, date)` pairs; legacy records without a session ID count once per date. Unrecorded student/session entries count as absent. | None. | `{ "class_id": string, "total_sessions": number, "students": [{ "student_id": string, "student_name": string, "present_sessions": number, "absent_sessions": number, "total_sessions": number, "attendance_percentage": number }] }`. | `400` invalid class; `401/403/422`. |
 
 ## Static Files and Health Check
 

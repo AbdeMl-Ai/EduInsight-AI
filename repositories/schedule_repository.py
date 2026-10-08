@@ -19,6 +19,12 @@ class ScheduleRepo:
         )
         return [ScheduleSession.model_validate(item) async for item in cursor]
 
+    async def get_session(self, session_id: str, admin_id: str) -> ScheduleSession | None:
+        document = await self.collection.find_one(
+            {"_id": self._id(session_id), "admin_id": admin_id}
+        )
+        return ScheduleSession.model_validate(document) if document else None
+
     async def has_teacher_overlap(
         self,
         *,

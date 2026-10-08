@@ -1,0 +1,340 @@
+{
+  "password": "DemoPass123!",
+  "admin": {
+    "key": "admin",
+    "full_name": "Nadia El Amrani",
+    "email": "nadia.admin@gmail.com",
+    "phone_number": "+212600000001"
+  },
+  "teachers": [
+    {
+      "key": "teacher_1",
+      "full_name": "Youssef Benali",
+      "email": "youssef.benali@gmail.com",
+      "phone_number": "+212600000002",
+      "age": 38,
+      "is_state_teacher": true,
+      "specialties": ["Math"]
+    },
+    {
+      "key": "teacher_2",
+      "full_name": "Salma Idrissi",
+      "email": "salma.idrissi@gmail.com",
+      "phone_number": "+212600000003",
+      "age": 34,
+      "is_state_teacher": false,
+      "specialties": ["French", "English"]
+    },
+    {
+      "key": "teacher_3",
+      "full_name": "Omar Alaoui",
+      "email": "omar.alaoui@gmail.com",
+      "phone_number": "+212600000004",
+      "age": 41,
+      "is_state_teacher": true,
+      "specialties": ["PC"]
+    },
+    {
+      "key": "teacher_4",
+      "full_name": "Lina Berrada",
+      "email": "lina.berrada@gmail.com",
+      "phone_number": "+212600000005",
+      "age": 31,
+      "is_state_teacher": false,
+      "specialties": ["English"]
+    },
+    {
+      "key": "teacher_5",
+      "full_name": "Hamza Tazi",
+      "email": "hamza.tazi@gmail.com",
+      "phone_number": "+212600000006",
+      "age": 36,
+      "is_state_teacher": true,
+      "specialties": ["SVT"]
+    }
+  ],
+  "classes": [
+    {
+      "key": "class_1",
+      "teacher_key": "teacher_1",
+      "class_name": "1AC Group A",
+      "subject": "Math",
+      "class_level": "1AC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 120,
+      "student_monthly_fee": 350
+    },
+    {
+      "key": "class_2",
+      "teacher_key": "teacher_1",
+      "class_name": "2AC Group A",
+      "subject": "Math",
+      "class_level": "2AC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 130,
+      "student_monthly_fee": 375
+    },
+    {
+      "key": "class_3",
+      "teacher_key": "teacher_2",
+      "class_name": "1AC Group B",
+      "subject": "French",
+      "class_level": "1AC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 110,
+      "student_monthly_fee": 340
+    },
+    {
+      "key": "class_4",
+      "teacher_key": "teacher_2",
+      "class_name": "3AC Group A",
+      "subject": "English",
+      "class_level": "3AC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 125,
+      "student_monthly_fee": 365
+    },
+    {
+      "key": "class_5",
+      "teacher_key": "teacher_3",
+      "class_name": "2AC Physics A",
+      "subject": "PC",
+      "class_level": "2AC",
+      "center_rent_fee_per_student": 80,
+      "teacher_teaching_fee_per_student": 140,
+      "student_monthly_fee": 390
+    },
+    {
+      "key": "class_6",
+      "teacher_key": "teacher_3",
+      "class_name": "1BAC Physics A",
+      "subject": "PC",
+      "class_level": "1BAC",
+      "center_rent_fee_per_student": 80,
+      "teacher_teaching_fee_per_student": 155,
+      "student_monthly_fee": 420
+    },
+    {
+      "key": "class_7",
+      "teacher_key": "teacher_4",
+      "class_name": "1BAC English A",
+      "subject": "English",
+      "class_level": "1BAC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 145,
+      "student_monthly_fee": 400
+    },
+    {
+      "key": "class_8",
+      "teacher_key": "teacher_4",
+      "class_name": "2BAC English A",
+      "subject": "English",
+      "class_level": "2BAC",
+      "center_rent_fee_per_student": 75,
+      "teacher_teaching_fee_per_student": 165,
+      "student_monthly_fee": 440
+    },
+    {
+      "key": "class_9",
+      "teacher_key": "teacher_5",
+      "class_name": "3AC Biology A",
+      "subject": "SVT",
+      "class_level": "3AC",
+      "center_rent_fee_per_student": 80,
+      "teacher_teaching_fee_per_student": 135,
+      "student_monthly_fee": 385
+    },
+    {
+      "key": "class_10",
+      "teacher_key": "teacher_5",
+      "class_name": "2BAC Biology A",
+      "subject": "SVT",
+      "class_level": "2BAC",
+      "center_rent_fee_per_student": 80,
+      "teacher_teaching_fee_per_student": 160,
+      "student_monthly_fee": 430
+    }
+  ],
+  "students": [
+    {
+      "key": "student_1",
+      "full_name": "Adam Chraibi",
+      "email": "adam.chraibi@gmail.com",
+      "phone_number": "+212600000101",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_2",
+      "full_name": "Meryem Bennis",
+      "email": "meryem.bennis@gmail.com",
+      "phone_number": "+212600000102",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_3",
+      "full_name": "Ilyas Lahlou",
+      "email": "ilyas.lahlou@gmail.com",
+      "phone_number": "+212600000103",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_4",
+      "full_name": "Sara Fassi",
+      "email": "sara.fassi@gmail.com",
+      "phone_number": "+212600000104",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_5",
+      "full_name": "Anas Haddad",
+      "email": "anas.haddad@gmail.com",
+      "phone_number": "+212600000105",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_6",
+      "full_name": "Nour Eddine Amrani",
+      "email": "nour.amrani@gmail.com",
+      "phone_number": "+212600000106",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_7",
+      "full_name": "Aya Kabbaj",
+      "email": "aya.kabbaj@gmail.com",
+      "phone_number": "+212600000107",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_8",
+      "full_name": "Mehdi Rami",
+      "email": "mehdi.rami@gmail.com",
+      "phone_number": "+212600000108",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_9",
+      "full_name": "Salma Tazi",
+      "email": "salma.tazi@gmail.com",
+      "phone_number": "+212600000109",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_10",
+      "full_name": "Yassine El Fadili",
+      "email": "yassine.fadili@gmail.com",
+      "phone_number": "+212600000110",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_11",
+      "full_name": "Imane Benjelloun",
+      "email": "imane.benjelloun@gmail.com",
+      "phone_number": "+212600000111",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_12",
+      "full_name": "Othmane Ziani",
+      "email": "othmane.ziani@gmail.com",
+      "phone_number": "+212600000112",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_13",
+      "full_name": "Rania Alaoui",
+      "email": "rania.alaoui@gmail.com",
+      "phone_number": "+212600000113",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_14",
+      "full_name": "Hamza Boulahya",
+      "email": "hamza.boulahya@gmail.com",
+      "phone_number": "+212600000114",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_15",
+      "full_name": "Lina Sefrioui",
+      "email": "lina.sefrioui@gmail.com",
+      "phone_number": "+212600000115",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_16",
+      "full_name": "Karim Ouazzani",
+      "email": "karim.ouazzani@gmail.com",
+      "phone_number": "+212600000116",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_17",
+      "full_name": "Hiba Driouech",
+      "email": "hiba.driouech@gmail.com",
+      "phone_number": "+212600000117",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_18",
+      "full_name": "Rayan Mansouri",
+      "email": "rayan.mansouri@gmail.com",
+      "phone_number": "+212600000118",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_19",
+      "full_name": "Maha Belkacem",
+      "email": "maha.belkacem@gmail.com",
+      "phone_number": "+212600000119",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_20",
+      "full_name": "Zakaria Naciri",
+      "email": "zakaria.naciri@gmail.com",
+      "phone_number": "+212600000120",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    }
+  ]
+}

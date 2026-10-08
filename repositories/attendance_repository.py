@@ -20,15 +20,16 @@ class AttendanceRepo:
         cursor = self.students.find({"admin_id": admin_id, "$or": [{"class_id": class_id}, {"class_ids": class_id}]}).sort("full_name", 1)
         return [{"student_id": student["_id"].__str__(), "full_name": student.get("full_name", ""), "email": student.get("email", ""), "phone_number": student.get("phone_number", ""), "level": student.get("level_academy", ""), "class_id": class_id} async for student in cursor]
 
-    async def save_attendance(self, class_id, attendance_date, records, admin_id):
+    async def save_attendance(self, class_id, attendance_date, records, admin_id, session_id=None):
         admin_id = self._tenant(admin_id)
         class_id = str(ObjectId(class_id))
+        session_id = str(session_id) if session_id else None
         saved = []
         for record in records:
             student_id = str(ObjectId(record["student_id"]))
             await self.collection.update_one(
-                {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date)},
-                {"$set": {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date), "status": record["status"]}},
+                {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date), "session_id": session_id},
+                {"$set": {"admin_id": admin_id, "student_id": student_id, "class_id": class_id, "date": str(attendance_date), "session_id": session_id, "status": record["status"]}},
                 upsert=True,
             )
             saved.append(student_id)
@@ -48,10 +49,28 @@ class AttendanceRepo:
     async def get_monthly_report(self, class_id, month, admin_id):
         return await self._rows({"admin_id": self._tenant(admin_id), "class_id": str(ObjectId(class_id)), "date": {"$regex": f"^{month}"}})
 
+    async def get_class_attendance_data(self, class_id, admin_id):
+        query = {
+            "admin_id": self._tenant(admin_id),
+            "class_id": str(ObjectId(class_id)),
+        }
+        cursor = self.collection.find(query).sort("date", 1)
+        records = [
+            {
+                "student_id": str(item["student_id"]),
+                "date": item["date"],
+                "session_id": item.get("session_id"),
+                "status": item["status"],
+            }
+            async for item in cursor
+        ]
+        students = await self.get_students_by_class(class_id, admin_id)
+        return {"records": records, "students": students}
+
     async def _rows(self, query):
         cursor = self.collection.find(query).sort([("date", 1), ("student_id", 1)])
         rows = []
         async for item in cursor:
             student = await self.students.find_one({"_id": ObjectId(item["student_id"]), "admin_id": query["admin_id"]})
-            rows.append({"student_id": item["student_id"], "student_name": student.get("full_name", "") if student else "", "class_id": item["class_id"], "date": item["date"], "status": item["status"]})
+            rows.append({"student_id": item["student_id"], "student_name": student.get("full_name", "") if student else "", "class_id": item["class_id"], "date": item["date"], "session_id": item.get("session_id"), "status": item["status"]})
         return rows
