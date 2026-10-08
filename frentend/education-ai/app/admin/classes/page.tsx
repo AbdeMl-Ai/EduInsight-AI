@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { BookOpen, CalendarDays, FileText, LoaderCircle, Plus, Trash2, UserRound, Users, X } from 'lucide-react';
 import {
   ACADEMIC_LEVELS,
@@ -48,6 +48,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 
 export default function AdminClassesPage() {
   const { messages } = useLandingLanguage();
+  const reduceMotion = useReducedMotion();
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,33 +361,67 @@ export default function AdminClassesPage() {
             <p className="mt-1 text-[11px] text-white/40">Each rate covers every attendance session recorded for the class.</p>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+        <motion.div
+          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.3 }}
+          className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]"
+        >
           <select value={reportClassId} onChange={(event) => { setReportClassId(event.target.value); setAttendance(null); }} aria-label={messages.selectClassAttendance} className="min-h-11 rounded-lg border border-white/10 bg-[#151515] px-3 text-xs text-white outline-none focus:border-[#c6a96b]/50">
             <option value="">{messages.chooseClass}</option>
             {classes.map((item) => <option key={item.id} value={item.id}>{item.class_name}</option>)}
           </select>
           <button onClick={loadAttendance} disabled={!reportClassId || reportLoading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#c6a96b]/25 px-4 text-xs font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.06] disabled:opacity-40">{reportLoading ? <LoaderCircle size={15} className="animate-spin" /> : <Users size={15} />}{messages.viewAttendanceReport}</button>
-        </div>
+        </motion.div>
         {reportError && <p role="alert" className="mt-3 text-xs text-rose-200">{reportError}</p>}
+        <AnimatePresence mode="wait">
         {attendance && (
-          <div className="mt-4 border-t border-white/[0.08] pt-4">
+          <motion.div
+            key={attendance.class_id}
+            initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+            transition={{ duration: reduceMotion ? 0 : 0.28 }}
+            className="mt-4 border-t border-white/[0.08] pt-4"
+          >
             <p className="text-xs font-medium text-white">
               {attendance.total_sessions} total session{attendance.total_sessions === 1 ? '' : 's'} · {attendance.students.length} students
             </p>
             {attendance.students.length ? (
-              <ul className="mt-3 divide-y divide-white/[0.06]">
+              <motion.ul
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: {},
+                  visible: { transition: { staggerChildren: reduceMotion ? 0 : 0.035 } },
+                }}
+                className="mt-3 divide-y divide-white/[0.06]"
+              >
                 {attendance.students.map((student) => (
-                  <li key={student.student_id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,2fr)_auto]">
+                  <motion.li
+                    key={student.student_id}
+                    variants={{
+                      hidden: reduceMotion ? { opacity: 1 } : { opacity: 0, y: 8 },
+                      visible: { opacity: 1, y: 0 },
+                    }}
+                    transition={{ duration: reduceMotion ? 0 : 0.24 }}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,2fr)_auto]"
+                  >
                     <span className="truncate text-xs font-medium text-white/75">{student.student_name}</span>
                     <div className="col-span-2 flex items-center gap-3 sm:col-span-1">
                       <div
-                        role="img"
-                        aria-label={`${student.attendance_percentage}% attendance`}
+                        role="progressbar"
+                        aria-label={`${student.student_name} attendance`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.min(100, Math.max(0, student.attendance_percentage))}
                         className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-white/10"
                       >
-                        <div
-                          className="h-full rounded-full bg-emerald-300 transition-[width]"
-                          style={{ width: `${Math.min(100, Math.max(0, student.attendance_percentage))}%` }}
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${Math.min(100, Math.max(0, student.attendance_percentage))}%` }}
+                          transition={{ duration: reduceMotion ? 0 : 0.75, ease: [0.22, 1, 0.36, 1] }}
+                          className="h-full rounded-full bg-emerald-300"
                         />
                       </div>
                       <span className="w-12 shrink-0 text-right text-xs font-semibold tabular-nums text-emerald-200">
@@ -396,14 +431,15 @@ export default function AdminClassesPage() {
                     <span className="text-right text-[10px] tabular-nums text-white/40">
                       {student.present_sessions}/{student.total_sessions} present
                     </span>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </motion.ul>
             ) : (
               <p className="mt-3 text-xs text-white/40">No students are enrolled in this class.</p>
             )}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </section>
 
       <AnimatePresence>

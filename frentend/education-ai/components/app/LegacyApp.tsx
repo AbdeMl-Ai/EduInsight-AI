@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   api,
   type ApiStudent,
@@ -691,6 +692,7 @@ function DynamicTeacherWorkspace({
   onAttendanceSaved: () => Promise<void>;
   reload: () => Promise<void>;
 }) {
+  const reduceMotion = useReducedMotion();
   const [profileImage, setProfileImage] = useState("");
   const [classId, setClassId] = useState(teacher.classes[0]?.class_id ?? 0);
   const [attendanceSessionId, setAttendanceSessionId] = useState("");
@@ -727,6 +729,7 @@ function DynamicTeacherWorkspace({
     ) as Record<string, "present" | "absent">,
   );
   const [saving, setSaving] = useState(false);
+  const [attendanceSaved, setAttendanceSaved] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showExerciseModal, setShowExerciseModal] = useState(false);
@@ -827,6 +830,7 @@ function DynamicTeacherWorkspace({
         })),
       );
       await onAttendanceSaved();
+      setAttendanceSaved(true);
     } catch (error) {
       setWorkspaceError(
         error instanceof Error ? error.message : "Unable to save attendance.",
@@ -835,6 +839,12 @@ function DynamicTeacherWorkspace({
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!attendanceSaved) return;
+    const timeout = window.setTimeout(() => setAttendanceSaved(false), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [attendanceSaved]);
 
   const handleAddCourse = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -973,16 +983,26 @@ function DynamicTeacherWorkspace({
       status: "present" | "absent",
       listedStudents: AttendanceStudent[],
     ) => (
-      <section className="overflow-hidden rounded-xl border border-[#DBE2EA] bg-white">
+      <motion.section layout className="overflow-hidden rounded-xl border border-[#DBE2EA] bg-white">
         <h3 className="border-b border-[#E2E8F0] px-4 py-3 text-sm font-bold text-[#0F172A]">
           {title} <span className="text-[#64748B]">({listedStudents.length})</span>
         </h3>
         {listedStudents.length ? (
           <ul className="divide-y divide-slate-100">
+            <AnimatePresence initial={false} mode="popLayout">
             {listedStudents.map((student) => {
               const nextStatus = status === "present" ? "absent" : "present";
               return (
-                <li key={student.student_id} className="flex items-center gap-3 px-4 py-3">
+                <motion.li
+                  key={student.student_id}
+                  layout
+                  layoutId={`attendance-${student.student_id}`}
+                  initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, scale: 0.98 }}
+                  transition={reduceMotion ? { duration: 0 } : { layout: { type: "spring", stiffness: 460, damping: 34 }, opacity: { duration: 0.18 }, y: { duration: 0.2 }, scale: { duration: 0.2 } }}
+                  className="flex items-center gap-3 px-4 py-3"
+                >
                   <Avatar initials={initialsFor(student.full_name)} />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-[#334155]">
                     {student.full_name}
@@ -995,24 +1015,38 @@ function DynamicTeacherWorkspace({
                         [String(student.student_id)]: nextStatus,
                       }))
                     }
-                    className={`shrink-0 rounded-lg px-3 py-2 text-[11px] font-bold ${
+                    aria-label={`Mark ${student.full_name} ${nextStatus}`}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-bold transition-colors duration-200 ${
                       nextStatus === "present"
                         ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                         : "bg-rose-50 text-rose-700 hover:bg-rose-100"
                     }`}
                   >
-                    Mark {nextStatus === "present" ? "present" : "absent"}
+                    <AnimatePresence mode="wait" initial={false}>
+                      <motion.span
+                        key={nextStatus}
+                        initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.15 }}
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        {nextStatus === "present" ? <Check size={13} /> : <X size={13} />}
+                        Mark {nextStatus}
+                      </motion.span>
+                    </AnimatePresence>
                   </button>
-                </li>
+                </motion.li>
               );
             })}
+            </AnimatePresence>
           </ul>
         ) : (
           <p className="px-4 py-8 text-center text-sm text-[#64748B]">
             No students in this column.
           </p>
         )}
-      </section>
+      </motion.section>
     );
 
     return (
@@ -1045,24 +1079,43 @@ function DynamicTeacherWorkspace({
                 ))}
               </select>
             </label>
-            {selectedAttendanceSession && (
-              <section className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                  ["Session Name", selectedAttendanceSession.class_name],
-                  ["Subject (Mada)", selectedAttendanceSession.subject],
-                  ["Level", selectedAttendanceSession.level],
-                  ["Teacher Name", selectedAttendanceSession.teacher_name || teacher.full_name],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-[#0F172A]">{value || "—"}</p>
-                  </div>
-                ))}
-                <p className="text-xs text-[#475569] sm:col-span-2 lg:col-span-4">
-                  {today} · {selectedAttendanceSession.start_time}–{selectedAttendanceSession.end_time}
-                </p>
-              </section>
-            )}
+            <AnimatePresence mode="wait">
+              {selectedAttendanceSession && (
+                <motion.section
+                  key={selectedAttendanceSession.id}
+                  initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.24 }}
+                  className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 sm:grid-cols-2 lg:grid-cols-4"
+                >
+                  {[
+                    ["Session Name", selectedAttendanceSession.class_name],
+                    ["Subject (Mada)", selectedAttendanceSession.subject],
+                    ["Level", selectedAttendanceSession.level],
+                    ["Teacher Name", selectedAttendanceSession.teacher_name || teacher.full_name],
+                  ].map(([label, value], index) => (
+                    <motion.div
+                      key={label}
+                      initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.22, delay: reduceMotion ? 0 : index * 0.07 }}
+                    >
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#64748B]">{label}</p>
+                      <p className="mt-1 text-sm font-semibold text-[#0F172A]">{value || "—"}</p>
+                    </motion.div>
+                  ))}
+                  <motion.p
+                    initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.22, delay: reduceMotion ? 0 : 0.28 }}
+                    className="text-xs text-[#475569] sm:col-span-2 lg:col-span-4"
+                  >
+                    {today} · {selectedAttendanceSession.start_time}–{selectedAttendanceSession.end_time}
+                  </motion.p>
+                </motion.section>
+              )}
+            </AnimatePresence>
             {workspaceError && (
               <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
                 {workspaceError}
@@ -1078,14 +1131,17 @@ function DynamicTeacherWorkspace({
                   <p className="text-xs text-[#64748B]">
                     {attendanceStudents.length} students · {today}
                   </p>
-                  <button
+                  <motion.button
                     type="button"
                     onClick={saveAttendance}
                     disabled={saving || !attendanceStudents.length}
-                    className="rounded-lg bg-[#0052CC] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    whileHover={reduceMotion ? undefined : { y: -1, scale: 1.02 }}
+                    whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+                    transition={{ duration: reduceMotion ? 0 : 0.15 }}
+                    className="rounded-lg bg-[#0052CC] px-5 py-3 text-sm font-bold text-white transition-shadow hover:shadow-lg hover:shadow-blue-900/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save attendance"}
-                  </button>
+                  </motion.button>
                 </div>
               </>
             ) : (
@@ -1099,6 +1155,22 @@ function DynamicTeacherWorkspace({
             There are no sessions scheduled for today.
           </p>
         )}
+        <AnimatePresence>
+          {attendanceSaved && (
+            <motion.div
+              role="status"
+              aria-live="polite"
+              initial={reduceMotion ? false : { opacity: 0, y: 18, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: reduceMotion ? 0 : 0.22 }}
+              className="fixed bottom-6 right-5 z-[80] flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 shadow-xl shadow-slate-900/10"
+            >
+              <CheckCircle2 size={18} className="text-emerald-600" />
+              Attendance saved successfully
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
     );
   }
