@@ -21,18 +21,19 @@ import {
   checkAdminPaymentDue,
   createAdminStudent,
   createAdminTeacher,
+  createStudentPayment,
+  deleteStudentMonthPayment,
   deleteAdminStudent,
   deleteAdminTeacher,
   getAdminClasses,
   getAdminErrorMessage,
   getAdminPaymentSummary,
-  getStudentPaidMonths,
+  getStudentFinancials,
   getAdminStudents,
   getAdminTeachers,
   getAdminStudentReport,
   resetAdminStudentPassword,
   resetAdminTeacherPassword,
-  syncStudentPaidMonths,
   updateAdminPaymentState,
   updateAdminStudent,
   updateAdminTeacher,
@@ -126,6 +127,7 @@ export default function AdminPeoplePage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
+  const [persistedPaidMonths, setPersistedPaidMonths] = useState<number[]>([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState('');
@@ -328,12 +330,15 @@ export default function AdminPeoplePage() {
     setPaymentError('');
     setPaymentLoading(true);
     try {
-      const summary = await getAdminPaymentSummary(target.id, target.role);
       if (target.role === 'student') {
-        const ledger = await getStudentPaidMonths(target.id, PAYMENT_YEAR);
-        summary.paid_months = ledger.paid_months;
+        const financials = await getStudentFinancials(target.id, PAYMENT_YEAR);
+        setPaymentSummary(financials);
+        setPersistedPaidMonths(financials.paid_months);
+      } else {
+        const summary = await getAdminPaymentSummary(target.id, target.role);
+        setPaymentSummary(summary);
+        setPersistedPaidMonths(summary.paid_months);
       }
-      setPaymentSummary(summary);
     } catch (requestError) {
       setPaymentError(getAdminErrorMessage(requestError, messages.paymentDetailsLoadError));
     } finally {
@@ -347,20 +352,34 @@ export default function AdminPeoplePage() {
     setPaymentError('');
     try {
       if (paymentTarget.role === 'student') {
-        const ledger = await syncStudentPaidMonths(
-          paymentTarget.id,
-          PAYMENT_YEAR,
-          paymentSummary.paid_months,
-        );
-        setPaymentSummary((current) => current
-          ? { ...current, paid_months: ledger.paid_months }
-          : current);
+        const selected = new Set(paymentSummary.paid_months);
+        const previouslyPaid = new Set(persistedPaidMonths);
+        const additions = [...selected].filter((month) => !previouslyPaid.has(month));
+        const removals = [...previouslyPaid].filter((month) => !selected.has(month));
+        for (const month of additions) {
+          const monthValue = `${PAYMENT_YEAR}-${String(month).padStart(2, '0')}`;
+          await createStudentPayment({
+            student_id: paymentTarget.id,
+            amount: paymentSummary.monthly_amount,
+            month: monthValue,
+            payment_date: `${monthValue}-01`,
+          });
+        }
+        for (const month of removals) {
+          const monthValue = `${PAYMENT_YEAR}-${String(month).padStart(2, '0')}`;
+          await deleteStudentMonthPayment(paymentTarget.id, monthValue);
+        }
+        const saved = await getStudentFinancials(paymentTarget.id, PAYMENT_YEAR);
+        setPaymentSummary(saved);
+        setPersistedPaidMonths(saved.paid_months);
       } else {
-        setPaymentSummary(await updateAdminPaymentState(
+        const summary = await updateAdminPaymentState(
           paymentTarget.id,
           paymentTarget.role,
           paymentSummary.paid_months,
-        ));
+        );
+        setPaymentSummary(summary);
+        setPersistedPaidMonths(summary.paid_months);
       }
       showSuccessToast('Payment details were updated.', 'Payment details saved');
     } catch (requestError) {

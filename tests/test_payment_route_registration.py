@@ -46,6 +46,13 @@ def test_student_payment_post_route_and_cors_preflight_are_supported():
 
 
 def test_financials_modal_month_sync_routes_are_registered():
+    financials = app.openapi()["paths"]["/admin/payments/students/{student_id}"]
+    assert "get" in financials
+    assert any(
+        parameter["name"] == "year" and parameter["in"] == "query"
+        for parameter in financials["get"]["parameters"]
+    )
+
     operations = app.openapi()["paths"][
         "/admin/payments/students/{student_id}/months"
     ]
@@ -55,3 +62,8 @@ def test_financials_modal_month_sync_routes_are_registered():
         "application/json"
     ]["schema"]
     assert request_schema["$ref"].endswith("/StudentPaidMonthsUpdate")
+
+    delete_operations = app.openapi()["paths"][
+        "/admin/payments/students/{student_id}/months/{month}"
+    ]
+    assert set(delete_operations) == {"delete"}

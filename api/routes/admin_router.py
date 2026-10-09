@@ -366,6 +366,27 @@ async def update_payment_state(user_id: str, data: PaymentUpdate, _admin=Depends
 
 
 @router.get(
+    "/payments/students/{student_id}",
+    response_model=PaymentSummary,
+)
+async def get_student_financials(
+    student_id: str,
+    year: int = Query(ge=2000, le=2100),
+    _admin=Depends(get_current_admin),
+):
+    try:
+        summary = await payment_service.summary(
+            student_id, "student", _admin.admin_id
+        )
+        summary["paid_months"] = await student_payment_repo.get_paid_months(
+            student_id, _admin.admin_id, year
+        )
+        return summary
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get(
     "/payments/students/{student_id}/months",
     response_model=StudentPaidMonthsResponse,
 )
@@ -404,6 +425,23 @@ async def update_student_paid_months(
             summary["monthly_amount"],
         )
         return {"year": data.year, "paid_months": months}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.delete(
+    "/payments/students/{student_id}/months/{month}",
+    status_code=204,
+)
+async def delete_student_month_payment(
+    student_id: str,
+    month: str,
+    _admin=Depends(get_current_admin),
+):
+    try:
+        await student_payment_repo.delete_month_payment(
+            student_id, _admin.admin_id, month
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

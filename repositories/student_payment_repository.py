@@ -1,4 +1,5 @@
 from datetime import date
+import re
 
 from bson import ObjectId
 
@@ -107,6 +108,26 @@ class StudentPaymentRepo:
             )
 
         return requested
+
+    async def delete_month_payment(
+        self, student_id: str, admin_id: str, month: str
+    ):
+        if re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month) is None:
+            raise ValueError("Payment month must use YYYY-MM format.")
+        student_id = self._id(student_id)
+        student = await self.students.find_one({
+            "_id": ObjectId(student_id),
+            "admin_id": admin_id,
+        })
+        if student is None:
+            raise ValueError("Student not found in your workspace.")
+        await self.collection.delete_many(
+            {
+                "admin_id": admin_id,
+                "student_id": student_id,
+                "month": month,
+            }
+        )
 
     async def daily_revenue(self, admin_id: str, month: str):
         cursor = self.collection.aggregate([

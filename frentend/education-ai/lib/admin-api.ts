@@ -117,6 +117,21 @@ export type RevenueAttendance = {
   total_revenue: number;
 };
 
+export type StudentPaymentCreate = {
+  student_id: string;
+  amount: number;
+  month: string;
+  payment_date: string;
+};
+
+export type StudentPayment = StudentPaymentCreate & {
+  id: string;
+  student_id: string;
+  student_name: string;
+  payment_date: string;
+  amount: number;
+};
+
 export type AttendanceRecord = {
   student_id: string;
   student_name: string | null;
@@ -207,25 +222,32 @@ export async function getRevenueAttendance(month: string, signal?: AbortSignal) 
   return data;
 }
 
-export async function getStudentPaidMonths(studentId: string, year: number) {
-  const { data } = await api.get<{ year: number; paid_months: number[] }>(
-    `/admin/payments/students/${studentId}/months`,
+export async function getStudentFinancials(studentId: string, year: number) {
+  const { data } = await api.get<PaymentSummary>(
+    `/admin/payments/students/${studentId}`,
     { baseURL: BACKEND_API_URL, params: { year } },
   );
   return data;
 }
 
-export async function syncStudentPaidMonths(
+export async function createStudentPayment(payment: StudentPaymentCreate) {
+  const { data } = await api.request<StudentPayment>({
+    method: 'POST',
+    baseURL: BACKEND_API_URL,
+    url: '/admin/payments/transactions',
+    data: payment,
+  });
+  return data;
+}
+
+export async function deleteStudentMonthPayment(
   studentId: string,
-  year: number,
-  paidMonths: number[],
+  month: string,
 ) {
-  const { data } = await api.put<{ year: number; paid_months: number[] }>(
-    `/admin/payments/students/${studentId}/months`,
-    { year, paid_months: paidMonths },
+  await api.delete(
+    `/admin/payments/students/${studentId}/months/${month}`,
     { baseURL: BACKEND_API_URL },
   );
-  return data;
 }
 
 export async function getAdminStudents(signal?: AbortSignal) {

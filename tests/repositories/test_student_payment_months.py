@@ -40,7 +40,12 @@ class FakePayments:
 
     async def delete_many(self, query):
         self.deleted_query = query
-        months = set(query["month"]["$in"])
+        month_filter = query["month"]
+        months = (
+            set(month_filter["$in"])
+            if isinstance(month_filter, dict)
+            else {month_filter}
+        )
         self.documents = [
             item for item in self.documents if item["month"] not in months
         ]
@@ -90,3 +95,25 @@ def test_sync_paid_months_inserts_only_new_months_and_removes_unchecked():
     assert new_payment["month"] == "2026-04"
     assert new_payment["amount"] == 400.0
     assert new_payment["payment_date"] == date(2026, 4, 1).isoformat()
+
+
+def test_delete_month_payment_is_scoped_to_student_tenant_and_month():
+    repository = StudentPaymentRepo.__new__(StudentPaymentRepo)
+    repository.students = FakeStudents()
+    repository.collection = FakePayments([
+        {"admin_id": "admin-a", "student_id": STUDENT_ID, "month": "2026-02"},
+        {"admin_id": "admin-a", "student_id": STUDENT_ID, "month": "2026-03"},
+    ])
+
+    asyncio.run(
+        repository.delete_month_payment(STUDENT_ID, "admin-a", "2026-02")
+    )
+
+    assert repository.collection.deleted_query == {
+        "admin_id": "admin-a",
+        "student_id": STUDENT_ID,
+        "month": "2026-02",
+    }
+    assert [item["month"] for item in repository.collection.documents] == [
+        "2026-03"
+    ]
