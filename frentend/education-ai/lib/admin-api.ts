@@ -1,5 +1,5 @@
 import axios from 'axios';
-import api, { BACKEND_API_URL } from '@/lib/axios';
+import api from '@/lib/axios';
 
 export const ACADEMIC_LEVELS = ['1AC', '2AC', '3AC', 'TRC', '1BAC', '2BAC'] as const;
 export const SUBJECTS = ['Math', 'PC', 'SVT', 'English', 'French'] as const;
@@ -225,18 +225,16 @@ export async function getRevenueAttendance(month: string, signal?: AbortSignal) 
 export async function getStudentFinancials(studentId: string, year: number) {
   const { data } = await api.get<PaymentSummary>(
     `/admin/payments/students/${studentId}`,
-    { baseURL: BACKEND_API_URL, params: { year } },
+    { params: { year } },
   );
   return data;
 }
 
 export async function createStudentPayment(payment: StudentPaymentCreate) {
-  const { data } = await api.request<StudentPayment>({
-    method: 'POST',
-    baseURL: BACKEND_API_URL,
-    url: '/admin/payments/transactions',
-    data: payment,
-  });
+  const { data } = await api.post<StudentPayment>(
+    '/admin/payments/transactions',
+    payment,
+  );
   return data;
 }
 
@@ -244,10 +242,7 @@ export async function deleteStudentMonthPayment(
   studentId: string,
   month: string,
 ) {
-  await api.delete(
-    `/admin/payments/students/${studentId}/months/${month}`,
-    { baseURL: BACKEND_API_URL },
-  );
+  await api.delete(`/admin/payments/students/${studentId}/months/${month}`);
 }
 
 export async function getAdminStudents(signal?: AbortSignal) {
