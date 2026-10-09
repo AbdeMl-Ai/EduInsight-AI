@@ -38,11 +38,11 @@ export default function AdminHomePage() {
       if (controller.signal.aborted) return;
       const nextErrors: string[] = [];
       if (results[0].status === 'fulfilled') setProfile(results[0].value);
-      else nextErrors.push(getAdminErrorMessage(results[0].reason, 'Admin profile could not be loaded.'));
+      else nextErrors.push(getAdminErrorMessage(results[0].reason, messages.adminProfileLoadError));
       if (results[1].status === 'fulfilled') setStats(results[1].value);
-      else nextErrors.push(getAdminErrorMessage(results[1].reason, 'Dashboard counts could not be loaded.'));
+      else nextErrors.push(getAdminErrorMessage(results[1].reason, messages.dashboardCountsLoadError));
       if (results[2].status === 'fulfilled') setNotifications(results[2].value);
-      else nextErrors.push(getAdminErrorMessage(results[2].reason, 'Notifications could not be loaded.'));
+      else nextErrors.push(getAdminErrorMessage(results[2].reason, messages.notificationsLoadError));
       setErrors(nextErrors);
       setLoading(false);
     });
@@ -50,9 +50,9 @@ export default function AdminHomePage() {
   }, [attempt]);
 
   const statItems = [
-    { label: 'Students', value: stats?.total_students, icon: GraduationCap, tone: 'gold', detail: '+20% this month', status: false },
-    { label: 'Teaching staff', value: stats?.teaching_staff, icon: Users, tone: 'green', detail: 'Active', status: true },
-    { label: 'Active classes', value: stats?.active_classes, icon: BookOpen, tone: 'violet', detail: 'Active', status: true },
+    { label: messages.students, value: stats?.total_students, icon: GraduationCap, tone: 'gold' },
+    { label: messages.teachingStaff, value: stats?.teaching_staff, icon: Users, tone: 'green', detail: messages.active },
+    { label: messages.activeClasses, value: stats?.active_classes, icon: BookOpen, tone: 'violet', detail: messages.active },
   ];
 
   return (
@@ -94,22 +94,22 @@ export default function AdminHomePage() {
         </div>
       </motion.header>
 
-      <section aria-label="Notifications" className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.025]">
-        <Link href="/admin/notifications" aria-label="Open notifications" title="Notifications" className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/30 bg-[#c6a96b]/[0.08] text-[#dfc27e] hover:bg-[#c6a96b]/[0.14]"><Bell size={19} /></Link>
-        <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 dark:text-white/40">LATEST NOTIFICATION</p><p className="mt-1 truncate text-xs text-slate-700 dark:text-white/70">{loading ? 'Loading notifications...' : notifications[0]?.message || 'No notifications yet.'}</p></div>
-        <Link href="/admin/notifications" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-white/10 px-2.5 text-[10px] font-semibold text-white/60 hover:border-[#c6a96b]/30 hover:text-[#dfc27e]"><Send size={13} />Send</Link>
+      <section aria-label={messages.notifications} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.025]">
+        <Link href="/admin/notifications" aria-label={messages.openNotifications} title={messages.notifications} className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/30 bg-[#c6a96b]/[0.08] text-[#dfc27e] hover:bg-[#c6a96b]/[0.14]"><Bell size={19} /></Link>
+        <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 dark:text-white/40">{messages.latestNotification}</p><p className="mt-1 truncate text-xs text-slate-700 dark:text-white/70">{loading ? messages.loadingNotifications : notifications[0]?.message || messages.noNotifications}</p></div>
+        <Link href="/admin/notifications" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-white/10 px-2.5 text-[10px] font-semibold text-white/60 hover:border-[#c6a96b]/30 hover:text-[#dfc27e]"><Send size={13} />{messages.send}</Link>
       </section>
 
       <section aria-labelledby="admin-stats-heading">
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <p className="text-[10px] font-semibold tracking-[0.16em] text-slate-500 dark:text-white/40">AT A GLANCE</p>
-            <h2 id="admin-stats-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-white">Learning community</h2>
+            <p className="text-[10px] font-semibold tracking-[0.16em] text-slate-500 dark:text-white/40">{messages.atAGlance}</p>
+            <h2 id="admin-stats-heading" className="mt-1 text-base font-semibold text-slate-900 dark:text-white">{messages.learningCommunity}</h2>
           </div>
-          <Link href="/admin/classes" className="text-[10px] font-medium text-amber-800 transition-colors hover:text-amber-600 dark:text-[#dfc27e] dark:hover:text-[#f0d89d]">View classes</Link>
+          <Link href="/admin/classes" className="text-[10px] font-medium text-amber-800 transition-colors hover:text-amber-600 dark:text-[#dfc27e] dark:hover:text-[#f0d89d]">{messages.viewClasses}</Link>
         </div>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
-          {statItems.map(({ label, value, icon: Icon, tone, detail, status }, index) => (
+          {statItems.map(({ label, value, icon: Icon, tone, detail }, index) => (
             <motion.article
               key={label}
               initial={{ opacity: 0, y: 8 }}
@@ -133,7 +133,7 @@ export default function AdminHomePage() {
                 }`}>
                   <Icon size={19} strokeWidth={1.7} />
                 </span>
-                {status && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2 py-1 text-[9px] font-semibold text-emerald-800 dark:text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-300" />{detail}</span>}
+                {detail && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2 py-1 text-[9px] font-semibold text-emerald-800 dark:text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-300" />{detail}</span>}
               </div>
               {loading ? (
                 <div role="status" className="mt-4 h-7 w-10 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
@@ -142,9 +142,7 @@ export default function AdminHomePage() {
               )}
               <div className="mt-1 flex min-h-6 items-center justify-between gap-2">
                 <p className="text-xs font-medium text-slate-600 dark:text-white/55">{label}</p>
-                {!status && <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300"><Activity size={12} />{detail}</span>}
               </div>
-              {!status && <svg aria-hidden="true" viewBox="0 0 100 24" className="absolute bottom-4 right-4 h-6 w-20 text-emerald-500/70 dark:text-emerald-300/65"><path d="M1 19 C14 18 16 8 28 12 S46 20 56 10 73 6 81 9 91 4 99 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M1 19 C14 18 16 8 28 12 S46 20 56 10 73 6 81 9 91 4 99 2 L99 24 L1 24 Z" fill="currentColor" opacity=".08" /></svg>}
             </motion.article>
           ))}
         </div>
@@ -153,7 +151,7 @@ export default function AdminHomePage() {
       {errors.length > 0 && (
         <div role="alert" className="rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-4">
           <p className="text-xs leading-5 text-rose-200">{errors.join(' ')}</p>
-          <button onClick={() => setAttempt((value) => value + 1)} className="mt-2 min-h-9 text-xs font-semibold text-[#dfc27e] underline underline-offset-4">Try again</button>
+          <button onClick={() => setAttempt((value) => value + 1)} className="mt-2 min-h-9 text-xs font-semibold text-[#dfc27e] underline underline-offset-4">{messages.tryAgain}</button>
         </div>
       )}
 
