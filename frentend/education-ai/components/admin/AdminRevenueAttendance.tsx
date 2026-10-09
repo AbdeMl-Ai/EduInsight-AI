@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Activity, Banknote, LoaderCircle, Users } from 'lucide-react';
 import {
   CartesianGrid,
@@ -13,13 +13,21 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  createStudentPayment,
+  getAdminStudents,
   getAdminErrorMessage,
   getRevenueAttendance,
+  type AdminStudent,
   type RevenueAttendance,
 } from '@/lib/admin-api';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
 function monthValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function dateValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function formatMad(amount: number) {
@@ -37,16 +45,20 @@ function formatMonth(month: string) {
 }
 
 export default function AdminRevenueAttendance() {
-  const months = useMemo(() => Array.from({ length: 12 }, (_, offset) => {
-    const date = new Date();
-    date.setDate(1);
-    date.setMonth(date.getMonth() - (11 - offset));
-    return monthValue(date);
-  }), []);
-  const [month, setMonth] = useState(() => monthValue(new Date()));
+  const { showSuccessToast } = useAdminToast();
+  const [month] = useState(() => monthValue(new Date()));
   const [analytics, setAnalytics] = useState<RevenueAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [students, setStudents] = useState<AdminStudent[]>([]);
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [studentError, setStudentError] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => dateValue(new Date()));
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,7 +77,52 @@ export default function AdminRevenueAttendance() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [month]);
+  }, [month, refreshKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setStudentsLoading(true);
+    setStudentError('');
+    getAdminStudents(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) {
+          setStudents(data);
+          setStudentId((current) => current || data[0]?.student_id || '');
+        }
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setStudentError(getAdminErrorMessage(requestError, 'Students could not be loaded.'));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setStudentsLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function savePayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!studentId || !amount || !paymentDate) return;
+
+    setPaymentSaving(true);
+    setPaymentError('');
+    try {
+      await createStudentPayment({
+        student_id: studentId,
+        amount: Number(amount),
+        payment_date: paymentDate,
+        month: paymentDate.slice(0, 7),
+      });
+      setAmount('');
+      setRefreshKey((current) => current + 1);
+      showSuccessToast('Payment saved successfully!', 'Payment saved');
+    } catch (requestError) {
+      setPaymentError(getAdminErrorMessage(requestError, 'Payment could not be saved.'));
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
 
   return (
     <section aria-labelledby="revenue-attendance-heading" className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.025] sm:p-5">
@@ -73,29 +130,7 @@ export default function AdminRevenueAttendance() {
         <div>
           <p className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-800 dark:text-amber-200"><Activity size={13} /> Financial overview</p>
           <h2 id="revenue-attendance-heading" className="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">Revenue &amp; attendance</h2>
-          <p className="mt-1 text-xs text-slate-500 dark:text-white/45">Daily student presence and collected payments.</p>
-        </div>
-        <div className="flex max-w-full gap-2 self-start overflow-x-auto rounded-lg border border-slate-200 bg-slate-100/70 p-1 dark:border-white/10 dark:bg-black/20">
-          {months.map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setMonth(item);
-              }}
-              aria-pressed={month === item}
-              title={formatMonth(item)}
-              className={`min-h-8 min-w-16 shrink-0 rounded-md px-2 text-[9px] font-semibold capitalize transition-colors ${
-                month === item
-                  ? 'bg-amber-300 text-slate-950 shadow-sm dark:bg-amber-200'
-                  : 'text-slate-500 hover:text-slate-900 dark:text-white/45 dark:hover:text-white'
-              }`}
-            >
-              {new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit' }).format(new Date(Number(item.slice(0, 4)), Number(item.slice(5)) - 1, 1))}
-            </button>
-          ))}
-          <label className="sr-only" htmlFor="revenue-month">Select month</label>
-          <input id="revenue-month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="max-w-[7.5rem] rounded-md border border-slate-200 bg-white px-2 text-[10px] text-slate-700 outline-none transition-colors focus:border-amber-500 dark:border-white/10 dark:bg-slate-900 dark:text-white" />
+          <p className="mt-1 text-xs text-slate-500 dark:text-white/45">Daily student presence and collected payments · {formatMonth(month)}</p>
         </div>
       </header>
 
@@ -137,8 +172,64 @@ export default function AdminRevenueAttendance() {
       </div>
 
       <p className="text-[10px] text-slate-500 dark:text-white/40">
-        Revenue is calculated from student payments recorded in the Financials modal.
+        Revenue and student paid-month status use the same payment records.
       </p>
+      <form onSubmit={savePayment} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 transition-colors dark:border-white/10 dark:bg-black/10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(8rem,.8fr)_minmax(9rem,.9fr)_auto]">
+        <label className="block space-y-1.5">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-white/50">Student</span>
+          <select
+            required
+            value={studentId}
+            onChange={(event) => setStudentId(event.target.value)}
+            disabled={studentsLoading || students.length === 0 || paymentSaving}
+            className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition-colors focus:border-amber-500 disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          >
+            {studentsLoading && <option value="">Loading students…</option>}
+            {!studentsLoading && students.length === 0 && <option value="">No students available</option>}
+            {students.map((student) => (
+              <option key={student.student_id} value={student.student_id}>{student.full_name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-white/50">Amount (MAD)</span>
+          <input
+            required
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            disabled={paymentSaving}
+            placeholder="e.g. 300"
+            className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-amber-500 disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:placeholder:text-white/30"
+          />
+        </label>
+        <label className="block space-y-1.5">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-white/50">Payment date</span>
+          <input
+            required
+            type="date"
+            value={paymentDate}
+            onChange={(event) => setPaymentDate(event.target.value)}
+            disabled={paymentSaving}
+            className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition-colors focus:border-amber-500 disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-white"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={paymentSaving || studentsLoading || students.length === 0}
+          className="inline-flex min-h-10 items-center justify-center gap-2 self-end rounded-lg bg-amber-300 px-4 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-55 dark:bg-amber-200 dark:hover:bg-amber-100"
+        >
+          {paymentSaving && <LoaderCircle size={14} className="animate-spin" />}
+          Save payment
+        </button>
+      </form>
+      {(studentError || paymentError) && (
+        <p role="alert" className="rounded-lg border border-rose-300/30 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-300/15 dark:bg-rose-300/[0.04] dark:text-rose-200">
+          {studentError || paymentError}
+        </p>
+      )}
       {error && <p role="alert" className="rounded-lg border border-rose-300/30 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-300/15 dark:bg-rose-300/[0.04] dark:text-rose-200">{error}</p>}
     </section>
   );
