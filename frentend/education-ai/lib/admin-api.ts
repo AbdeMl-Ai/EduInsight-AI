@@ -133,6 +133,8 @@ export type StudentPayment = {
   month: string;
 };
 
+const STUDENT_PAYMENT_ENDPOINT = '/admin/payments/transactions';
+
 export type AttendanceRecord = {
   student_id: string;
   student_name: string | null;
@@ -224,7 +226,11 @@ export async function getRevenueAttendance(month: string, signal?: AbortSignal) 
 }
 
 export async function createStudentPayment(payment: StudentPaymentCreate) {
-  const { data } = await api.post<StudentPayment>('/admin/payments/transactions', payment);
+  const { data } = await api.request<StudentPayment>({
+    method: 'POST',
+    url: STUDENT_PAYMENT_ENDPOINT,
+    data: payment,
+  });
   return data;
 }
 

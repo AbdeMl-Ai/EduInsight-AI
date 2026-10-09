@@ -371,7 +371,17 @@ async def revenue_attendance(
     return await analytics_service.revenue_attendance(_admin.admin_id, month)
 
 
-@router.post("/payments/transactions", response_model=StudentPaymentResponse, status_code=201)
+@router.post(
+    "/payments/transactions/",
+    response_model=StudentPaymentResponse,
+    status_code=201,
+    include_in_schema=False,
+)
+@router.post(
+    "/payments/transactions",
+    response_model=StudentPaymentResponse,
+    status_code=201,
+)
 async def record_student_payment(
     data: StudentPaymentCreate,
     _admin=Depends(get_current_admin),
