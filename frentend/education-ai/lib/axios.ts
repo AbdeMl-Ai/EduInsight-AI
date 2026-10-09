@@ -1,14 +1,14 @@
 import axios from 'axios';
 import { AUTH_SESSION_CHANGED_EVENT } from '@/lib/api';
 
-const backendUrl = (
+export const BACKEND_API_URL = (
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL ||
   'http://127.0.0.1:8000'
 ).replace(/\/+$/, '');
 
 const api = axios.create({
-  baseURL: typeof window === 'undefined' ? backendUrl : '/api-proxy',
+  baseURL: typeof window === 'undefined' ? BACKEND_API_URL : '/api-proxy',
   headers: {
     Accept: 'application/json',
   },

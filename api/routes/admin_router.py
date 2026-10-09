@@ -35,6 +35,8 @@ from api.schemas.admin_schemas import (
     RevenueAttendanceResponse,
     StudentPaymentCreate,
     StudentPaymentResponse,
+    StudentPaidMonthsUpdate,
+    StudentPaidMonthsResponse,
 )
 from api.schemas.notification_schema import AdminNotificationCreate
 from models.domain_models import ClassDocument, StudentPayment
@@ -359,6 +361,49 @@ async def get_payment_summary(user_id: str, user_role: str, _admin=Depends(get_c
 async def update_payment_state(user_id: str, data: PaymentUpdate, _admin=Depends(get_current_admin)):
     try:
         return await payment_service.update(user_id, data.user_role, data.paid_months, _admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get(
+    "/payments/students/{student_id}/months",
+    response_model=StudentPaidMonthsResponse,
+)
+async def get_student_paid_months(
+    student_id: str,
+    year: int = Query(ge=2000, le=2100),
+    _admin=Depends(get_current_admin),
+):
+    try:
+        months = await student_payment_repo.get_paid_months(
+            student_id, _admin.admin_id, year
+        )
+        return {"year": year, "paid_months": months}
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.put(
+    "/payments/students/{student_id}/months",
+    response_model=StudentPaidMonthsResponse,
+)
+async def update_student_paid_months(
+    student_id: str,
+    data: StudentPaidMonthsUpdate,
+    _admin=Depends(get_current_admin),
+):
+    try:
+        summary = await payment_service.summary(
+            student_id, "student", _admin.admin_id
+        )
+        months = await student_payment_repo.sync_paid_months(
+            student_id,
+            _admin.admin_id,
+            data.year,
+            data.paid_months,
+            summary["monthly_amount"],
+        )
+        return {"year": data.year, "paid_months": months}
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

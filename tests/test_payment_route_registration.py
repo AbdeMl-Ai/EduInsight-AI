@@ -43,3 +43,15 @@ def test_student_payment_post_route_and_cors_preflight_are_supported():
     assert response.status_code == 200
     assert "POST" in response.headers["access-control-allow-methods"]
     assert client.post("/admin/payments/transactions").status_code != 405
+
+
+def test_financials_modal_month_sync_routes_are_registered():
+    operations = app.openapi()["paths"][
+        "/admin/payments/students/{student_id}/months"
+    ]
+
+    assert set(operations) == {"get", "put"}
+    request_schema = operations["put"]["requestBody"]["content"][
+        "application/json"
+    ]["schema"]
+    assert request_schema["$ref"].endswith("/StudentPaidMonthsUpdate")

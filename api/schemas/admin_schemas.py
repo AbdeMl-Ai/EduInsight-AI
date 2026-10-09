@@ -258,6 +258,23 @@ class StudentPaymentResponse(BaseModel):
     month: str
 
 
+class StudentPaidMonthsUpdate(BaseModel):
+    year: int = Field(ge=2000, le=2100)
+    paid_months: list[int] = Field(default_factory=list)
+
+    @field_validator("paid_months")
+    @classmethod
+    def validate_paid_months(cls, value: list[int]) -> list[int]:
+        if any(month < 1 or month > 12 for month in value):
+            raise ValueError("Payment months must be between 1 and 12.")
+        return sorted(set(value))
+
+
+class StudentPaidMonthsResponse(BaseModel):
+    year: int
+    paid_months: list[int]
+
+
 class RevenueAttendanceDay(BaseModel):
     date: date
     attendance: int

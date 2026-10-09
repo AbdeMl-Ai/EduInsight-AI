@@ -1,5 +1,5 @@
 import axios from 'axios';
-import api from '@/lib/axios';
+import api, { BACKEND_API_URL } from '@/lib/axios';
 
 export const ACADEMIC_LEVELS = ['1AC', '2AC', '3AC', 'TRC', '1BAC', '2BAC'] as const;
 export const SUBJECTS = ['Math', 'PC', 'SVT', 'English', 'French'] as const;
@@ -117,24 +117,6 @@ export type RevenueAttendance = {
   total_revenue: number;
 };
 
-export type StudentPaymentCreate = {
-  student_id: string;
-  amount: number;
-  month: string;
-  payment_date?: string;
-};
-
-export type StudentPayment = {
-  id: string;
-  student_id: string;
-  student_name: string;
-  amount: number;
-  payment_date: string;
-  month: string;
-};
-
-const STUDENT_PAYMENT_ENDPOINT = '/admin/payments/transactions';
-
 export type AttendanceRecord = {
   student_id: string;
   student_name: string | null;
@@ -225,12 +207,24 @@ export async function getRevenueAttendance(month: string, signal?: AbortSignal) 
   return data;
 }
 
-export async function createStudentPayment(payment: StudentPaymentCreate) {
-  const { data } = await api.request<StudentPayment>({
-    method: 'POST',
-    url: STUDENT_PAYMENT_ENDPOINT,
-    data: payment,
-  });
+export async function getStudentPaidMonths(studentId: string, year: number) {
+  const { data } = await api.get<{ year: number; paid_months: number[] }>(
+    `/admin/payments/students/${studentId}/months`,
+    { baseURL: BACKEND_API_URL, params: { year } },
+  );
+  return data;
+}
+
+export async function syncStudentPaidMonths(
+  studentId: string,
+  year: number,
+  paidMonths: number[],
+) {
+  const { data } = await api.put<{ year: number; paid_months: number[] }>(
+    `/admin/payments/students/${studentId}/months`,
+    { year, paid_months: paidMonths },
+    { baseURL: BACKEND_API_URL },
+  );
   return data;
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Activity, Banknote, CalendarDays, LoaderCircle, Save, Users } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Activity, Banknote, LoaderCircle, Users } from 'lucide-react';
 import {
   CartesianGrid,
   ComposedChart,
@@ -12,22 +12,14 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { useAdminToast } from '@/components/admin/AdminToastProvider';
 import {
-  createStudentPayment,
   getAdminErrorMessage,
-  getAdminStudents,
   getRevenueAttendance,
-  type AdminStudent,
   type RevenueAttendance,
 } from '@/lib/admin-api';
 
 function monthValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function dateValue(date: Date) {
-  return `${monthValue(date)}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function formatMad(amount: number) {
@@ -45,7 +37,6 @@ function formatMonth(month: string) {
 }
 
 export default function AdminRevenueAttendance() {
-  const { showSuccessToast } = useAdminToast();
   const months = useMemo(() => Array.from({ length: 12 }, (_, offset) => {
     const date = new Date();
     date.setDate(1);
@@ -54,30 +45,8 @@ export default function AdminRevenueAttendance() {
   }), []);
   const [month, setMonth] = useState(() => monthValue(new Date()));
   const [analytics, setAnalytics] = useState<RevenueAttendance | null>(null);
-  const [students, setStudents] = useState<AdminStudent[]>([]);
-  const [studentId, setStudentId] = useState('');
-  const [amount, setAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState(() => dateValue(new Date()));
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    getAdminStudents(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) {
-          setStudents(items);
-          setStudentId((current) => current || items[0]?.student_id || '');
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (!controller.signal.aborted) {
-          setError(getAdminErrorMessage(requestError, 'Student list could not be loaded.'));
-        }
-      });
-    return () => controller.abort();
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -98,26 +67,6 @@ export default function AdminRevenueAttendance() {
     return () => controller.abort();
   }, [month]);
 
-  async function submitPayment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await createStudentPayment({ student_id: studentId, amount: Number(amount), month, payment_date: paymentDate });
-      setAmount('');
-      showSuccessToast(`Payment recorded for ${formatMonth(month)}.`, 'Payment saved');
-      try {
-        setAnalytics(await getRevenueAttendance(month));
-      } catch (refreshError) {
-        setError(getAdminErrorMessage(refreshError, 'Payment was saved, but analytics could not be refreshed.'));
-      }
-    } catch (requestError) {
-      setError(getAdminErrorMessage(requestError, 'Payment could not be saved.'));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <section aria-labelledby="revenue-attendance-heading" className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.025] sm:p-5">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -133,7 +82,6 @@ export default function AdminRevenueAttendance() {
               type="button"
               onClick={() => {
                 setMonth(item);
-                if (!paymentDate.startsWith(item)) setPaymentDate(`${item}-01`);
               }}
               aria-pressed={month === item}
               title={formatMonth(item)}
@@ -188,30 +136,9 @@ export default function AdminRevenueAttendance() {
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-4 rounded-sm bg-amber-500/70" /> Revenue · MAD</span>
       </div>
 
-      <form onSubmit={submitPayment} className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.02] sm:grid-cols-[minmax(0,1.3fr)_minmax(7rem,0.65fr)_minmax(8.5rem,0.85fr)_auto] sm:items-end">
-        <label className="min-w-0 space-y-1.5">
-          <span className="flex items-center gap-1.5 text-[10px] font-medium text-slate-600 dark:text-white/55"><CalendarDays size={13} /> Student and payment date</span>
-          <select required value={studentId} onChange={(event) => setStudentId(event.target.value)} disabled={!students.length} className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 outline-none transition-colors focus:border-amber-500 disabled:opacity-50 dark:border-white/10 dark:bg-slate-900 dark:text-white">
-            {students.length ? students.map((student) => <option key={student.student_id} value={student.student_id}>{student.full_name}</option>) : <option value="">No students available</option>}
-          </select>
-        </label>
-        <label className="min-w-0 space-y-1.5">
-          <span className="text-[10px] font-medium text-slate-600 dark:text-white/55">Amount (MAD)</span>
-          <input required type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="300" className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm tabular-nums text-slate-900 outline-none transition-colors focus:border-amber-500 dark:border-white/10 dark:bg-slate-900 dark:text-white" />
-        </label>
-        <label className="min-w-0 space-y-1.5">
-          <span className="text-[10px] font-medium text-slate-600 dark:text-white/55">Payment date · {formatMonth(month)}</span>
-          <input required type="date" value={paymentDate} onChange={(event) => {
-            const nextDate = event.target.value;
-            setPaymentDate(nextDate);
-            if (nextDate) setMonth(nextDate.slice(0, 7));
-          }} className="min-h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-900 outline-none transition-colors focus:border-amber-500 dark:border-white/10 dark:bg-slate-900 dark:text-white" />
-        </label>
-        <button type="submit" disabled={saving || !studentId || !amount || Number(amount) <= 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-amber-300 px-4 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-200 dark:hover:bg-amber-100">
-          {saving ? <LoaderCircle size={15} className="animate-spin" /> : <Save size={15} />}
-          {saving ? 'Saving…' : 'Save payment'}
-        </button>
-      </form>
+      <p className="text-[10px] text-slate-500 dark:text-white/40">
+        Revenue is calculated from student payments recorded in the Financials modal.
+      </p>
       {error && <p role="alert" className="rounded-lg border border-rose-300/30 bg-rose-50 p-3 text-xs text-rose-800 dark:border-rose-300/15 dark:bg-rose-300/[0.04] dark:text-rose-200">{error}</p>}
     </section>
   );

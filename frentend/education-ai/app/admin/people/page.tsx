@@ -26,11 +26,13 @@ import {
   getAdminClasses,
   getAdminErrorMessage,
   getAdminPaymentSummary,
+  getStudentPaidMonths,
   getAdminStudents,
   getAdminTeachers,
   getAdminStudentReport,
   resetAdminStudentPassword,
   resetAdminTeacherPassword,
+  syncStudentPaidMonths,
   updateAdminPaymentState,
   updateAdminStudent,
   updateAdminTeacher,
@@ -47,6 +49,7 @@ import { useAdminToast } from '@/components/admin/AdminToastProvider';
 type PeopleTab = 'Students' | 'Teachers';
 type FormMode = 'add-student' | 'edit-student' | 'add-teacher' | 'edit-teacher' | null;
 type PaymentTarget = { id: string; name: string; role: PaymentSummary['user_role'] };
+const PAYMENT_YEAR = new Date().getFullYear();
 
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase() || '?';
@@ -325,7 +328,12 @@ export default function AdminPeoplePage() {
     setPaymentError('');
     setPaymentLoading(true);
     try {
-      setPaymentSummary(await getAdminPaymentSummary(target.id, target.role));
+      const summary = await getAdminPaymentSummary(target.id, target.role);
+      if (target.role === 'student') {
+        const ledger = await getStudentPaidMonths(target.id, PAYMENT_YEAR);
+        summary.paid_months = ledger.paid_months;
+      }
+      setPaymentSummary(summary);
     } catch (requestError) {
       setPaymentError(getAdminErrorMessage(requestError, messages.paymentDetailsLoadError));
     } finally {
@@ -338,7 +346,22 @@ export default function AdminPeoplePage() {
     setPaymentSaving(true);
     setPaymentError('');
     try {
-      setPaymentSummary(await updateAdminPaymentState(paymentTarget.id, paymentTarget.role, paymentSummary.paid_months));
+      if (paymentTarget.role === 'student') {
+        const ledger = await syncStudentPaidMonths(
+          paymentTarget.id,
+          PAYMENT_YEAR,
+          paymentSummary.paid_months,
+        );
+        setPaymentSummary((current) => current
+          ? { ...current, paid_months: ledger.paid_months }
+          : current);
+      } else {
+        setPaymentSummary(await updateAdminPaymentState(
+          paymentTarget.id,
+          paymentTarget.role,
+          paymentSummary.paid_months,
+        ));
+      }
       showSuccessToast('Payment details were updated.', 'Payment details saved');
     } catch (requestError) {
       setPaymentError(getAdminErrorMessage(requestError, messages.paymentStateSaveError));
@@ -542,7 +565,7 @@ export default function AdminPeoplePage() {
               <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#dfc27e]">{messages.financials}</p><h2 className="mt-1 text-base font-semibold text-white">{paymentTarget.name}</h2></div><button onClick={() => setPaymentTarget(null)} disabled={paymentSaving} aria-label={messages.closePayments} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
               {paymentLoading ? <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" /> : paymentSummary && <>
                 <div className="grid grid-cols-2 gap-2"><div className="rounded-lg border border-[#c6a96b]/15 bg-[#c6a96b]/[0.05] p-3"><p className="text-[10px] text-white/40">{paymentTarget.role === 'student' ? messages.monthlyFee : messages.monthlyPayout}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#dfc27e]">{paymentSummary.monthly_amount.toFixed(2)} MAD</p></div><div className="rounded-lg border border-white/10 bg-white/[0.025] p-3"><p className="text-[10px] text-white/40">{messages.status}</p><p className={`mt-1 text-sm font-semibold ${paymentSummary.due ? 'text-rose-200' : 'text-emerald-200'}`}>{paymentSummary.due ? messages.paymentDue : messages.upToDate}</p></div></div>
-                <div className="mt-5"><p className="mb-2 text-[11px] font-medium text-white/55">{messages.paidMonths}</p><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{messages.monthsShort.map((label, index) => { const month = index + 1; const checked = paymentSummary.paid_months.includes(month); return <label key={label} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${checked ? 'border-[#c6a96b]/40 bg-[#c6a96b]/[0.1] text-[#dfc27e]' : 'border-white/10 text-white/55'}`}><input type="checkbox" checked={checked} onChange={() => setPaymentSummary((current) => current ? { ...current, paid_months: checked ? current.paid_months.filter((item) => item !== month) : [...current.paid_months, month].sort((a, b) => a - b) } : current)} className="size-3.5 accent-[#c6a96b]" />{label}</label>; })}</div></div>
+                <div className="mt-5"><p className="mb-2 text-[11px] font-medium text-white/55">{messages.paidMonths}{paymentTarget.role === 'student' ? ` · ${PAYMENT_YEAR}` : ''}</p><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{messages.monthsShort.map((label, index) => { const month = index + 1; const checked = paymentSummary.paid_months.includes(month); return <label key={label} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${checked ? 'border-[#c6a96b]/40 bg-[#c6a96b]/[0.1] text-[#dfc27e]' : 'border-white/10 text-white/55'}`}><input type="checkbox" checked={checked} onChange={() => setPaymentSummary((current) => current ? { ...current, paid_months: checked ? current.paid_months.filter((item) => item !== month) : [...current.paid_months, month].sort((a, b) => a - b) } : current)} className="size-3.5 accent-[#c6a96b]" />{label}</label>; })}</div></div>
                 {paymentError && <p role="alert" className="mt-3 text-xs text-rose-200">{paymentError}</p>}
                 <button onClick={savePayments} disabled={paymentSaving} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{paymentSaving && <LoaderCircle size={15} className="animate-spin" />}{messages.savePaymentState}</button>
               </>}
