@@ -98,6 +98,7 @@ Teacher response: `{ "teacher_id": string, "admin_id": string, "full_name": stri
 - `TeacherNotificationCreate`: `{ "message": string, "class_id": string|null, "student_id": string|null, "reference_link": string|null }`.
 - `NotificationCreate`: `{ "receiver_id": string, "receiver_role": string="student", "message": string, "reference_link": string|null }`.
 - `AttendanceSaveRequest`: `{ "class_id": string, "session_id": string|null, "date": "YYYY-MM-DD", "records": [{ "student_id": string, "status": "present"|"absent" }] }`. `session_id` identifies a scheduled lesson; omitted/null values remain compatible with legacy date-only entries.
+- `StudentPaymentCreate`: `{ "student_id": string, "amount": number, "month": "YYYY-MM", "payment_date": "YYYY-MM-DD" }`. `amount` must be greater than zero, and `month` must match `payment_date`. `payment_date` defaults to the server's current date.
 - Notification response fields: `id`, `admin_id`, `sender_id`, `receiver_id`, `receiver_role`, `notification_type`, `message`, `reference_link`, `is_read`, `created_at`; compatibility aliases `notification_id`, `title`, `teacher_id`, and `teacher_name` may also be present.
 
 ## Administrator Endpoints
@@ -113,6 +114,8 @@ All `/admin/...` routes require an administrator bearer token. `/students/`, `/t
 | `POST /admin/classes` | Create a class. | JSON `ClassCreate`. | `201`-style response body: class response shape above (actual status is FastAPI default `200`). | `400` invalid class; `401/403/422`. |
 | `GET /admin/classes` | List admin's classes. | None. | Array of class response objects. | `401/403`. |
 | `GET /admin/stats` | Get dashboard counts. | None. | `{ "total_students": number, "teaching_staff": number, "active_classes": number }`. | `401/403`. |
+| `GET /admin/analytics/revenue-attendance` | Get every day's recorded present-student count and collected payment revenue for a month. Required query: `month` matching `YYYY-MM`. Attendance counts each present student attendance record; revenue is grouped by the payment's actual `payment_date`. | None. | `{ "month": string, "days": [{ "date": "YYYY-MM-DD", "attendance": number, "revenue": number }], "total_attendance": number, "total_revenue": number }`. Missing days are returned with zero values. | `401/403/422`. |
+| `POST /admin/payments/transactions` | Record an amount-level student payment in the tenant-scoped `student_payments` collection. | JSON `StudentPaymentCreate`. | `201`: `{ "id": string, "student_id": string, "student_name": string, "amount": number, "payment_date": "YYYY-MM-DD", "month": "YYYY-MM" }`. | `400` student not found in this workspace or invalid student ID; `401/403/422`. |
 | `PUT /admin/classes/{class_id}` | Update a class. Path: `class_id`. | JSON `ClassUpdate`. | `{ "message": string }`. | `400` inaccessible/invalid class; `401/403/422`. |
 | `DELETE /admin/classes/{class_id}` | Delete a class. Path: `class_id`. | None. | `{ "message": string }`. | `404` class not found; `401/403`. |
 | `POST /admin/students` | Create a student record. | JSON admin student create payload. | Student response shape above. | `400` validation/business failure; `401/403/422`. |
@@ -141,9 +144,10 @@ The `/teachers/me/...` routes require a teacher token. Teachers can only manage 
 | `GET /teachers/me/classes` | List assigned classes. | None. | Array of class objects as stored on the teacher profile. | `401/403`. |
 | `PUT /teachers/me` | Update own profile. | JSON subset of teacher profile fields. | `{ "message": string }`. | `400` no fields or update rejected; `401/403/422`. |
 | `GET /teachers/me/courses` | List courses owned by the teacher. | None. | Array of course response objects. | `401/403`. |
-| `POST /teachers/me/courses` | Create course and optionally upload course notes/summary. | Multipart form: required `title` (string), required `class_id` (string), optional `description` (string, default empty), optional `file` (PDF/JPEG/PNG material). | Course response object; material path is not included in this response. Student course listing exposes `material_file_path`. | `400` teacher is not assigned to the class or course creation fails; `401/403/422`. |
+| `POST /teachers/me/courses` | Create course and optionally upload course notes/summary. A successful creation generates an admin activity notification. | Multipart form: required `title` (string), required `class_id` (string), optional `description` (string, default empty), optional `file` (PDF/JPEG/PNG material). | Course response object; material path is not included in this response. Student course listing exposes `material_file_path`. | `400` teacher is not assigned to the class or course creation fails; `401/403/422`. |
 | `GET /teachers/me/exercises` | List teacher's exercises. | None. | Array of exercise response objects. | `401/403`. |
-| `POST /teachers/me/exercises` | Create an exercise linked to a course and upload its prompt/material. | Multipart form: required `course_id` (string), optional `max_score` (number, default `20`), required `file` (PDF, JPEG, or PNG). | Exercise response object. | `400` missing filename, unsupported media type, invalid course, or creation failure; `401/403/422`. |
+| `POST /teachers/me/exercises` | Create an exercise linked to a course and upload its prompt/material. A successful creation generates an admin activity notification. | Multipart form: required `course_id` (string), optional `max_score` (number, default `20`), required `file` (PDF, JPEG, or PNG). | Exercise response object. | `400` missing filename, unsupported media type, invalid course, or creation failure; `401/403/422`. |
+| `POST /teachers/exercises` | Create graded work for an assigned class. A successful creation generates an admin activity notification. | Multipart form: required `class_id` and `title`; optional `course_id`, `description`, `max_score`, `due_date`, and `file`. | Exercise response object. | `400` class/course assignment or creation failure; `401/403/422`. |
 | `GET /teachers/me/students` | List students in the teacher's classes. | None. | Array of `{ "student_id": string, "full_name": string, "email": string, "phone_number": string, "level_academy": string, "class_id": string }`. | `401/403`. |
 | `GET /teachers/me/submissions` | List submissions for the teacher's exercises. | None. | Array of `{ "id": string, "student_id": string, "exercise_id": string, "submitted_at": string|null, "file_path": string, "submission_status": string, "score": number|null }`; empty array if no matching submissions. | `401/403`. |
 | `PATCH /teachers/me/submissions/{submission_id}/score` | Assign/update a mark on a submission owned by this teacher. | Multipart form field `score` (number). | `{ "message": string }`. | `400` submission/exercise not found or does not belong to teacher; `401/403/422`. |
@@ -152,6 +156,9 @@ The `/teachers/me/...` routes require a teacher token. Teachers can only manage 
 | `PUT /teachers/me/grades/{grade_id}` | Update a mark using the submission ID as `grade_id`. | JSON `{ "score": number }`. | `{ "message": string }`. | `400` invalid score, missing submission, or exercise is not owned by teacher; `401/403/422`. |
 | `POST /teachers/me/notifications` | Notify a class or all assigned class students. | JSON `TeacherNotificationCreate`; optional `class_id` must be one of the teacher's assigned classes. | `{ "message": string }`. | `400` class not assigned or notification rejected; `401/403/422`. |
 | `POST /teachers/me/notifications/{student_id}` | Notify a specific student. Path: `student_id`. | JSON `TeacherNotificationCreate`. | `{ "message": string }`. | `400` student/notification invalid; `401/403/422`. |
+| `GET /teachers/notifications` | List notifications for the current teacher, newest first. | None. | Array of notification objects including `is_read`. | `401/403`. |
+| `PATCH /teachers/notifications/read` | Mark all unread notifications for the current teacher as read. | None. | `{ "message": string, "updated_count": number }`. | `401/403`. |
+| `POST /teachers/messages` | Send a message to the admin, an assigned class, or an assigned student. | JSON `{ "target_type": "admin"|"class"|"student", "target_id": string, "subject": string, "message": string }`. | `{ "message": string, "recipient_name": string }`. | `400` recipient is invalid or not assigned; `401/403/422`. |
 
 ### Admin-managed teacher records
 
@@ -236,7 +243,7 @@ The general submission reads require a valid token. Creation requires student; u
 
 ## Notifications
 
-List/search/count/get require a valid token. Creating via `/notifications/` requires teacher. Mark-read requires student; delete requires admin.
+List/search/count/get require a valid token. Creating via `/notifications/` requires teacher. Single-notification mark-read requires student; the teacher inbox also supports bulk mark-read. Delete requires admin.
 
 | Method & route | Description and parameters | Request | Success response | Handler-specific errors |
 |---|---|---|---|---|

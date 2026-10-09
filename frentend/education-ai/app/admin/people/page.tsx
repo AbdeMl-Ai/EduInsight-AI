@@ -6,6 +6,7 @@ import {
   BookOpen,
   Eye,
   LoaderCircle,
+  MoreHorizontal,
   Plus,
   Search,
   ShieldCheck,
@@ -41,6 +42,7 @@ import {
 } from '@/lib/admin-api';
 import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
 type PeopleTab = 'Students' | 'Teachers';
 type FormMode = 'add-student' | 'edit-student' | 'add-teacher' | 'edit-teacher' | null;
@@ -92,6 +94,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 
 export default function AdminPeoplePage() {
   const { messages } = useLandingLanguage();
+  const { showSuccessToast } = useAdminToast();
   const [tab, setTab] = useState<PeopleTab>('Students');
   const [students, setStudents] = useState<AdminStudent[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
@@ -116,6 +119,8 @@ export default function AdminPeoplePage() {
   const [resetNotice, setResetNotice] = useState('');
   const [resetError, setResetError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -211,6 +216,7 @@ export default function AdminPeoplePage() {
           }
         }
         setFormNotice(messages.studentProfileUpdated);
+        showSuccessToast(messages.studentProfileUpdated, 'Student updated');
       } else {
         const selectedClass = classes.find((item) => item.id === selectedClassIds[0]);
         const created = await createAdminStudent({
@@ -232,6 +238,7 @@ export default function AdminPeoplePage() {
           }
         }
         setFormNotice(password ? messages.studentAndLoginCreated : messages.studentCreatedSetPassword);
+        showSuccessToast('Student added to the learning community.', 'Student added');
       }
       await reloadPeople();
     } catch (requestError) {
@@ -269,9 +276,11 @@ export default function AdminPeoplePage() {
           }
         }
         setFormNotice(password ? messages.teacherProfileLoginUpdated : messages.teacherProfileUpdated);
+        showSuccessToast(messages.teacherProfileUpdated, 'Teacher updated');
       } else {
         await createAdminTeacher(teacherData);
         setFormNotice(messages.teacherProfileCreated);
+        showSuccessToast(messages.teacherProfileCreated, 'Teacher added');
       }
       await reloadPeople();
     } catch (requestError) {
@@ -302,6 +311,7 @@ export default function AdminPeoplePage() {
       await resetAdminStudentPassword(infoStudent.student_id, resetPassword);
       setResetPassword('');
       setResetNotice(messages.passwordResetShareSecurely);
+      showSuccessToast(messages.passwordResetShareSecurely, 'Password updated');
     } catch (requestError) {
       setResetError(getAdminErrorMessage(requestError, messages.couldNotResetPassword));
     } finally {
@@ -329,6 +339,7 @@ export default function AdminPeoplePage() {
     setPaymentError('');
     try {
       setPaymentSummary(await updateAdminPaymentState(paymentTarget.id, paymentTarget.role, paymentSummary.paid_months));
+      showSuccessToast('Payment details were updated.', 'Payment details saved');
     } catch (requestError) {
       setPaymentError(getAdminErrorMessage(requestError, messages.paymentStateSaveError));
     } finally {
@@ -342,6 +353,7 @@ export default function AdminPeoplePage() {
     setError('');
     try {
       await deleteAdminStudent(student.student_id);
+      showSuccessToast('The student was removed from the directory.', 'Student removed');
       if (infoStudent?.student_id === student.student_id) setInfoStudent(null);
       await reloadPeople();
     } catch (requestError) {
@@ -357,6 +369,7 @@ export default function AdminPeoplePage() {
     setError('');
     try {
       await deleteAdminTeacher(teacher.teacher_id);
+      showSuccessToast('The teacher was removed from the directory.', 'Teacher removed');
       await reloadPeople();
     } catch (requestError) {
       setError(getAdminErrorMessage(requestError, messages.personDeletedError));
@@ -387,7 +400,7 @@ export default function AdminPeoplePage() {
             key={item}
             role="tab"
             aria-selected={tab === item}
-            onClick={() => { setTab(item); setQuery(''); }}
+            onClick={() => { setTab(item); setQuery(''); setOpenMenuId(null); setExpandedPersonId(null); }}
             className={`min-h-10 rounded-md text-xs font-semibold transition-colors ${tab === item ? 'bg-[#c6a96b]/[0.12] text-[#e0c783]' : 'text-white/45 hover:text-white/75'}`}
           >
             {item === 'Students' ? messages.students : messages.teachers}
@@ -418,50 +431,95 @@ export default function AdminPeoplePage() {
         </div>
       ) : !error && tab === 'Students' ? (
         filteredStudents.length ? (
-          <div className="divide-y divide-white/[0.07] rounded-lg border border-white/10 bg-white/[0.02] px-3 sm:px-4">
+          <div className="rounded-xl border border-slate-200 bg-white/70 px-3 shadow-sm transition-colors dark:border-white/10 dark:bg-white/[0.02] sm:px-4">
             {filteredStudents.map((student) => (
-              <article key={student.student_id} className="flex min-w-0 items-center gap-3 py-3.5">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#c6a96b]/25 bg-[#c6a96b]/[0.07] text-[11px] font-semibold text-[#dfc27e]">{initials(student.full_name)}</span>
-                <button onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); }} className="min-w-0 flex-1 text-start">
-                  <span className="block truncate text-sm font-semibold text-white">{student.full_name}</span>
-                  <span className="mt-1 block truncate text-[10px] text-white/45">{student.email}</span>
-                  <span className="mt-0.5 block truncate text-[10px] text-white/35">{studentClassLabel(student, classes, messages.noClassAssigned)}</span>
-                </button>
-                <button
-                  onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); }}
-                  aria-label={`${messages.viewAccountInfo}: ${student.full_name}`}
-                  title={messages.studentAccountInfo}
-                  className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"
-                >
-                  <Eye size={17} />
-                </button>
-                <button onClick={() => openPayments({ id: student.student_id, name: student.full_name, role: 'student' })} aria-label={`${messages.payments}: ${student.full_name}`} title={messages.payments} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
-                <button onClick={() => openForm('edit-student', student)} aria-label={`${messages.editStudent}: ${student.full_name}`} title={messages.editStudent} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]">
-                  <UserRoundPen size={16} />
-                </button>
-                <button onClick={() => removeStudent(student)} disabled={deletingId === student.student_id} aria-label={`${messages.deleteStudent}: ${student.full_name}`} title={messages.deleteStudent} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
-                  {deletingId === student.student_id ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                </button>
+              <article key={student.student_id} className="relative border-b border-slate-200/80 py-2.5 last:border-b-0 dark:border-white/[0.07]">
+                <div className="flex min-w-0 items-center gap-3 border-s-2 border-amber-500/70 ps-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10 text-[11px] font-semibold text-amber-800 dark:text-amber-200">{initials(student.full_name)}</span>
+                  <button
+                    type="button"
+                    aria-expanded={expandedPersonId === `student:${student.student_id}`}
+                    onClick={() => setExpandedPersonId((current) => current === `student:${student.student_id}` ? null : `student:${student.student_id}`)}
+                    className="min-w-0 flex-1 py-1 text-start"
+                  >
+                    <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{student.full_name}</span>
+                    <span className="mt-1 hidden truncate text-[10px] text-slate-500 dark:text-white/45 sm:block">{student.email}</span>
+                    <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/35">{studentClassLabel(student, classes, messages.noClassAssigned)}</span>
+                  </button>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      aria-label={`Actions for ${student.full_name}`}
+                      aria-expanded={openMenuId === `student:${student.student_id}`}
+                      onClick={() => setOpenMenuId((current) => current === `student:${student.student_id}` ? null : `student:${student.student_id}`)}
+                      className="flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-amber-400/50 hover:bg-amber-300/10 hover:text-amber-800 dark:border-white/10 dark:text-white/50 dark:hover:text-amber-200"
+                    ><MoreHorizontal size={19} /></button>
+                    <AnimatePresence>
+                      {openMenuId === `student:${student.student_id}` && (
+                        <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} className="absolute end-0 top-11 z-40 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
+                          <button type="button" onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); setOpenMenuId(null); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Eye size={14} />{messages.viewAccountInfo}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); void openPayments({ id: student.student_id, name: student.full_name, role: 'student' }); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Wallet size={14} />{messages.payments}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); openForm('edit-student', student); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><UserRoundPen size={14} />{messages.editStudent}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); void removeStudent(student); }} disabled={deletingId === student.student_id} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-300/10"><Trash2 size={14} />{messages.deleteStudent}</button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+                <AnimatePresence initial={false}>
+                  {expandedPersonId === `student:${student.student_id}` && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+                      <dl className="ms-[3.25rem] mt-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-white/[0.08] dark:bg-white/[0.025] sm:grid-cols-2">
+                        <div className="min-w-0"><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.loginEmail}</dt><dd className="mt-1 break-all text-slate-800 dark:text-white/80">{student.email}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.phoneNumber}</dt><dd className="mt-1 text-slate-800 dark:text-white/80">{student.phone_number || '—'}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.academicLevel}</dt><dd className="mt-1 text-slate-800 dark:text-white/80">{student.level_academy || student.level || '—'}</dd></div>
+                        <div className="min-w-0"><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.classLabelPlural}</dt><dd className="mt-1 truncate text-slate-800 dark:text-white/80">{studentClassLabel(student, classes, messages.noClassAssigned)}</dd></div>
+                      </dl>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </article>
             ))}
           </div>
         ) : <EmptyPeople label={messages.students} singular={messages.student} onAdd={() => openForm('add-student')} />
       ) : !error ? (
         filteredTeachers.length ? (
-          <div className="divide-y divide-white/[0.07] rounded-lg border border-white/10 bg-white/[0.02] px-3 sm:px-4">
+          <div className="rounded-xl border border-slate-200 bg-white/70 px-3 shadow-sm transition-colors dark:border-white/10 dark:bg-white/[0.02] sm:px-4">
             {filteredTeachers.map((teacher) => (
-              <article key={teacher.teacher_id} className="flex min-w-0 items-center gap-3 py-3.5">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-300/20 bg-emerald-300/[0.05] text-[11px] font-semibold text-emerald-200">{initials(teacher.full_name)}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-white">{teacher.full_name}</p>
-                  <p className="mt-1 truncate text-[11px] text-white/45">{teacher.email}</p>
-                  <p className="mt-1 truncate text-[10px] text-white/35">{teacher.classes.length} {teacher.classes.length === 1 ? messages.classAssigned : messages.classesAssigned}</p>
+              <article key={teacher.teacher_id} className="relative border-b border-slate-200/80 py-2.5 last:border-b-0 dark:border-white/[0.07]">
+                <div className="flex min-w-0 items-center gap-3 border-s-2 border-emerald-500/70 ps-3">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">{initials(teacher.full_name)}</span>
+                  <button type="button" aria-expanded={expandedPersonId === `teacher:${teacher.teacher_id}`} onClick={() => setExpandedPersonId((current) => current === `teacher:${teacher.teacher_id}` ? null : `teacher:${teacher.teacher_id}`)} className="min-w-0 flex-1 py-1 text-start">
+                    <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{teacher.full_name}</span>
+                    <span className="mt-1 hidden truncate text-[10px] text-slate-500 dark:text-white/45 sm:block">{teacher.email}</span>
+                    <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/35">{teacher.classes.length} {teacher.classes.length === 1 ? messages.classAssigned : messages.classesAssigned}</span>
+                  </button>
+                  <div className="relative shrink-0">
+                    <button type="button" aria-label={`Actions for ${teacher.full_name}`} aria-expanded={openMenuId === `teacher:${teacher.teacher_id}`} onClick={() => setOpenMenuId((current) => current === `teacher:${teacher.teacher_id}` ? null : `teacher:${teacher.teacher_id}`)} className="flex size-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:border-emerald-400/50 hover:bg-emerald-300/10 hover:text-emerald-800 dark:border-white/10 dark:text-white/50 dark:hover:text-emerald-200"><MoreHorizontal size={19} /></button>
+                    <AnimatePresence>
+                      {openMenuId === `teacher:${teacher.teacher_id}` && (
+                        <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} className="absolute end-0 top-11 z-40 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
+                          <button type="button" onClick={() => { setOpenMenuId(null); setExpandedPersonId(`teacher:${teacher.teacher_id}`); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Eye size={14} />View details</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); void openPayments({ id: teacher.teacher_id, name: teacher.full_name, role: 'teacher' }); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Wallet size={14} />{messages.payments}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); openForm('edit-teacher', undefined, teacher); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><UserRoundPen size={14} />{messages.editTeacher}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); void removeTeacher(teacher); }} disabled={deletingId === teacher.teacher_id} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-300/10"><Trash2 size={14} />{messages.deleteTeacher}</button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
-                <button onClick={() => openPayments({ id: teacher.teacher_id, name: teacher.full_name, role: 'teacher' })} aria-label={`${messages.payments}: ${teacher.full_name}`} title={messages.payments} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 transition-colors hover:bg-white/5 hover:text-[#dfc27e]"><Wallet size={16} /></button>
-                <button onClick={() => openForm('edit-teacher', undefined, teacher)} aria-label={`${messages.editTeacher}: ${teacher.full_name}`} title={messages.editTeacher} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/5 hover:text-[#dfc27e]"><UserRoundPen size={16} /></button>
-                <button onClick={() => removeTeacher(teacher)} disabled={deletingId === teacher.teacher_id} aria-label={`${messages.deleteTeacher}: ${teacher.full_name}`} title={messages.deleteTeacher} className="flex size-10 shrink-0 items-center justify-center rounded-lg text-white/35 hover:bg-rose-300/10 hover:text-rose-300 disabled:opacity-40">
-                  {deletingId === teacher.teacher_id ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                </button>
+                <AnimatePresence initial={false}>
+                  {expandedPersonId === `teacher:${teacher.teacher_id}` && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: 'easeOut' }} className="overflow-hidden">
+                      <dl className="ms-[3.25rem] mt-3 grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-white/[0.08] dark:bg-white/[0.025] sm:grid-cols-2">
+                        <div className="min-w-0"><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.loginEmail}</dt><dd className="mt-1 break-all text-slate-800 dark:text-white/80">{teacher.email}</dd></div>
+                        <div><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.phoneNumber}</dt><dd className="mt-1 text-slate-800 dark:text-white/80">{teacher.phone_number || '—'}</dd></div>
+                        <div className="sm:col-span-2"><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.classesAssigned}</dt><dd className="mt-1 truncate text-slate-800 dark:text-white/80">{teacher.classes.map((item) => item.name).join(', ') || '—'}</dd></div>
+                        <div className="sm:col-span-2"><dt className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-white/40">{messages.specialtiesCommaSeparated}</dt><dd className="mt-1 truncate text-slate-800 dark:text-white/80">{teacher.specialties.join(', ') || '—'}</dd></div>
+                      </dl>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </article>
             ))}
           </div>

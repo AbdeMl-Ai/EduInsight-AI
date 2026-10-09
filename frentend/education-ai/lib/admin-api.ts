@@ -104,6 +104,35 @@ export type PaymentSummary = {
   due: boolean;
 };
 
+export type RevenueAttendanceDay = {
+  date: string;
+  attendance: number;
+  revenue: number;
+};
+
+export type RevenueAttendance = {
+  month: string;
+  days: RevenueAttendanceDay[];
+  total_attendance: number;
+  total_revenue: number;
+};
+
+export type StudentPaymentCreate = {
+  student_id: string;
+  amount: number;
+  month: string;
+  payment_date?: string;
+};
+
+export type StudentPayment = {
+  id: string;
+  student_id: string;
+  student_name: string;
+  amount: number;
+  payment_date: string;
+  month: string;
+};
+
 export type AttendanceRecord = {
   student_id: string;
   student_name: string | null;
@@ -183,6 +212,19 @@ export async function updateAdminProfile(data: Partial<Pick<AdminProfile, 'full_
 
 export async function getAdminStats(signal?: AbortSignal) {
   const { data } = await api.get<AdminStats>('/admin/stats', { signal });
+  return data;
+}
+
+export async function getRevenueAttendance(month: string, signal?: AbortSignal) {
+  const { data } = await api.get<RevenueAttendance>('/admin/analytics/revenue-attendance', {
+    params: { month },
+    signal,
+  });
+  return data;
+}
+
+export async function createStudentPayment(payment: StudentPaymentCreate) {
+  const { data } = await api.post<StudentPayment>('/admin/payments/transactions', payment);
   return data;
 }
 

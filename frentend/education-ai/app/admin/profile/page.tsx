@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { LoaderCircle, Mail, ShieldCheck, UserRound } from 'lucide-react';
 import LogoutButton from '@/components/app/LogoutButton';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 import {
   getAdminErrorMessage,
   getAdminProfile,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/admin-api';
 
 export default function AdminProfilePage() {
+  const { showSuccessToast } = useAdminToast();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -52,6 +54,7 @@ export default function AdminProfilePage() {
       setFullName(updated.full_name);
       setEmail(updated.email);
       setNotice('Your profile has been updated.');
+      showSuccessToast('Your profile has been updated.', 'Profile saved');
     } catch (requestError) {
       setError(getAdminErrorMessage(requestError, 'Profile could not be updated.'));
     } finally {

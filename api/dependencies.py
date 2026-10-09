@@ -31,6 +31,7 @@ from repositories.submission_repository import SubmissionRepo
 from repositories.schedule_repository import ScheduleRepo
 from repositories.teacher_repository import TeacherRepo
 from repositories.payment_repository import PaymentRepo
+from repositories.student_payment_repository import StudentPaymentRepo
 from services.auth_service import AuthService
 from services.admin_service import AdminService
 from services.attendance_service import AttendanceService
@@ -44,6 +45,7 @@ from services.student_service import StudentService
 from services.submission_service import SubmissionService
 from services.teacher_service import TeacherService
 from services.payment_service import PaymentService
+from services.analytics_service import AnalyticsService
 from services.schedule_service import ScheduleService
 from utils.security import decode_access_token
 
@@ -94,6 +96,10 @@ async def connect_to_database():
         [("admin_id", ASCENDING), ("day", ASCENDING), ("teacher_id", ASCENDING), ("start_time", ASCENDING)],
         name="schedule_teacher_day_start",
     )
+    await db["student_payments"].create_index(
+        [("admin_id", ASCENDING), ("payment_date", ASCENDING)],
+        name="student_payment_admin_date",
+    )
 
 
 def close_database():
@@ -114,18 +120,24 @@ material_repo = MaterialRepo(db)
 user_repo = UserRepo(db)
 schedule_repo = ScheduleRepo(db)
 payment_repo = PaymentRepo(db)
+student_payment_repo = StudentPaymentRepo(db)
 
 student_service = StudentService(student_repo, exercise_repo, parent_repo)
 teacher_service = TeacherService(teacher_repo)
-course_service = CourseService(course_repo, teacher_repo)
-exercise_service = ExerciseService(exercise_repo, course_repo)
 submission_service = SubmissionService(submission_repo, student_repo, exercise_repo)
 notification_service = NotificationService(notification_repo, student_repo, teacher_repo, admin_repo, class_repo)
+course_service = CourseService(course_repo, teacher_repo, notification_service)
+exercise_service = ExerciseService(
+    exercise_repo, course_repo, teacher_repo, notification_service
+)
 payment_service = PaymentService(payment_repo, student_repo, teacher_repo, class_repo, notification_service)
+analytics_service = AnalyticsService(attendance_repo, student_payment_repo)
 material_service = MaterialService(material_repo)
 parent_service = ParentService(parent_repo, student_repo)
 class_service = ClassService(class_repo, teacher_repo)
-schedule_service = ScheduleService(schedule_repo, teacher_repo, class_service)
+schedule_service = ScheduleService(
+    schedule_repo, teacher_repo, class_service, notification_service
+)
 attendance_service = AttendanceService(attendance_repo, teacher_repo, class_service, schedule_repo)
 admin_service = AdminService(admin_repo, student_service, teacher_service, class_service)
 auth_service = AuthService(

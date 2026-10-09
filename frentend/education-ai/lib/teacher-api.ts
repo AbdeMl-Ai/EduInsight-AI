@@ -97,8 +97,15 @@ export async function getTeacherNotifications(signal?: AbortSignal) {
   return data;
 }
 
+export async function markTeacherNotificationsRead() {
+  const { data } = await api.patch<{ message: string; updated_count: number }>(
+    '/teacher/notifications/read',
+  );
+  return data;
+}
+
 export async function sendTeacherMessage(payload: { target_type: 'admin' | 'class' | 'student'; target_id: string; subject: string; message: string }) {
-  const { data } = await api.post<{ message: string }>('/teacher/messages', payload);
+  const { data } = await api.post<{ message: string; recipient_name: string }>('/teacher/messages', payload);
   return data;
 }
 

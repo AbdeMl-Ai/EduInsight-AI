@@ -1,5 +1,3 @@
-from datetime import date
-
 from bson import ObjectId
 
 
@@ -66,6 +64,17 @@ class AttendanceRepo:
         ]
         students = await self.get_students_by_class(class_id, admin_id)
         return {"records": records, "students": students}
+
+    async def daily_present_counts(self, admin_id, month):
+        cursor = self.collection.aggregate([
+            {"$match": {
+                "admin_id": self._tenant(admin_id),
+                "date": {"$regex": f"^{month}"},
+                "status": "present",
+            }},
+            {"$group": {"_id": "$date", "attendance": {"$sum": 1}}},
+        ])
+        return {row["_id"]: row["attendance"] async for row in cursor}
 
     async def _rows(self, query):
         cursor = self.collection.find(query).sort([("date", 1), ("student_id", 1)])

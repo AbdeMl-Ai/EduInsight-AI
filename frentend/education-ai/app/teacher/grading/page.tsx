@@ -5,6 +5,7 @@ import axios from "axios";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Check,
+  CheckCircle2,
   ClipboardList,
   Eye,
   LoaderCircle,
@@ -143,8 +144,12 @@ export default function TeacherGradingPage() {
 
   function showToast(text: string) {
     setToast(text);
-    window.setTimeout(() => setToast(""), 2800);
   }
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(""), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
   function selectClass(nextClassId: string) {
     const nextClass = classes.find((item) => item.class_id === nextClassId);
     setClassId(nextClassId);
@@ -228,7 +233,7 @@ export default function TeacherGradingPage() {
       setMessageStudent(null);
       setMessageSubject("");
       setMessageBody("");
-      showToast(`Message sent to ${messageStudent.full_name}.`);
+      showToast(`Message sent successfully to ${messageStudent.full_name}.`);
     } catch (error) {
       setMessage(
         getTeacherErrorMessage(error, "Message could not be sent."),
@@ -533,13 +538,22 @@ export default function TeacherGradingPage() {
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: -18, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 420, damping: 30 }}
             role="status"
-            className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 rounded-2xl border border-emerald-300/20 bg-[#111]/95 p-3 text-center text-xs text-emerald-200 shadow-xl sm:left-auto sm:right-6 sm:w-80"
+            className="fixed right-4 top-20 z-[80] flex w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-emerald-300/20 bg-[#111]/95 p-4 text-emerald-100 shadow-2xl backdrop-blur-xl sm:right-6"
           >
-            {toast}
+            <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-300" />
+            <div>
+              <p className="text-xs font-semibold">{toast}</p>
+              <p className="mt-1 text-[10px] text-white/50">
+                {toast.startsWith("Message sent")
+                  ? "Your message is on its way."
+                  : "Your changes have been saved."}
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

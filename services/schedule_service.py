@@ -1,11 +1,16 @@
+from datetime import datetime, timedelta, timezone
+
 from models.domain_models import ScheduleSession
 
 
 class ScheduleService:
-    def __init__(self, schedule_repo, teacher_repo, class_service):
+    def __init__(
+        self, schedule_repo, teacher_repo, class_service, notification_service=None
+    ):
         self.schedule_repo = schedule_repo
         self.teacher_repo = teacher_repo
         self.class_service = class_service
+        self.notification_service = notification_service
 
     async def list_sessions(self, admin_id: str) -> list[dict[str, str]]:
         sessions = await self.schedule_repo.get_all(admin_id)
@@ -56,6 +61,15 @@ class ScheduleService:
                 end_time=data.end_time,
             )
         )
+        if self.notification_service is not None:
+            today = datetime.now(timezone.utc).date()
+            target_weekday = datetime.strptime(data.day, "%A").weekday()
+            session_date = today + timedelta(
+                days=(target_weekday - today.weekday()) % 7
+            )
+            await self.notification_service.notify_teacher_session_scheduled(
+                teacher.id, admin_id, data.day, session_date, data.start_time
+            )
         return {
             "id": session.id,
             "teacher_id": session.teacher_id,

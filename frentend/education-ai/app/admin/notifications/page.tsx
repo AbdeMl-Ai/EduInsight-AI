@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Bell, LoaderCircle, Send } from 'lucide-react';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 import {
   getAdminClasses,
   getAdminErrorMessage,
@@ -27,6 +28,7 @@ function formatDate(value: string) {
 }
 
 export default function AdminNotificationsPage() {
+  const { showSuccessToast } = useAdminToast();
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [students, setStudents] = useState<AdminStudent[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
@@ -96,6 +98,7 @@ export default function AdminNotificationsPage() {
       setStudentId('');
       setTeacherId('');
       setFeedback(mode === 'class' ? 'Announcement sent to the class.' : mode === 'student' ? 'Message sent to the student.' : 'Message sent to the teacher.');
+      showSuccessToast('Your message was sent successfully.', 'Notification sent');
       await refreshNotifications();
     } catch (requestError) {
       setError(getAdminErrorMessage(requestError, 'Notification could not be sent.'));

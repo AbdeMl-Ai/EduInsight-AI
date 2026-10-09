@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarDays, Clock3, LoaderCircle, Plus, Trash2, Users } from 'lucide-react';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import {
   ACADEMIC_LEVELS,
@@ -37,19 +38,21 @@ type ScheduleSession = {
   teacherName: string;
   classId: string;
   className: string;
+  subject: string;
   level: string;
   day: Day;
   startTime: string;
   endTime: string;
 };
 
-function fromApiSession(session: AdminScheduleSession): ScheduleSession {
+function fromApiSession(session: AdminScheduleSession, classes: AdminClass[]): ScheduleSession {
   return {
     id: session.id,
     teacherId: session.teacher_id,
     teacherName: session.teacher_name,
     classId: session.class_id,
     className: session.class_name,
+    subject: classes.find((item) => item.id === session.class_id)?.subject ?? '',
     level: session.level,
     day: session.day,
     startTime: session.start_time,
@@ -57,13 +60,11 @@ function fromApiSession(session: AdminScheduleSession): ScheduleSession {
   };
 }
 
-const TEACHER_COLORS = [
-  { background: '#c6a96b', border: '#f0d89d', text: '#17130b' },
-  { background: '#1e5747', border: '#64a88c', text: '#f2fbf6' },
-  { background: '#263f61', border: '#7298c4', text: '#f2f7ff' },
-  { background: '#632e3b', border: '#bd7886', text: '#fff4f5' },
-  { background: '#79502e', border: '#c99862', text: '#fff8ed' },
-] as const;
+const SCHEDULE_TONES = {
+  physics: { accent: '#34d399', rgb: '52, 211, 153', border: '52, 211, 153' },
+  math: { accent: '#be5368', rgb: '190, 83, 104', border: '190, 83, 104' },
+  other: { accent: '#a78bfa', rgb: '167, 139, 250', border: '167, 139, 250' },
+} as const;
 
 function formatTime(minutes: number) {
   const hours = Math.floor(minutes / 60).toString().padStart(2, '0');
@@ -76,13 +77,13 @@ function minutesOf(time: string) {
   return hours * 60 + minutes;
 }
 
-function teacherColor(teacherId: string, teacherName: string) {
-  const identity = teacherId || teacherName;
-  let hash = 0;
-  for (let index = 0; index < identity.length; index += 1) {
-    hash = (hash * 31 + identity.charCodeAt(index)) | 0;
+function scheduleTone(subject: string) {
+  const normalizedSubject = subject.toLocaleLowerCase();
+  if (normalizedSubject.includes('math') || normalizedSubject.includes('رياضيات')) return SCHEDULE_TONES.math;
+  if (normalizedSubject.includes('physics') || normalizedSubject === 'pc' || normalizedSubject.includes('physique')) {
+    return SCHEDULE_TONES.physics;
   }
-  return TEACHER_COLORS[Math.abs(hash) % TEACHER_COLORS.length];
+  return SCHEDULE_TONES.other;
 }
 
 function layoutSessions(sessions: ScheduleSession[]) {
@@ -171,6 +172,7 @@ function SelectField({
 
 export default function AdminWeeklySchedule() {
   const { language, messages } = useLandingLanguage();
+  const { showSuccessToast } = useAdminToast();
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [sessions, setSessions] = useState<ScheduleSession[]>([]);
@@ -200,7 +202,7 @@ export default function AdminWeeklySchedule() {
         if (controller.signal.aborted) return;
         setTeachers(teacherData);
         setClasses(classData);
-        setSessions(scheduleData.map(fromApiSession));
+        setSessions(scheduleData.map((session) => fromApiSession(session, classData)));
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
@@ -276,8 +278,9 @@ export default function AdminWeeklySchedule() {
         start_time: startTime,
         end_time: endTime,
       });
-      setSessions((current) => [...current, fromApiSession(saved)]);
+      setSessions((current) => [...current, fromApiSession(saved, classes)]);
       setFormError('');
+      showSuccessToast('The session was added to the weekly schedule.', 'Schedule updated');
     } catch (requestError) {
       setFormError(getAdminErrorMessage(requestError, messages.scheduleSaveError));
     } finally {
@@ -291,6 +294,7 @@ export default function AdminWeeklySchedule() {
     try {
       await deleteAdminScheduleSession(session.id);
       setSessions((current) => current.filter((item) => item.id !== session.id));
+      showSuccessToast('The session was removed from the weekly schedule.', 'Schedule updated');
     } catch (requestError) {
       setFormError(getAdminErrorMessage(requestError, messages.scheduleDeleteError));
     } finally {
@@ -393,7 +397,7 @@ export default function AdminWeeklySchedule() {
             {sessions.map((session) => {
               const dayIndex = DAYS.indexOf(session.day);
               const position = positions.get(session.id) ?? { lane: 0, laneCount: 1 };
-              const color = teacherColor(session.teacherId, session.teacherName);
+              const color = scheduleTone(session.subject);
               const laneWidth = 100 / position.laneCount;
               return (
                 <motion.article
@@ -402,7 +406,7 @@ export default function AdminWeeklySchedule() {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.18 }}
-                  className="z-10 min-h-0 overflow-hidden rounded-md border p-1.5 shadow-[0_0_16px_rgba(0,0,0,0.14)]"
+                  className="relative z-10 min-h-0 overflow-hidden rounded-md border border-s-0 p-1.5 text-slate-800 transition-colors dark:text-slate-100"
                   style={{
                     gridColumn: dayIndex + 2,
                     gridRow: `${(minutesOf(session.startTime) - (firstVisibleTime ?? 0)) / 30 + 2} / ${(minutesOf(session.endTime) - (firstVisibleTime ?? 0)) / 30 + 2}`,
@@ -411,20 +415,22 @@ export default function AdminWeeklySchedule() {
                     marginInlineEnd: '2px',
                     marginBlock: '2px',
                     boxSizing: 'border-box',
-                    backgroundColor: color.background,
-                    borderColor: color.border,
-                    color: color.text,
+                    backgroundColor: `rgba(${color.rgb}, 0.10)`,
+                    borderColor: `rgba(${color.border}, 0.34)`,
+                    borderInlineStartColor: color.accent,
+                    borderInlineStartWidth: '3px',
+                    boxShadow: `0 0 18px rgba(${color.rgb}, 0.06)`,
                   }}
                   title={`${session.level} · ${session.teacherName} · ${session.className} · ${session.startTime}–${session.endTime}`}
                 >
                   <div className="flex h-full min-h-0 flex-col overflow-hidden">
                     <div className="flex min-w-0 items-start justify-between gap-1">
-                      <span className="truncate text-[9px] font-bold leading-3">{session.level}</span>
-                      <button type="button" onClick={() => removeSession(session)} disabled={deletingIds.includes(session.id)} aria-label={messages.removeSessionLabel.replace('{className}', session.className)} title={messages.removeSession} className="flex size-5 shrink-0 items-center justify-center rounded text-current/65 hover:bg-black/10 hover:text-black disabled:opacity-45">{deletingIds.includes(session.id) ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}</button>
+                      <span className="truncate text-[8px] font-semibold leading-3 text-slate-500 dark:text-slate-300/65">{session.level}</span>
+                      <button type="button" onClick={() => removeSession(session)} disabled={deletingIds.includes(session.id)} aria-label={messages.removeSessionLabel.replace('{className}', session.className)} title={messages.removeSession} className="flex size-5 shrink-0 items-center justify-center rounded text-slate-500 transition-colors hover:bg-black/5 hover:text-rose-700 disabled:opacity-45 dark:text-white/50 dark:hover:bg-white/10 dark:hover:text-rose-300">{deletingIds.includes(session.id) ? <LoaderCircle size={11} className="animate-spin" /> : <Trash2 size={11} />}</button>
                     </div>
-                    <span className="truncate text-[9px] font-semibold leading-3">{session.teacherName}</span>
-                    <span className="truncate text-[8px] leading-3 opacity-75">{session.className}</span>
-                    <span className="mt-auto truncate text-[8px] leading-3 opacity-70">{session.startTime}–{session.endTime}</span>
+                    <span className="truncate text-[9px] font-semibold leading-3 text-slate-900 dark:text-white">{session.className}</span>
+                    <span className="truncate text-[8px] leading-3 text-slate-600 dark:text-slate-300/80">{session.subject || session.teacherName}</span>
+                    <span className="mt-auto truncate text-[8px] font-medium tabular-nums leading-3 text-slate-500 dark:text-slate-300/65">{session.startTime}–{session.endTime}</span>
                   </div>
                 </motion.article>
               );

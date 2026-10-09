@@ -112,11 +112,27 @@ async def get_my_notifications(user=Depends(require_teacher)):
     return results
 
 
+@router.patch("/me/notifications/read")
+@router.patch("/notifications/read")
+async def mark_my_notifications_read(user=Depends(require_teacher)):
+    updated_count = await notification_controller.mark_teacher_notifications_as_read(
+        user.id, user.admin_id
+    )
+    return {"message": "Notifications marked as read.", "updated_count": updated_count}
+
+
 @router.post("/messages")
 @router.post("/me/messages")
 async def send_my_message(data: TeacherMessageCreate, user=Depends(require_teacher)):
     try:
-        return {"message": await notification_controller.send_teacher_message(user.id, data.target_type, data.target_id, data.subject, data.message, user.admin_id)}
+        return await notification_controller.send_teacher_message(
+            user.id,
+            data.target_type,
+            data.target_id,
+            data.subject,
+            data.message,
+            user.admin_id,
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

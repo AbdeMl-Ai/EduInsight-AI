@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Any
 
 from bson import ObjectId
@@ -243,3 +243,12 @@ class PaymentState(MongoDocument):
         if any(month < 1 or month > 12 for month in value):
             raise ValueError("Payment months must be between 1 and 12.")
         return sorted(set(value))
+
+
+class StudentPayment(MongoDocument):
+    admin_id: MongoId
+    student_id: MongoId
+    amount: float = Field(gt=0)
+    payment_date: date
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    created_at: datetime = Field(default_factory=_utc_now)

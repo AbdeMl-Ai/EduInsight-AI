@@ -103,15 +103,68 @@ class NotificationService:
     async def get_teacher_notifications(self, teacher_id, admin_id):
         if await self.teacher_repo.get_teacher(teacher_id, admin_id) is None:
             raise ValueError("Teacher not found.")
-        return await self.notification_repo.get_notifications_for_receiver(teacher_id, admin_id)
+        return await self.notification_repo.get_notifications_for_receiver(
+            teacher_id, admin_id, receiver_role="teacher"
+        )
+
+    async def mark_teacher_notifications_as_read(self, teacher_id, admin_id):
+        if await self.teacher_repo.get_teacher(teacher_id, admin_id) is None:
+            raise ValueError("Teacher not found.")
+        return await self.notification_repo.mark_all_as_read(
+            teacher_id, "teacher", admin_id
+        )
+
+    async def notify_admin_resource_added(
+        self, teacher_id, resource_type, resource_title, admin_id
+    ):
+        teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
+        if teacher is None:
+            raise ValueError("Teacher not found in your workspace.")
+        message = f"Teacher {teacher.full_name} added a new {resource_type}: {resource_title}"
+        return await self._create(
+            admin_id,
+            teacher.id,
+            admin_id,
+            "admin",
+            "activity",
+            message,
+        )
+
+    async def notify_teacher_session_scheduled(
+        self, teacher_id, admin_id, day, session_date, start_time
+    ):
+        teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
+        if teacher is None:
+            raise ValueError("Teacher not found in your workspace.")
+        day_label = "today" if day == session_date.strftime("%A") else f"on {day}"
+        message = (
+            f"You have a new session scheduled {day_label} at {start_time} "
+            f"- {session_date.isoformat()}."
+        )
+        return await self._create(
+            admin_id,
+            None,
+            teacher.id,
+            "teacher",
+            "schedule",
+            message,
+        )
 
     async def send_teacher_message(self, teacher_id, target_type, target_id, subject, message, admin_id):
         body = f"{subject.strip()}\n\n{message.strip()}"
         if target_type == "admin":
-            if self.admin_repo is None or await self.admin_repo.get_admin(admin_id) is None:
+            admin = (
+                await self.admin_repo.get_admin(admin_id)
+                if self.admin_repo is not None
+                else None
+            )
+            if admin is None:
                 raise ValueError("Admin not found.")
             await self._create(admin_id, teacher_id, admin_id, "admin", "teacher_message", body)
-            return "Message sent to admin."
+            return {
+                "message": "Message sent to admin.",
+                "recipient_name": admin.full_name or admin.username or "Admin",
+            }
         if target_type == "student":
             teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
             student = await self.student_repo.get_student(target_id, admin_id)
@@ -129,9 +182,24 @@ class NotificationService:
             }
             if not assigned_class_ids.intersection(student_class_ids):
                 raise ValueError("You can only message students in your assigned classes.")
-            return await self.send_notification_to_student(teacher_id, target_id, body, admin_id)
+            await self.send_notification_to_student(teacher_id, target_id, body, admin_id)
+            return {
+                "message": "Message sent to student.",
+                "recipient_name": student.full_name,
+            }
         if target_type == "class":
-            return await self.send_notification_to_class_students(teacher_id, target_id, body, admin_id)
+            if self.class_repo is None:
+                raise ValueError("Class repository is unavailable.")
+            class_doc = await self.class_repo.get_class(target_id, admin_id)
+            if class_doc is None or class_doc.teacher_id != teacher_id:
+                raise ValueError("Class not found in your workspace.")
+            await self.send_notification_to_class_students(
+                teacher_id, target_id, body, admin_id
+            )
+            return {
+                "message": "Message sent to class students.",
+                "recipient_name": class_doc.class_name,
+            }
         raise ValueError("target_type must be admin, class, or student.")
 
     async def get_student_notifications(self, student_id, admin_id):

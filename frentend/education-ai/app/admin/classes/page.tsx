@@ -24,6 +24,7 @@ import {
 } from '@/lib/admin-api';
 import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
+import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
 type ClassForm = Omit<ClassCreate, 'teacher_id'> & { teacher_id: string };
 
@@ -48,6 +49,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 
 export default function AdminClassesPage() {
   const { messages } = useLandingLanguage();
+  const { showSuccessToast } = useAdminToast();
   const reduceMotion = useReducedMotion();
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [teachers, setTeachers] = useState<AdminTeacher[]>([]);
@@ -128,6 +130,10 @@ export default function AdminClassesPage() {
         const created = await createAdminClass(form);
         await assignAdminTeacherClasses(form.teacher_id, [created.id]);
       }
+      showSuccessToast(
+        editingClass ? 'Class details were updated.' : 'The class was added to your learning community.',
+        editingClass ? 'Class updated' : 'Class created',
+      );
       setFormOpen(false);
       setEditingClass(null);
       await reloadClasses();
@@ -146,6 +152,7 @@ export default function AdminClassesPage() {
     try {
       await deleteAdminClass(classItem.id);
       setClasses((current) => current.filter((item) => item.id !== classItem.id));
+      showSuccessToast('The class was removed from your learning community.', 'Class removed');
       setAttendance(null);
       setReportClassId((current) => current === classItem.id ? '' : current);
     } catch (requestError) {

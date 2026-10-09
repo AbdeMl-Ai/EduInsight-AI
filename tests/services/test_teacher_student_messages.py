@@ -9,7 +9,10 @@ from services.notification_service import NotificationService
 class FakeStudentRepo:
     def __init__(self, class_ids):
         self.student = SimpleNamespace(
-            id="student-a", class_id=class_ids[0] if class_ids else None, class_ids=class_ids
+            id="student-a",
+            full_name="Student One",
+            class_id=class_ids[0] if class_ids else None,
+            class_ids=class_ids,
         )
 
     async def get_student(self, _student_id, _admin_id):
@@ -49,7 +52,10 @@ def test_teacher_can_message_student_in_assigned_class():
         )
     )
 
-    assert result == "Notification sent to student."
+    assert result == {
+        "message": "Message sent to student.",
+        "recipient_name": "Student One",
+    }
     assert service.sent == ("Check-in\n\nHello", "teacher-a", "student-a", "student")
 
 

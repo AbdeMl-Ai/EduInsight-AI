@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -234,3 +234,38 @@ class PaymentSummary(BaseModel):
     total_amount: float
     base_date: str
     due: bool
+
+
+class StudentPaymentCreate(BaseModel):
+    student_id: str
+    amount: float = Field(gt=0, allow_inf_nan=False)
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    payment_date: date = Field(default_factory=date.today)
+
+    @model_validator(mode="after")
+    def validate_payment_month(self):
+        if self.payment_date.strftime("%Y-%m") != self.month:
+            raise ValueError("Payment month must match the payment date.")
+        return self
+
+
+class StudentPaymentResponse(BaseModel):
+    id: str
+    student_id: str
+    student_name: str
+    amount: float
+    payment_date: date
+    month: str
+
+
+class RevenueAttendanceDay(BaseModel):
+    date: date
+    attendance: int
+    revenue: float
+
+
+class RevenueAttendanceResponse(BaseModel):
+    month: str
+    days: list[RevenueAttendanceDay]
+    total_attendance: int
+    total_revenue: float

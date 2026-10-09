@@ -37,7 +37,7 @@ export default function TeacherAttendancePage() {
       .then(async ([sessions, records, profile]) => {
         const todaysSessions = sessions
           .filter((item) => item.day === todayName)
-          .sort((a, b) => a.start_time.localeCompare(b.start_time));
+          .sort((a, b) => b.start_time.localeCompare(a.start_time));
         const entries = await Promise.all(
           [...new Set(todaysSessions.map((item) => item.class_id))].map(async (classId) => [
             classId,

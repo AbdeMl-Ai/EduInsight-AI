@@ -3,9 +3,10 @@ from utils.validation_course import CourseValidator
 
 
 class CourseService:
-    def __init__(self, course_repo, teacher_repo):
+    def __init__(self, course_repo, teacher_repo, notification_service=None):
         self.course_repo = course_repo
         self.teacher_repo = teacher_repo
+        self.notification_service = notification_service
 
     async def create_course(self, title, description, teacher_id, class_id, admin_id, content_url=""):
         CourseValidator.validate_course_name(title)
@@ -18,7 +19,12 @@ class CourseService:
         if class_doc.get("teacher_id") != teacher_id:
             raise ValueError("You can only create courses for your assigned classes.")
         course = Course(admin_id=admin_id, teacher_id=teacher.id, class_id=class_id, title=title.strip(), description=description, content_url=content_url.strip())
-        return await self.course_repo.add_course(course, admin_id)
+        created_course = await self.course_repo.add_course(course, admin_id)
+        if self.notification_service is not None:
+            await self.notification_service.notify_admin_resource_added(
+                teacher.id, "course", created_course.title, admin_id
+            )
+        return created_course
 
     async def get_course(self, course_id, admin_id):
         course = await self.course_repo.get_course(course_id, admin_id)

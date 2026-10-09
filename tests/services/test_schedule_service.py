@@ -66,9 +66,24 @@ class FakeClassService:
         return SimpleNamespace(id=class_id, class_name="2 BAC Physics")
 
 
+class FakeNotificationService:
+    def __init__(self):
+        self.scheduled = []
+
+    async def notify_teacher_session_scheduled(
+        self, teacher_id, admin_id, day, session_date, start_time
+    ):
+        self.scheduled.append(
+            (teacher_id, admin_id, day, session_date, start_time)
+        )
+
+
 def test_schedule_service_persists_and_returns_enriched_session():
     repository = FakeScheduleRepo()
-    service = ScheduleService(repository, FakeTeacherRepo(), FakeClassService())
+    notifications = FakeNotificationService()
+    service = ScheduleService(
+        repository, FakeTeacherRepo(), FakeClassService(), notifications
+    )
 
     result = asyncio.run(service.create_session(make_request(), "admin-id"))
 
@@ -84,6 +99,15 @@ def test_schedule_service_persists_and_returns_enriched_session():
         "end_time": "21:30",
     }
     assert repository.created.start_time == "19:00"
+    assert len(notifications.scheduled) == 1
+    teacher_id, admin_id, day, session_date, start_time = notifications.scheduled[0]
+    assert (teacher_id, admin_id, day, start_time) == (
+        "teacher-id",
+        "admin-id",
+        "Monday",
+        "19:00",
+    )
+    assert session_date.strftime("%A") == day
 
 
 def test_schedule_service_rejects_teacher_overlap():

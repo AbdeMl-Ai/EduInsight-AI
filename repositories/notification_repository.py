@@ -49,9 +49,14 @@ class NotificationRepo:
         admin_id = self._tenant(admin_id)
         return await self.collection.find_one({"admin_id": admin_id, "reference_link": reference_link}, {"_id": 1}) is not None
 
-    async def get_notifications_for_receiver(self, receiver_id: str, admin_id: str):
+    async def get_notifications_for_receiver(
+        self, receiver_id: str, admin_id: str, receiver_role: str | None = None
+    ):
         admin_id = self._tenant(admin_id)
-        cursor = self.collection.find({"admin_id": admin_id, "receiver_id": self._id(receiver_id)}).sort("created_at", -1)
+        query = {"admin_id": admin_id, "receiver_id": self._id(receiver_id)}
+        if receiver_role is not None:
+            query["receiver_role"] = receiver_role
+        cursor = self.collection.find(query).sort("created_at", -1)
         return [Notification.model_validate(doc) async for doc in cursor]
 
     async def update_notification(self, notification_id: str, admin_id: str, **updates):
@@ -67,6 +72,21 @@ class NotificationRepo:
         admin_id = self._tenant(admin_id)
         result = await self.collection.update_one({"_id": ObjectId(self._id(notification_id)), "receiver_id": self._id(receiver_id), "admin_id": admin_id}, {"$set": {"is_read": True}})
         return result.modified_count == 1
+
+    async def mark_all_as_read(
+        self, receiver_id: str, receiver_role: str, admin_id: str
+    ):
+        admin_id = self._tenant(admin_id)
+        result = await self.collection.update_many(
+            {
+                "admin_id": admin_id,
+                "receiver_id": self._id(receiver_id),
+                "receiver_role": receiver_role,
+                "is_read": False,
+            },
+            {"$set": {"is_read": True}},
+        )
+        return result.modified_count
 
     async def delete_notification(self, notification_id: str, admin_id: str):
         admin_id = self._tenant(admin_id)

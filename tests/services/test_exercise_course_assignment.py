@@ -20,6 +20,18 @@ class FakeExerciseRepo:
         return exercise
 
 
+class FakeNotificationService:
+    def __init__(self):
+        self.notifications = []
+
+    async def notify_admin_resource_added(
+        self, teacher_id, resource_type, resource_title, admin_id
+    ):
+        self.notifications.append(
+            (teacher_id, resource_type, resource_title, admin_id)
+        )
+
+
 class RecordingExerciseService:
     async def create_graded_work(self, *args):
         return args
@@ -51,7 +63,12 @@ def test_graded_work_is_assigned_to_selected_course():
         teacher_id="teacher-a",
         class_id="class-a",
     )
-    service = ExerciseService(FakeExerciseRepo(), FakeCourseRepo(course))
+    notifications = FakeNotificationService()
+    service = ExerciseService(
+        FakeExerciseRepo(),
+        FakeCourseRepo(course),
+        notification_service=notifications,
+    )
 
     exercise = asyncio.run(
         service.create_graded_work(
@@ -69,6 +86,9 @@ def test_graded_work_is_assigned_to_selected_course():
     assert exercise.class_id == "class-a"
     assert exercise.course_id == "course-a"
     assert exercise.course_title == "Exercise 1"
+    assert notifications.notifications == [
+        ("teacher-a", "exercise", "Exercise 1", "admin-a")
+    ]
 
 
 def test_graded_work_rejects_course_from_another_class():

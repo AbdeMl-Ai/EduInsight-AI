@@ -4,9 +4,19 @@ from utils.validators import validate_max_score
 
 
 class ExerciseService:
-    def __init__(self, exercise_repo, course_repo):
+    def __init__(
+        self, exercise_repo, course_repo, teacher_repo=None, notification_service=None
+    ):
         self.exercise_repo = exercise_repo
         self.course_repo = course_repo
+        self.teacher_repo = teacher_repo
+        self.notification_service = notification_service
+
+    async def _notify_admin(self, teacher_id, resource_title, admin_id):
+        if self.notification_service is not None:
+            await self.notification_service.notify_admin_resource_added(
+                teacher_id, "exercise", resource_title, admin_id
+            )
 
     async def create_exercise(self, teacher_id, course_id, file_path, max_score, admin_id):
         validate_max_score(max_score)
@@ -16,7 +26,9 @@ class ExerciseService:
         if course.teacher_id != teacher_id:
             raise ValueError("You can only create exercises for your own courses.")
         exercise = Exercise(admin_id=admin_id, teacher_id=teacher_id, class_id=course.class_id, course_id=course.id, course_title=course.title, file_path=file_path, max_score=max_score)
-        return await self.exercise_repo.add_exercise(exercise, admin_id)
+        created_exercise = await self.exercise_repo.add_exercise(exercise, admin_id)
+        await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
+        return created_exercise
 
     async def create_graded_work(self, teacher_id, class_id, title, description, max_score, due_date, admin_id, file_path="", course_id=None):
         validate_max_score(max_score)
@@ -42,7 +54,9 @@ class ExerciseService:
             description=description,
             due_date=due_date,
         )
-        return await self.exercise_repo.add_graded_work(exercise, admin_id)
+        created_exercise = await self.exercise_repo.add_graded_work(exercise, admin_id)
+        await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
+        return created_exercise
 
     async def get_exercise(self, exercise_id, admin_id):
         exercise = await self.exercise_repo.get_exercise(exercise_id, admin_id)

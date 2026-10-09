@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.dependencies import (
     admin_controller,
+    analytics_service,
     class_controller,
     get_current_admin,
     notification_controller,
     payment_service,
+    student_payment_repo,
     schedule_controller,
     student_controller,
     teacher_controller,
@@ -30,9 +32,12 @@ from api.schemas.admin_schemas import (
     ClassUpdate,
     PaymentSummary,
     PaymentUpdate,
+    RevenueAttendanceResponse,
+    StudentPaymentCreate,
+    StudentPaymentResponse,
 )
 from api.schemas.notification_schema import AdminNotificationCreate
-from models.domain_models import ClassDocument
+from models.domain_models import ClassDocument, StudentPayment
 from utils.passwords import hash_password
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -354,6 +359,29 @@ async def get_payment_summary(user_id: str, user_role: str, _admin=Depends(get_c
 async def update_payment_state(user_id: str, data: PaymentUpdate, _admin=Depends(get_current_admin)):
     try:
         return await payment_service.update(user_id, data.user_role, data.paid_months, _admin.admin_id)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@router.get("/analytics/revenue-attendance", response_model=RevenueAttendanceResponse)
+async def revenue_attendance(
+    month: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+    _admin=Depends(get_current_admin),
+):
+    return await analytics_service.revenue_attendance(_admin.admin_id, month)
+
+
+@router.post("/payments/transactions", response_model=StudentPaymentResponse, status_code=201)
+async def record_student_payment(
+    data: StudentPaymentCreate,
+    _admin=Depends(get_current_admin),
+):
+    try:
+        payment = StudentPayment(
+            admin_id=_admin.admin_id,
+            **data.model_dump(),
+        )
+        return await student_payment_repo.create(payment, _admin.admin_id)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

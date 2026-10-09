@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
@@ -18,6 +18,7 @@ import {
 import {
   getTeacherErrorMessage,
   getTeacherNotifications,
+  markTeacherNotificationsRead,
   type TeacherNotification,
 } from '@/lib/teacher-api';
 import ThemeToggle from '@/components/app/ThemeToggle';
@@ -53,28 +54,53 @@ export default function TeacherLayout({
   const { language, messages } = useLandingLanguage();
   const [notifications, setNotifications] = useState<TeacherNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const latestNotifications = useMemo(() => {
-    const latestBySender = new Map<string, TeacherNotification>();
-    for (const notification of notifications) {
-      const senderId = notification.sender_id ?? 'admin';
-      if (!latestBySender.has(senderId)) latestBySender.set(senderId, notification);
-    }
-    return [...latestBySender.values()];
-  }, [notifications]);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
 
   useEffect(() => {
-    const controller = new AbortController();
-    getTeacherNotifications(controller.signal)
-      .then(setNotifications)
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          console.warn(
-            getTeacherErrorMessage(error, 'Teacher notifications unavailable.'),
-          );
-        }
-      });
-    return () => controller.abort();
+    let cancelled = false;
+    const refreshNotifications = () => {
+      getTeacherNotifications()
+        .then((items) => {
+          if (!cancelled) setNotifications(items);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            console.warn(
+              getTeacherErrorMessage(
+                error,
+                'Teacher notifications unavailable.',
+              ),
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setNotificationsLoading(false);
+        });
+    };
+    refreshNotifications();
+    const interval = window.setInterval(refreshNotifications, 60_000);
+    window.addEventListener('focus', refreshNotifications);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshNotifications);
+    };
   }, []);
+
+  async function openNotifications() {
+    setNotificationsOpen(true);
+    if (!notifications.some((item) => !item.is_read)) return;
+    try {
+      await markTeacherNotificationsRead();
+      setNotifications((current) =>
+        current.map((item) => ({ ...item, is_read: true })),
+      );
+    } catch (error) {
+      console.warn(
+        getTeacherErrorMessage(error, 'Notifications could not be marked as read.'),
+      );
+    }
+  }
 
   return (
     <AuthGuard role="teacher">
@@ -139,17 +165,10 @@ export default function TeacherLayout({
               {messages.teacherPortal}
             </div>
             <div className="ms-auto flex items-center gap-2 text-[11px] text-white/45 sm:gap-3">
-              <Link
-                href="/teacher/messages"
-                aria-label={messages.composeMessage}
-                title={messages.composeMessage}
-                className="text-white/45 hover:text-[#dfc27e]"
-              >
-                <Send size={17} />
-              </Link>
               <button
                 type="button"
-                onClick={() => setNotificationsOpen(true)}
+                onClick={openNotifications}
+                disabled={notificationsLoading}
                 aria-label={messages.openNotifications}
                 title={messages.openNotifications}
                 className="relative text-white/45 hover:text-[#dfc27e]"
@@ -204,11 +223,15 @@ export default function TeacherLayout({
                     </button>
                   </div>
                   <div className="mt-5 flex-1 space-y-2 overflow-y-auto">
-                    {latestNotifications.length ? (
-                      latestNotifications.slice(0, 12).map((item) => (
+                    {notifications.length ? (
+                      notifications.slice(0, 20).map((item) => (
                         <article
                           key={item.id}
-                          className="rounded-2xl border border-white/10 bg-white/[0.025] p-3"
+                          className={`rounded-2xl border p-3 ${
+                            item.is_read
+                              ? 'border-white/10 bg-white/[0.025]'
+                              : 'border-[#c6a96b]/30 bg-[#c6a96b]/[0.06]'
+                          }`}
                         >
                           <p className="mb-1 text-[11px] font-semibold text-[#dfc27e]">
                             {item.sender_name}
@@ -216,6 +239,12 @@ export default function TeacherLayout({
                           <p className="text-xs leading-5 text-white/75">
                             {item.message}
                           </p>
+                          {!item.is_read && (
+                            <span className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-[#dfc27e]">
+                              <span className="size-1.5 rounded-full bg-[#dfc27e]" />
+                              Unread
+                            </span>
+                          )}
                           <time className="mt-2 block text-[10px] text-white/35">
                             {new Date(item.created_at).toLocaleString(
                               language === 'ar' ? 'ar' : 'en',

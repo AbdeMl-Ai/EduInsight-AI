@@ -31,6 +31,25 @@ class NotificationController:
     async def get_teacher_notifications(self, teacher_id, admin_id):
         return await self.notification_service.get_teacher_notifications(teacher_id, admin_id)
 
+    async def mark_teacher_notifications_as_read(self, teacher_id, admin_id):
+        return await self.notification_service.mark_teacher_notifications_as_read(
+            teacher_id, admin_id
+        )
+
+    async def notify_admin_resource_added(
+        self, teacher_id, resource_type, resource_title, admin_id
+    ):
+        return await self.notification_service.notify_admin_resource_added(
+            teacher_id, resource_type, resource_title, admin_id
+        )
+
+    async def notify_teacher_session_scheduled(
+        self, teacher_id, admin_id, day, session_date, start_time
+    ):
+        return await self.notification_service.notify_teacher_session_scheduled(
+            teacher_id, admin_id, day, session_date, start_time
+        )
+
     async def send_teacher_message(self, teacher_id, target_type, target_id, subject, message, admin_id):
         return await self.notification_service.send_teacher_message(teacher_id, target_type, target_id, subject, message, admin_id)
 
