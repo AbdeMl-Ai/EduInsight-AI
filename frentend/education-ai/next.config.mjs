@@ -10,7 +10,7 @@ const nextConfig = {
     const backendUrl = (
       process.env.NEXT_PUBLIC_API_URL ||
       process.env.NEXT_PUBLIC_API_BASE_URL
-    )?.replace(/\/+$/, "");
+    )?.replace(/\/+$/, "").replace(/\/api$/i, "");
     if (!backendUrl && process.env.VERCEL) {
       throw new Error(
         "NEXT_PUBLIC_API_URL must be configured in Vercel with the public backend URL.",

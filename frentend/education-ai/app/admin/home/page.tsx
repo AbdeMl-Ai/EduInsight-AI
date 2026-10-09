@@ -60,13 +60,13 @@ export default function AdminHomePage() {
       <motion.header
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="hero-card relative isolate flex min-h-56 flex-col justify-end overflow-hidden rounded-2xl border border-slate-300/80 bg-gradient-to-br from-slate-100 via-slate-50 to-amber-50 p-6 shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-colors duration-300 dark:border-white/10 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-[0_24px_70px_rgba(0,0,0,0.32)] sm:min-h-64 sm:p-8"
+        className="hero-card relative isolate flex min-h-56 flex-col justify-end overflow-hidden rounded-2xl border border-slate-300/80 bg-gradient-to-br from-slate-100 via-slate-50 to-amber-50 p-4 shadow-[0_18px_55px_rgba(15,23,42,0.08)] transition-colors duration-300 dark:border-white/10 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:shadow-[0_24px_70px_rgba(0,0,0,0.32)] sm:min-h-64 sm:p-8"
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-50 [background-image:linear-gradient(to_right,rgba(100,116,139,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(100,116,139,0.12)_1px,transparent_1px)] [background-size:28px_28px] dark:opacity-35 dark:[background-image:linear-gradient(to_right,rgba(203,213,225,0.11)_1px,transparent_1px),linear-gradient(to_bottom,rgba(203,213,225,0.11)_1px,transparent_1px)]" />
-        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] items-center justify-center overflow-hidden sm:flex">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 end-0 hidden w-[52%] items-center justify-center overflow-hidden sm:flex">
           <div className="absolute size-64 rounded-full border border-slate-400/20 bg-amber-300/10 blur-3xl dark:border-white/10 dark:bg-emerald-300/[0.04]" />
           <div className="relative flex size-52 items-center justify-center rounded-[2.5rem] border border-slate-400/20 bg-white/25 shadow-[0_24px_70px_rgba(15,23,42,0.08)] backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.025]">
-            <div className="absolute -right-5 -top-5 flex size-16 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-200/50 text-amber-800 dark:border-amber-200/15 dark:bg-amber-200/[0.06] dark:text-amber-200">
+            <div className="absolute -end-5 -top-5 flex size-16 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-200/50 text-amber-800 dark:border-amber-200/15 dark:bg-amber-200/[0.06] dark:text-amber-200">
               <GraduationCap size={29} strokeWidth={1.4} />
             </div>
             <BookOpen className="text-slate-500/35 dark:text-slate-300/25" size={118} strokeWidth={0.8} />
@@ -75,21 +75,21 @@ export default function AdminHomePage() {
             </div>
           </div>
         </div>
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white via-white/85 to-transparent dark:from-slate-950 dark:via-slate-950/85 dark:to-transparent" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white via-white/85 to-transparent dark:from-slate-950 dark:via-slate-950/85 dark:to-transparent rtl:bg-gradient-to-l" />
         <div className="relative z-10 flex h-full w-full flex-col items-start">
           <div className="max-w-xl">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800/80 dark:text-amber-200/75">{messages.adminOffice}</p>
-            <h1 className="break-words text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl dark:text-white">
+            <h1 className="break-words text-xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-3xl dark:text-white">
               {messages.welcomeBack.replace('{name}', profile?.full_name || messages.adminName)}
               <Hand className="ms-2 inline-block -rotate-12 text-amber-600 dark:text-amber-300" size={24} strokeWidth={1.8} aria-hidden="true" />
             </h1>
             <p className="mt-2 max-w-md text-sm leading-6 text-slate-600 dark:text-slate-300/75">{messages.manageCommunityDesc}</p>
           </div>
-          <div className="mt-auto flex w-full items-end justify-between gap-4">
-            <Link href="/admin/people" className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-400 px-3.5 text-xs font-semibold text-slate-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300 dark:border-amber-200/30 dark:bg-amber-200 dark:hover:bg-amber-100">
+          <div className="mt-auto flex w-full flex-col items-start gap-3 pt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:pt-0">
+            <Link href="/admin/people" className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-400 px-3.5 text-xs font-semibold text-slate-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300 dark:border-amber-200/30 dark:bg-amber-200 dark:hover:bg-amber-100">
               {messages.managePeopleLink} <ArrowUpRight size={15} />
             </Link>
-            <div className="rounded-full border border-slate-300 bg-white/65 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-slate-600 backdrop-blur-sm dark:border-white/15 dark:bg-black/30 dark:text-white/65">{messages.adminOffice}</div>
+            <div className="max-w-full rounded-full border border-slate-300 bg-white/65 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-slate-600 backdrop-blur-sm dark:border-white/15 dark:bg-black/30 dark:text-white/65">{messages.adminOffice}</div>
           </div>
         </div>
       </motion.header>
@@ -108,7 +108,7 @@ export default function AdminHomePage() {
           </div>
           <Link href="/admin/classes" className="text-[10px] font-medium text-amber-800 transition-colors hover:text-amber-600 dark:text-[#dfc27e] dark:hover:text-[#f0d89d]">View classes</Link>
         </div>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
           {statItems.map(({ label, value, icon: Icon, tone, detail, status }, index) => (
             <motion.article
               key={label}

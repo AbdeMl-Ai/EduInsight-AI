@@ -371,7 +371,7 @@ export default function AdminWeeklySchedule() {
       </form>
 
       <div
-        className="overflow-x-auto rounded-lg border border-white/10 bg-white/[0.015]"
+        className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-lg border border-white/10 bg-white/[0.015]"
         aria-label={firstVisibleTime !== null && lastVisibleTime !== null
           ? `${messages.weeklyTimetable}, ${formatTime(firstVisibleTime)}–${formatTime(lastVisibleTime)}`
           : messages.noSessionsScheduled}
