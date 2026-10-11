@@ -72,6 +72,29 @@ class FakePayments:
         return SimpleNamespace(inserted_id=ObjectId())
 
 
+class RecentPaymentCursor:
+    def __init__(self, documents):
+        self.documents = iter(documents)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self.documents)
+        except StopIteration:
+            raise StopAsyncIteration from None
+
+
+class RecentPayments:
+    def __init__(self):
+        self.query = None
+
+    def find(self, query, _projection):
+        self.query = query
+        return RecentPaymentCursor([{"student_id": STUDENT_ID}])
+
+
 STUDENT_ID = str(ObjectId())
 
 
@@ -87,6 +110,28 @@ def test_get_paid_months_reads_student_ledger_by_tenant_and_year():
     months = asyncio.run(repository.get_paid_months(STUDENT_ID, "admin-a", 2026))
 
     assert months == [2]
+
+
+def test_get_recently_paid_student_ids_checks_current_month_and_date_window():
+    repository = StudentPaymentRepo.__new__(StudentPaymentRepo)
+    repository.collection = RecentPayments()
+    cutoff_date = date(2026, 9, 11)
+
+    paid_ids = asyncio.run(
+        repository.get_recently_paid_student_ids(
+            "admin-a", "2026-10", cutoff_date
+        )
+    )
+
+    assert paid_ids == {STUDENT_ID}
+    assert repository.collection.query["admin_id"] == "admin-a"
+    assert {"month": "2026-10"} in repository.collection.query["$or"]
+    assert {
+        "payment_date": {
+            "$gte": cutoff_date.isoformat(),
+            "$lte": date.today().isoformat(),
+        }
+    } in repository.collection.query["$or"]
 
 
 def test_get_payment_history_returns_exact_dates_and_amounts_for_student():

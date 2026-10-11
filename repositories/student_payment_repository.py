@@ -1,4 +1,5 @@
 from datetime import date
+from datetime import datetime, timezone
 import re
 
 from bson import ObjectId
@@ -61,6 +62,29 @@ class StudentPaymentRepo:
             async for document in cursor
         }
         return sorted(months)
+
+    async def get_recently_paid_student_ids(
+        self, admin_id: str, current_month: str, cutoff_date: date
+    ) -> set[str]:
+        cutoff = cutoff_date.isoformat()
+        now = datetime.now(timezone.utc)
+        today = now.date().isoformat()
+        cursor = self.collection.find(
+            {
+                "admin_id": admin_id,
+                "$or": [
+                    {"month": current_month},
+                    {"payment_date": {"$gte": cutoff, "$lte": today}},
+                    {"payment_date": {"$gte": cutoff_date, "$lte": now}},
+                ],
+            },
+            {"student_id": 1},
+        )
+        return {
+            str(document["student_id"])
+            async for document in cursor
+            if document.get("student_id") is not None
+        }
 
     async def get_payment_history(self, student_id: str, admin_id: str):
         student_id = self._id(student_id)

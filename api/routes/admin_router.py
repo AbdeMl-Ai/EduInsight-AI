@@ -288,7 +288,11 @@ async def list_students(_admin=Depends(get_current_admin)):
     )
     now = datetime.now(timezone.utc)
     recent_payment_cutoff = now - timedelta(days=30)
-    paid_student_ids = set()
+    paid_student_ids = await student_payment_repo.get_recently_paid_student_ids(
+        _admin.admin_id,
+        now.strftime("%Y-%m"),
+        recent_payment_cutoff.date(),
+    )
     for state in payment_states:
         last_payment_date = state.last_payment_date
         if last_payment_date is not None:

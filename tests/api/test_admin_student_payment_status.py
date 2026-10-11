@@ -52,9 +52,22 @@ class FakePaymentRepo:
         ]
 
 
+class FakeStudentPaymentRepo:
+    async def get_recently_paid_student_ids(
+        self, admin_id, current_month, cutoff_date
+    ):
+        assert admin_id == "admin-a"
+        assert len(current_month) == 7
+        assert cutoff_date <= datetime.now(timezone.utc).date()
+        return {"student-3"}
+
+
 def test_admin_student_list_includes_current_month_payment_status(monkeypatch):
     monkeypatch.setattr(admin_router, "admin_controller", FakeAdminController())
     monkeypatch.setattr(admin_router, "payment_repo", FakePaymentRepo())
+    monkeypatch.setattr(
+        admin_router, "student_payment_repo", FakeStudentPaymentRepo()
+    )
 
     students = asyncio.run(
         admin_router.list_students(
@@ -64,4 +77,4 @@ def test_admin_student_list_includes_current_month_payment_status(monkeypatch):
 
     assert [
         student["has_paid_current_month"] for student in students
-    ] == [True, True, False, False]
+    ] == [True, True, False, True]

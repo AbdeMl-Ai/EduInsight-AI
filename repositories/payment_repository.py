@@ -25,7 +25,8 @@ class PaymentRepo:
     ) -> list[PaymentState]:
         if not user_ids:
             return []
-        ids = [ObjectId(self._id(user_id)) for user_id in user_ids]
+        normalized_ids = [self._id(user_id) for user_id in user_ids]
+        ids = normalized_ids + [ObjectId(user_id) for user_id in normalized_ids]
         cursor = self.collection.find(
             {
                 "admin_id": admin_id,
