@@ -96,14 +96,14 @@ export default function AdminHomePage() {
           </div>
           <Link href="/admin/classes" className="text-[10px] font-medium text-amber-800 transition-colors hover:text-amber-600 dark:text-[#dfc27e] dark:hover:text-[#f0d89d]">{messages.viewClasses}</Link>
         </div>
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3 md:gap-3">
+        <div className="grid grid-cols-3 gap-2 md:gap-3">
           {statItems.map(({ label, value, icon: Icon, tone, detail }, index) => (
             <motion.article
               key={label}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`group relative min-w-0 overflow-hidden rounded-xl border bg-white/80 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/[0.025] sm:p-5 ${
+              className={`group relative min-w-0 overflow-hidden rounded-xl border bg-white/80 p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:bg-white/[0.025] sm:p-5 ${
                 tone === 'gold'
                   ? 'border-amber-300/70 shadow-amber-950/[0.035] hover:border-amber-400/80 dark:border-amber-200/15 dark:hover:border-amber-200/35 dark:hover:shadow-amber-200/[0.06]'
                   : tone === 'green'
@@ -112,24 +112,25 @@ export default function AdminHomePage() {
               }`}
             >
               <div className="flex items-start justify-between gap-2">
-                <span className={`flex size-10 items-center justify-center rounded-xl border ${
+                <span className={`flex size-8 items-center justify-center rounded-lg border sm:size-10 sm:rounded-xl ${
                   tone === 'gold'
                     ? 'border-amber-400/25 bg-amber-400/10 text-amber-800 dark:text-amber-200'
                     : tone === 'green'
                       ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-800 dark:text-emerald-200'
                       : 'border-violet-400/25 bg-violet-400/10 text-violet-800 dark:text-violet-200'
                 }`}>
-                  <Icon size={19} strokeWidth={1.7} />
+                  <Icon size={16} className="sm:hidden" strokeWidth={1.7} />
+                  <Icon size={19} className="hidden sm:block" strokeWidth={1.7} />
                 </span>
-                {detail && <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2 py-1 text-[9px] font-semibold text-emerald-800 dark:text-emerald-300"><span className="size-1.5 rounded-full bg-emerald-500 dark:bg-emerald-300" />{detail}</span>}
+                {detail && <span className="inline-flex min-w-0 items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-1.5 py-1 text-[8px] font-semibold text-emerald-800 dark:text-emerald-300 sm:gap-1.5 sm:px-2 sm:text-[9px]"><span className="size-1.5 shrink-0 rounded-full bg-emerald-500 dark:bg-emerald-300" /><span className="truncate">{detail}</span></span>}
               </div>
               {loading ? (
-                <div role="status" className="mt-4 h-7 w-10 animate-pulse rounded bg-slate-200 dark:bg-white/10" />
+                <div role="status" className="mt-3 h-6 w-8 animate-pulse rounded bg-slate-200 dark:bg-white/10 sm:mt-4 sm:h-7 sm:w-10" />
               ) : (
-                <p className="mt-4 text-2xl font-semibold tabular-nums tracking-tight text-slate-950 dark:text-white sm:text-3xl">{value ?? '—'}</p>
+                <p className="mt-3 text-xl font-semibold tabular-nums tracking-tight text-slate-950 dark:text-white sm:mt-4 sm:text-3xl">{value ?? '—'}</p>
               )}
               <div className="mt-1 flex min-h-6 items-center justify-between gap-2">
-                <p className="text-xs font-medium text-slate-600 dark:text-white/55">{label}</p>
+                <p className="truncate text-[10px] font-medium text-slate-600 dark:text-white/55 sm:text-xs">{label}</p>
               </div>
             </motion.article>
           ))}
