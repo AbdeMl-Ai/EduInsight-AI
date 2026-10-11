@@ -60,6 +60,18 @@ class NotificationController:
     async def send_teacher_message(self, teacher_id, target_type, target_id, subject, message, admin_id):
         return await self.notification_service.send_teacher_message(teacher_id, target_type, target_id, subject, message, admin_id)
 
+    async def get_student_message_teachers(self, student_id, admin_id):
+        return await self.notification_service.get_student_message_teachers(
+            student_id, admin_id
+        )
+
+    async def send_student_message(
+        self, student_id, recipient_id, recipient_role, message, admin_id
+    ):
+        return await self.notification_service.send_student_message(
+            student_id, recipient_id, recipient_role, message, admin_id
+        )
+
     async def update_notification(self, notification_id, admin_id, **updates):
         return await self.notification_service.update_notification(notification_id, admin_id, **updates)
 

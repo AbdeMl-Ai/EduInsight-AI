@@ -95,6 +95,41 @@ class FakeResourceTeacherRepo:
         return SimpleNamespace(id=teacher_id, full_name="Teacher One")
 
 
+class FakeStudentMessageClassRepo:
+    async def get_class(self, class_id, _admin_id):
+        if class_id == "enrolled-class":
+            return SimpleNamespace(teacher_id="teacher-a")
+        if class_id == "other-class":
+            return SimpleNamespace(teacher_id="teacher-b")
+        return None
+
+
+class FakeStudentMessageTeacherRepo:
+    async def get_teacher(self, teacher_id, _admin_id):
+        return SimpleNamespace(id=teacher_id, full_name=f"Teacher {teacher_id}")
+
+
+class FakeAdminRepo:
+    async def get_admin(self, admin_id):
+        return SimpleNamespace(id=admin_id, full_name="Center Admin")
+
+
+class FakeStudentMessageStudentRepo:
+    async def get_student(self, _student_id, _admin_id):
+        return SimpleNamespace(
+            id="student-a",
+            full_name="Student One",
+            class_ids=["enrolled-class"],
+            class_id="enrolled-class",
+        )
+
+
+class RecordingMessageNotificationRepo:
+    async def add_notification(self, notification, _admin_id):
+        self.saved = notification
+        return notification
+
+
 def test_resource_added_notification_reaches_every_class_student():
     service = NotificationService(
         notification_repo=None,
@@ -142,3 +177,89 @@ def test_resource_added_notification_reaches_every_class_student():
             "Exercise 1",
         ),
     ]
+
+
+def test_student_message_teacher_list_is_limited_to_enrolled_classes():
+    service = NotificationService(
+        notification_repo=None,
+        student_repo=FakeStudentMessageStudentRepo(),
+        teacher_repo=FakeStudentMessageTeacherRepo(),
+        class_repo=FakeStudentMessageClassRepo(),
+    )
+
+    teachers = asyncio.run(
+        service.get_student_message_teachers("student-a", "admin-a")
+    )
+
+    assert [teacher.id for teacher in teachers] == ["teacher-a"]
+
+
+def test_student_can_send_teacher_message_to_enrolled_class_teacher():
+    notification_repo = RecordingMessageNotificationRepo()
+    service = NotificationService(
+        notification_repo=notification_repo,
+        student_repo=FakeStudentMessageStudentRepo(),
+        teacher_repo=FakeStudentMessageTeacherRepo(),
+        class_repo=FakeStudentMessageClassRepo(),
+    )
+
+    result = asyncio.run(
+        service.send_student_message(
+            "student-a",
+            "teacher-a",
+            "teacher",
+            "Please help with this exercise.",
+            "admin-a",
+        )
+    )
+
+    assert result == {"message": "Message sent to teacher."}
+    assert notification_repo.saved.receiver_id == "teacher-a"
+    assert notification_repo.saved.receiver_role == "teacher"
+    assert notification_repo.saved.message == (
+        "Student One: Please help with this exercise."
+    )
+
+
+def test_student_cannot_send_teacher_message_outside_enrolled_classes():
+    service = NotificationService(
+        notification_repo=RecordingMessageNotificationRepo(),
+        student_repo=FakeStudentMessageStudentRepo(),
+        teacher_repo=FakeStudentMessageTeacherRepo(),
+        class_repo=FakeStudentMessageClassRepo(),
+    )
+
+    with pytest.raises(ValueError, match="enrolled classes"):
+        asyncio.run(
+            service.send_student_message(
+                "student-a",
+                "teacher-b",
+                "teacher",
+                "Hello.",
+                "admin-a",
+            )
+        )
+
+
+def test_student_can_send_message_to_admin_portal():
+    notification_repo = RecordingMessageNotificationRepo()
+    service = NotificationService(
+        notification_repo=notification_repo,
+        student_repo=FakeStudentMessageStudentRepo(),
+        teacher_repo=FakeStudentMessageTeacherRepo(),
+        admin_repo=FakeAdminRepo(),
+    )
+
+    result = asyncio.run(
+        service.send_student_message(
+            "student-a",
+            None,
+            "admin",
+            "I need some help.",
+            "admin-a",
+        )
+    )
+
+    assert result == {"message": "Message sent to admin."}
+    assert notification_repo.saved.receiver_id == "admin-a"
+    assert notification_repo.saved.receiver_role == "admin"

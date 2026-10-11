@@ -137,6 +137,75 @@ class NotificationService:
             teacher_id, admin_id, receiver_role="teacher"
         )
 
+    async def get_student_message_teachers(self, student_id, admin_id):
+        student = await self.student_repo.get_student(student_id, admin_id)
+        if student is None:
+            raise ValueError("Student not found.")
+        if self.class_repo is None:
+            raise ValueError("Class repository is unavailable.")
+
+        class_ids = student.class_ids or (
+            [student.class_id] if student.class_id else []
+        )
+        teacher_ids = set()
+        for class_id in class_ids:
+            class_doc = await self.class_repo.get_class(class_id, admin_id)
+            if class_doc is not None and class_doc.teacher_id:
+                teacher_ids.add(class_doc.teacher_id)
+
+        teachers = []
+        for teacher_id in sorted(teacher_ids):
+            teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
+            if teacher is not None:
+                teachers.append(teacher)
+        return teachers
+
+    async def send_student_message(
+        self, student_id, recipient_id, recipient_role, message, admin_id
+    ):
+        NotificationValidator.validation_message(message)
+        student = await self.student_repo.get_student(student_id, admin_id)
+        if student is None:
+            raise ValueError("Student not found.")
+
+        body = f"{student.full_name}: {message.strip()}"
+        if recipient_role == "admin":
+            if self.admin_repo is None or await self.admin_repo.get_admin(admin_id) is None:
+                raise ValueError("Admin not found.")
+            await self._create(
+                admin_id,
+                student.id,
+                admin_id,
+                "admin",
+                "student_message",
+                body,
+            )
+            return {"message": "Message sent to admin."}
+
+        if recipient_role == "teacher":
+            if not recipient_id:
+                raise ValueError("Choose a teacher.")
+            teachers = await self.get_student_message_teachers(student_id, admin_id)
+            teacher = next(
+                (item for item in teachers if item.id == recipient_id),
+                None,
+            )
+            if teacher is None:
+                raise ValueError(
+                    "You can only message teachers who teach your enrolled classes."
+                )
+            await self._create(
+                admin_id,
+                student.id,
+                teacher.id,
+                "teacher",
+                "student_message",
+                body,
+            )
+            return {"message": "Message sent to teacher."}
+
+        raise ValueError("Recipient role must be admin or teacher.")
+
     async def mark_teacher_notifications_as_read(self, teacher_id, admin_id):
         if await self.teacher_repo.get_teacher(teacher_id, admin_id) is None:
             raise ValueError("Teacher not found.")

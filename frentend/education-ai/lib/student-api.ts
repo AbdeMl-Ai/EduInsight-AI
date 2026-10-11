@@ -98,6 +98,11 @@ export type StudentNotification = {
   reference_link?: string | null;
 };
 
+export type StudentMessageTeacher = {
+  id: string;
+  full_name: string;
+};
+
 export function getApiErrorMessage(error: unknown, fallback: string) {
   if (!axios.isAxiosError(error)) return fallback;
   const detail = error.response?.data?.detail;
@@ -169,6 +174,26 @@ export async function getStudentNotifications(signal?: AbortSignal) {
 
 export async function markStudentNotificationRead(notificationId: string) {
   const { data } = await api.patch<{ message: string }>(`/notifications/${notificationId}/read`);
+  return data;
+}
+
+export async function getStudentMessageTeachers(signal?: AbortSignal) {
+  const { data } = await api.get<StudentMessageTeacher[]>(
+    '/student/messages/teachers',
+    { signal },
+  );
+  return data;
+}
+
+export async function sendStudentMessage(payload: {
+  recipient_id: string | null;
+  recipient_role: 'admin' | 'teacher';
+  message: string;
+}) {
+  const { data } = await api.post<{ message: string }>(
+    '/student/messages/send',
+    payload,
+  );
   return data;
 }
 

@@ -11,7 +11,10 @@ from starlette.middleware.sessions import SessionMiddleware
 load_dotenv()
 
 from utils.submission_storage import UPLOAD_ROOT
-from api.routes.student_router import router as student_router
+from api.routes.student_router import (
+    router as student_router,
+    student_messages_router,
+)
 from api.routes.teacher_router import router as teacher_router
 from api.routes.course_router import router as course_router
 from api.routes.exercise_router import router as exercise_router
@@ -82,6 +85,7 @@ app.add_middleware(
 )
 
 app.include_router(student_router)
+app.include_router(student_messages_router)
 app.include_router(teacher_router, prefix="/teachers")
 app.include_router(teacher_router, prefix="/teacher")
 app.include_router(course_router)

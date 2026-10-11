@@ -19,9 +19,11 @@ from api.schemas.student_schema import (
     StudentResponse,
     StudentUpdate,
 )
+from api.schemas.notification_schema import StudentMessageCreate
 from utils.submission_storage import delete_submission_file, save_submission_file
 
 router = APIRouter(prefix="/students", tags=["Students"])
+student_messages_router = APIRouter(prefix="/student", tags=["Student messages"])
 
 
 def _student(student):
@@ -34,6 +36,37 @@ def _submission(item):
 
 def _is_registered_user(user) -> bool:
     return getattr(user, "_token_role", None) == "user"
+
+
+@student_messages_router.get("/messages/teachers")
+async def get_my_message_teachers(user=Depends(require_student)):
+    try:
+        teachers = await notification_controller.get_student_message_teachers(
+            user.id, user.admin_id
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return [
+        {"id": teacher.id, "full_name": teacher.full_name}
+        for teacher in teachers
+    ]
+
+
+@student_messages_router.post("/messages/send")
+async def send_my_message(
+    data: StudentMessageCreate,
+    user=Depends(require_student),
+):
+    try:
+        return await notification_controller.send_student_message(
+            user.id,
+            data.recipient_id,
+            data.recipient_role,
+            data.message,
+            user.admin_id,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @router.get("/me", response_model=StudentResponse)

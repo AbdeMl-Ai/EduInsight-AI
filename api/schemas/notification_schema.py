@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -42,6 +44,12 @@ class NotificationCreate(BaseModel):
     receiver_role: str = "student"
     message: str
     reference_link: str | None = None
+
+
+class StudentMessageCreate(BaseModel):
+    recipient_id: str | None = None
+    recipient_role: Literal["admin", "teacher"]
+    message: str = Field(min_length=1, max_length=1000)
 
 
 class TeacherNotificationCreate(BaseModel):
