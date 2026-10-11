@@ -46,3 +46,19 @@ def test_mark_student_notifications_as_read_rejects_unknown_student():
         asyncio.run(
             service.mark_student_notifications_as_read("unknown", "admin-a")
         )
+
+
+def test_mark_admin_notifications_as_read_uses_admin_recipient_scope():
+    notifications = RecordingNotificationRepo()
+    service = NotificationService(
+        notifications,
+        FakeStudentRepo(),
+        None,
+    )
+
+    updated_count = asyncio.run(
+        service.mark_admin_notifications_as_read("admin-a")
+    )
+
+    assert updated_count == 2
+    assert notifications.args == ("admin-a", "admin", "admin-a")

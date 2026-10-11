@@ -77,6 +77,7 @@ def test_admin_notification_list_is_scoped_to_admin_recipient():
     assert collection.find_queries[0] == {
         "admin_id": admin_id,
         "receiver_id": admin_id,
+        "receiver_role": "admin",
     }
 
 

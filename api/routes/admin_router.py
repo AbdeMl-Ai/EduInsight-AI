@@ -591,6 +591,14 @@ async def list_admin_notifications(admin=Depends(get_current_admin)):
     return [await notification_response(item) for item in notifications]
 
 
+@router.patch("/notifications/read")
+async def mark_admin_notifications_read(admin=Depends(get_current_admin)):
+    updated_count = await notification_controller.mark_admin_notifications_as_read(
+        admin.admin_id
+    )
+    return {"message": "Notifications marked as read.", "updated_count": updated_count}
+
+
 @router.post("/notifications")
 async def send_admin_notification(
     data: AdminNotificationCreate,

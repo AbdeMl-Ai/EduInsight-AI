@@ -110,6 +110,11 @@ class NotificationService:
     async def get_admin_notifications(self, admin_id):
         return await self.notification_repo.get_admin_notifications(admin_id)
 
+    async def mark_admin_notifications_as_read(self, admin_id):
+        return await self.notification_repo.mark_all_as_read(
+            admin_id, "admin", admin_id
+        )
+
     async def get_notification_for_receiver(self, notification_id, receiver_id, admin_id):
         notification = await self.notification_repo.get_notification_for_receiver(
             notification_id, receiver_id, admin_id

@@ -14,12 +14,6 @@ class ExerciseService:
         self.teacher_repo = teacher_repo
         self.notification_service = notification_service
 
-    async def _notify_admin(self, teacher_id, resource_title, admin_id):
-        if self.notification_service is not None:
-            await self.notification_service.notify_admin_resource_added(
-                teacher_id, "exercise", resource_title, admin_id
-            )
-
     async def _notify_students(
         self, teacher_id, exercise, admin_id, resource_title=None
     ):
@@ -42,7 +36,6 @@ class ExerciseService:
             raise ValueError("You can only create exercises for your own courses.")
         exercise = Exercise(admin_id=admin_id, teacher_id=teacher_id, class_id=course.class_id, course_id=course.id, course_title=course.title, file_path=file_path, max_score=max_score)
         created_exercise = await self.exercise_repo.add_exercise(exercise, admin_id)
-        await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
         await self._notify_students(
             teacher_id,
             created_exercise,
@@ -76,7 +69,6 @@ class ExerciseService:
             due_date=due_date,
         )
         created_exercise = await self.exercise_repo.add_graded_work(exercise, admin_id)
-        await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
         await self._notify_students(teacher_id, created_exercise, admin_id)
         return created_exercise
 

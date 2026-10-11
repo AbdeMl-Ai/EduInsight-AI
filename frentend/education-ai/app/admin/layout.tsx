@@ -13,6 +13,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   getAdminErrorMessage,
   getAdminNotifications,
+  markAdminNotificationsRead,
   type AdminNotification,
 } from '@/lib/admin-api';
 
@@ -29,6 +30,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsLoading, setNotificationsLoading] = useState(true);
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
+
+  function toggleNotifications() {
+    if (notificationsOpen) {
+      setNotificationsOpen(false);
+      return;
+    }
+
+    setNotificationsOpen(true);
+    setNotifications((current) =>
+      current.map((item) => ({ ...item, is_read: true })),
+    );
+    void markAdminNotificationsRead().catch((error: unknown) => {
+      console.warn(
+        getAdminErrorMessage(error, messages.notificationsLoadError),
+      );
+      getAdminNotifications()
+        .then(setNotifications)
+        .catch((refreshError: unknown) => {
+          console.warn(
+            getAdminErrorMessage(
+              refreshError,
+              messages.notificationsLoadError,
+            ),
+          );
+        });
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +106,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="relative">
             <button
               type="button"
-              onClick={() => setNotificationsOpen((open) => !open)}
+              onClick={toggleNotifications}
               disabled={notificationsLoading}
               aria-label={messages.openNotifications}
               aria-expanded={notificationsOpen}
@@ -86,7 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="relative flex size-9 items-center justify-center rounded-lg text-white/55 transition-colors hover:bg-white/5 hover:text-[#dfc27e] disabled:opacity-50"
             >
               <Bell size={18} />
-              {notifications.some((item) => !item.is_read) && (
+              {unreadCount > 0 && (
                 <span
                   aria-label={messages.unreadNotifications}
                   className="absolute end-1.5 top-1.5 size-2 rounded-full bg-rose-500"
@@ -97,7 +126,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <section
                 role="dialog"
                 aria-label={messages.notifications}
-                className="absolute end-0 top-full z-[60] mt-3 flex max-h-[min(30rem,calc(100dvh-9rem))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-2xl"
+                className="fixed inset-x-2 top-[4.25rem] z-[60] flex max-h-[min(30rem,calc(100dvh-9rem))] w-auto flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-2xl sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-3 sm:w-96"
               >
                 <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <h2 className="text-sm font-semibold text-white">
@@ -111,7 +140,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     {messages.viewAllNotifications}
                   </Link>
                 </header>
-                <div className="overflow-y-auto p-3">
+                <div className="min-w-0 overflow-y-auto p-3">
                   {notifications.length ? (
                     notifications.slice(0, 20).map((item) => (
                       <article
@@ -120,13 +149,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           item.is_read ? '' : 'bg-[#c6a96b]/[0.05]'
                         }`}
                       >
-                        <p className="text-[10px] font-medium text-[#dfc27e]">
+                        <p className="break-words text-[10px] font-medium text-[#dfc27e]">
                           {messages.sentBy.replace(
                             '{name}',
                             item.sender_name || messages.adminName,
                           )}
                         </p>
-                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-white/75">
+                        <p className="mt-1 min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-xs leading-5 text-white/75">
                           {item.message}
                         </p>
                         <time className="mt-2 block text-[9px] text-white/35">

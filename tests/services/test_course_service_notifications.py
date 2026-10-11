@@ -21,13 +21,6 @@ class FakeNotificationService:
     def __init__(self):
         self.notifications = []
 
-    async def notify_admin_resource_added(
-        self, teacher_id, resource_type, resource_title, admin_id
-    ):
-        self.notifications.append(
-            (teacher_id, resource_type, resource_title, admin_id)
-        )
-
     async def notify_class_resource_added(
         self, teacher_id, class_id, resource_type, resource_title, admin_id, link
     ):
@@ -35,7 +28,7 @@ class FakeNotificationService:
             (teacher_id, class_id, resource_type, resource_title, admin_id, link)
         )
 
-def test_course_creation_notifies_the_admin():
+def test_course_creation_notifies_enrolled_students_only():
     notifications = FakeNotificationService()
     service = CourseService(
         FakeCourseRepo(), FakeTeacherRepo(), notifications
@@ -49,7 +42,6 @@ def test_course_creation_notifies_the_admin():
 
     assert course.id == "course-a"
     assert notifications.notifications == [
-        ("teacher-a", "course", "Algebra", "admin-a"),
         (
             "teacher-a",
             "class-a",

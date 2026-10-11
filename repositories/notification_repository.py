@@ -43,7 +43,14 @@ class NotificationRepo:
 
     async def get_admin_notifications(self, admin_id: str):
         admin_id = self._tenant(admin_id)
-        return await self.get_all_notifications(admin_id, admin_id)
+        cursor = self.collection.find(
+            {
+                "admin_id": admin_id,
+                "receiver_id": self._id(admin_id),
+                "receiver_role": "admin",
+            }
+        ).sort("created_at", -1)
+        return [Notification.model_validate(doc) async for doc in cursor]
 
     async def exists_by_reference(self, reference_link: str, admin_id: str):
         admin_id = self._tenant(admin_id)

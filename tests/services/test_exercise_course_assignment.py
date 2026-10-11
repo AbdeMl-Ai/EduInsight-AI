@@ -27,13 +27,6 @@ class FakeNotificationService:
     def __init__(self):
         self.notifications = []
 
-    async def notify_admin_resource_added(
-        self, teacher_id, resource_type, resource_title, admin_id
-    ):
-        self.notifications.append(
-            (teacher_id, resource_type, resource_title, admin_id)
-        )
-
     async def notify_class_resource_added(
         self, teacher_id, class_id, resource_type, resource_title, admin_id, link
     ):
@@ -97,7 +90,6 @@ def test_graded_work_is_assigned_to_selected_course():
     assert exercise.course_id == "course-a"
     assert exercise.course_title == "Exercise 1"
     assert notifications.notifications == [
-        ("teacher-a", "exercise", "Exercise 1", "admin-a"),
         (
             "teacher-a",
             "class-a",
@@ -135,7 +127,6 @@ def test_file_exercise_notifies_students_with_the_uploaded_title():
 
     assert exercise.id == "exercise-a"
     assert notifications.notifications == [
-        ("teacher-a", "exercise", "Algebra", "admin-a"),
         (
             "teacher-a",
             "class-a",

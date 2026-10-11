@@ -21,9 +21,6 @@ class CourseService:
         course = Course(admin_id=admin_id, teacher_id=teacher.id, class_id=class_id, title=title.strip(), description=description, content_url=content_url.strip())
         created_course = await self.course_repo.add_course(course, admin_id)
         if self.notification_service is not None:
-            await self.notification_service.notify_admin_resource_added(
-                teacher.id, "course", created_course.title, admin_id
-            )
             await self.notification_service.notify_class_resource_added(
                 teacher.id,
                 class_id,

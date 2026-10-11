@@ -280,6 +280,13 @@ export async function getAdminNotifications(signal?: AbortSignal) {
   return data;
 }
 
+export async function markAdminNotificationsRead() {
+  const { data } = await api.patch<{ message: string; updated_count: number }>(
+    '/admin/notifications/read',
+  );
+  return data;
+}
+
 export async function sendAdminNotification(data: { message: string; class_id?: string; student_id?: string; teacher_id?: string }) {
   const { data: response } = await api.post<{ message: string }>('/admin/notifications', data);
   return response;

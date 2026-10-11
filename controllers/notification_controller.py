@@ -35,6 +35,11 @@ class NotificationController:
     async def get_admin_notifications(self, admin_id):
         return await self.notification_service.get_admin_notifications(admin_id)
 
+    async def mark_admin_notifications_as_read(self, admin_id):
+        return await self.notification_service.mark_admin_notifications_as_read(
+            admin_id
+        )
+
     async def get_teacher_notifications(self, teacher_id, admin_id):
         return await self.notification_service.get_teacher_notifications(teacher_id, admin_id)
 
