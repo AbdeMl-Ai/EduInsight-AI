@@ -1,8 +1,9 @@
 import asyncio
-from datetime import date
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 
 from bson import ObjectId
+from bson import BSON
 
 from repositories.student_payment_repository import StudentPaymentRepo
 
@@ -132,6 +133,10 @@ def test_get_recently_paid_student_ids_checks_current_month_and_date_window():
             "$lte": date.today().isoformat(),
         }
     } in repository.collection.query["$or"]
+    datetime_filter = repository.collection.query["$or"][2]["payment_date"]
+    assert isinstance(datetime_filter["$gte"], datetime)
+    assert datetime_filter["$gte"].tzinfo == timezone.utc
+    BSON.encode(repository.collection.query)
 
 
 def test_get_payment_history_returns_exact_dates_and_amounts_for_student():

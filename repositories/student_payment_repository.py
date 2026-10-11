@@ -1,5 +1,4 @@
-from datetime import date
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import re
 
 from bson import ObjectId
@@ -69,13 +68,16 @@ class StudentPaymentRepo:
         cutoff = cutoff_date.isoformat()
         now = datetime.now(timezone.utc)
         today = now.date().isoformat()
+        cutoff_datetime = datetime.combine(
+            cutoff_date, datetime.min.time(), tzinfo=timezone.utc
+        )
         cursor = self.collection.find(
             {
                 "admin_id": admin_id,
                 "$or": [
                     {"month": current_month},
                     {"payment_date": {"$gte": cutoff, "$lte": today}},
-                    {"payment_date": {"$gte": cutoff_date, "$lte": now}},
+                    {"payment_date": {"$gte": cutoff_datetime, "$lte": now}},
                 ],
             },
             {"student_id": 1},
