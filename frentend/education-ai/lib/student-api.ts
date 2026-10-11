@@ -2,6 +2,8 @@ import axios from 'axios';
 import api from '@/lib/axios';
 
 export const ACTIVE_STUDENT_CLASS_KEY = 'eduinsight_active_student_class_id';
+export const STUDENT_NOTIFICATIONS_UPDATED_EVENT =
+  'eduinsight-student-notifications-updated';
 
 export type StudentProfile = {
   student_id: string;

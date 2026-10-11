@@ -98,6 +98,8 @@
   "studentScore": "Score",
   "studentCourseAddedNotification": "{teacher} added a new course: {title}",
   "studentExerciseAddedNotification": "{teacher} added a new exercise: {title}",
+  "studentUpdates": "UPDATES",
+  "studentNotificationsDescription": "Messages about your classes and coursework.",
   "studentNoScoresYet": "No scores have been recorded for these exercises yet.",
   "studentNoEnrolledClasses": "You are not enrolled in any classes yet.",
   "studentNoExercises": "No exercises assigned yet",

@@ -98,6 +98,8 @@
   "studentScore": "النتيجة",
   "studentCourseAddedNotification": "أضاف {teacher} دورة جديدة: {title}",
   "studentExerciseAddedNotification": "أضاف {teacher} تمرينًا جديدًا: {title}",
+  "studentUpdates": "التحديثات",
+  "studentNotificationsDescription": "رسائل حول فصولك الدراسية ومقرراتك.",
   "studentNoScoresYet": "لم تُسجل نتائج لهذه التمارين بعد.",
   "studentNoEnrolledClasses": "لم يتم تسجيلك في أي فصل بعد.",
   "studentNoExercises": "لم يتم تعيين تمارين بعد",

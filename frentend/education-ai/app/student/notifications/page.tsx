@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Bell, Check, LoaderCircle } from 'lucide-react';
+import { Bell, LoaderCircle } from 'lucide-react';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import {
   getApiErrorMessage,
   getStudentNotifications,
-  markStudentNotificationRead,
+  STUDENT_NOTIFICATIONS_UPDATED_EVENT,
   type StudentNotification,
 } from '@/lib/student-api';
 
@@ -17,11 +17,22 @@ export default function StudentNotificationsPage() {
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
+
   useEffect(() => {
     const controller = new AbortController();
     getStudentNotifications(controller.signal)
-      .then(setNotifications)
+      .then((items) => {
+        setNotifications(items);
+        window.dispatchEvent(
+          new CustomEvent(
+            STUDENT_NOTIFICATIONS_UPDATED_EVENT,
+            {
+              detail: items.filter((notification) => !notification.is_read)
+                .length,
+            },
+          ),
+        );
+      })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
           setError(getApiErrorMessage(requestError, 'Notifications could not be loaded.'));
@@ -33,29 +44,12 @@ export default function StudentNotificationsPage() {
     return () => controller.abort();
   }, []);
 
-  async function markRead(notificationId: string) {
-    setBusy(notificationId);
-    setError('');
-    try {
-      await markStudentNotificationRead(notificationId);
-      setNotifications((current) => current.map((notification) =>
-        notification.notification_id === notificationId
-          ? { ...notification, is_read: true }
-          : notification,
-      ));
-    } catch (requestError) {
-      setError(getApiErrorMessage(requestError, 'This notification could not be updated.'));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <section>
-      <p className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-[#c6a96b]">UPDATES</p>
+      <p className="mb-2 text-[10px] font-semibold tracking-[0.2em] text-[#c6a96b]">{messages.studentUpdates}</p>
       <div className="mb-7">
-        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">Notifications</h1>
-        <p className="mt-2 text-sm text-white/50">Messages about your classes and coursework.</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">{messages.notifications}</h1>
+        <p className="mt-2 text-sm text-white/50">{messages.studentNotificationsDescription}</p>
       </div>
 
       {error && <p role="alert" className="mb-4 rounded-lg border border-rose-300/20 bg-rose-300/[0.05] p-3 text-xs text-rose-200">{error}</p>}
@@ -110,12 +104,6 @@ export default function StudentNotificationsPage() {
                   </Link>
                 ) : (
                   <div className="flex gap-3">{notificationContent}</div>
-                )}
-                {!notification.is_read && (
-                  <button onClick={() => markRead(notification.notification_id)} disabled={busy === notification.notification_id} className="ms-12 mt-2 inline-flex min-h-8 items-center gap-1.5 text-[10px] font-medium text-white/55 hover:text-[#dfc27e] disabled:opacity-40">
-                    {busy === notification.notification_id ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-                    Mark read
-                  </button>
                 )}
               </motion.article>
             );

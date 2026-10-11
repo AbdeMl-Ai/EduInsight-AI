@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   Bell,
   BookOpen,
@@ -14,6 +15,11 @@ import ThemeToggle from '@/components/app/ThemeToggle';
 import LanguageSwitcher from '@/components/app/LanguageSwitcher';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import AuthGuard from '@/components/app/AuthGuard';
+import {
+  getApiErrorMessage,
+  getStudentNotifications,
+  STUDENT_NOTIFICATIONS_UPDATED_EVENT,
+} from '@/lib/student-api';
 
 type NavigationItem = {
   href: string;
@@ -41,6 +47,60 @@ export default function StudentLayout({
 }) {
   const pathname = usePathname();
   const { messages } = useLandingLanguage();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshUnreadCount = () => {
+      getStudentNotifications()
+        .then((notifications) => {
+          if (!cancelled) {
+            setUnreadCount(
+              notifications.filter((notification) => !notification.is_read).length,
+            );
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            console.warn(
+              getApiErrorMessage(error, 'Student notifications unavailable.'),
+            );
+          }
+        });
+    };
+    const handleNotificationsUpdated = (event: Event) => {
+      const count = (event as CustomEvent<unknown>).detail;
+      if (typeof count === 'number' && Number.isInteger(count) && count >= 0) {
+        setUnreadCount(count);
+      } else {
+        refreshUnreadCount();
+      }
+    };
+
+    refreshUnreadCount();
+    const interval = window.setInterval(refreshUnreadCount, 60_000);
+    window.addEventListener('focus', refreshUnreadCount);
+    window.addEventListener(
+      STUDENT_NOTIFICATIONS_UPDATED_EVENT,
+      handleNotificationsUpdated,
+    );
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshUnreadCount);
+      window.removeEventListener(
+        STUDENT_NOTIFICATIONS_UPDATED_EVENT,
+        handleNotificationsUpdated,
+      );
+    };
+  }, [pathname]);
+
+  const unreadBadge = unreadCount > 0 && (
+    <span
+      aria-label={messages.unreadNotifications}
+      className="absolute -end-1 -top-1 size-2 rounded-full bg-rose-400"
+    />
+  );
 
   return (
     <AuthGuard role="student">
@@ -74,7 +134,10 @@ export default function StudentLayout({
                       : 'text-white/55 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <Icon size={18} strokeWidth={1.8} />
+                  <span className="relative inline-flex">
+                    <Icon size={18} strokeWidth={1.8} />
+                    {label === 'notifications' && unreadBadge}
+                  </span>
                   {messages[label]}
                 </Link>
               );
@@ -140,7 +203,10 @@ export default function StudentLayout({
                   {active && (
                     <span className="absolute top-0 h-px w-8 bg-[#c6a96b]" />
                   )}
-                  <Icon size={19} strokeWidth={active ? 2 : 1.7} />
+                  <span className="relative inline-flex">
+                    <Icon size={19} strokeWidth={active ? 2 : 1.7} />
+                    {label === 'notifications' && unreadBadge}
+                  </span>
                   <span className="max-w-full truncate text-[9px] font-medium">
                     {messages[label]}
                   </span>
