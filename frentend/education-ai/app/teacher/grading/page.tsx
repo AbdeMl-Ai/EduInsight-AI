@@ -15,6 +15,7 @@ import {
   Trophy,
   X,
 } from "lucide-react";
+import { useLandingLanguage } from "@/components/app/LandingLanguageProvider";
 import {
   getTeacherAssetUrl,
   getTeacherClasses,
@@ -31,6 +32,7 @@ import {
 } from "@/lib/teacher-api";
 
 export default function TeacherGradingPage() {
+  const { messages } = useLandingLanguage();
   const [view, setView] = useState<"grades" | "ranking">("grades");
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [exercises, setExercises] = useState<TeacherExercise[]>([]);
@@ -79,13 +81,15 @@ export default function TeacherGradingPage() {
           setMessage(
             getTeacherErrorMessage(
               error,
-              "Grading workspace could not be loaded.",
+              messages.teacherGradingLoadError,
             ),
           );
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => controller.abort();
-  }, []);
+  }, [messages.teacherGradingLoadError]);
 
   useEffect(() => {
     if (!classId) return;
@@ -96,14 +100,14 @@ export default function TeacherGradingPage() {
       .catch((error: unknown) => {
         if (!controller.signal.aborted && !axios.isCancel(error))
           setMessage(
-            getTeacherErrorMessage(error, "Students could not be loaded."),
+            getTeacherErrorMessage(error, messages.teacherStudentsLoadError),
           );
       })
       .finally(() => {
         if (!controller.signal.aborted) setStudentsLoading(false);
       });
     return () => controller.abort();
-  }, [classId]);
+  }, [classId, messages.teacherStudentsLoadError]);
 
   const subjects = useMemo(
     () => [...new Set(classes.map((item) => item.subject))],
@@ -161,7 +165,12 @@ export default function TeacherGradingPage() {
   function openStudentMessage(student: TeacherStudent) {
     setMessageStudent(student);
     setMessageSubject(
-      selectedExercise ? `About ${selectedExercise.course_title}` : "",
+      selectedExercise
+        ? messages.teacherGradingAbout.replace(
+            "{title}",
+            selectedExercise.course_title,
+          )
+        : "",
     );
     setMessageBody("");
     setMessage("");
@@ -177,7 +186,11 @@ export default function TeacherGradingPage() {
       score < 0 ||
       score > selectedExercise.max_score
     ) {
-      setMessage(`Enter a score between 0 and ${selectedExercise.max_score}.`);
+      setMessage(
+        messages.teacherScoreRange
+          .replace("{minimum}", "0")
+          .replace("{maximum}", String(selectedExercise.max_score)),
+      );
       return;
     }
     setSavingId(student.student_id);
@@ -210,9 +223,13 @@ export default function TeacherGradingPage() {
           },
         ];
       });
-      showToast(`Grade saved for ${student.full_name}.`);
+      showToast(
+        messages.teacherGradeSaved.replace("{name}", student.full_name),
+      );
     } catch (error) {
-      setMessage(getTeacherErrorMessage(error, "Grade could not be saved."));
+      setMessage(
+        getTeacherErrorMessage(error, messages.teacherGradeSaveError),
+      );
     } finally {
       setSavingId(null);
     }
@@ -233,10 +250,15 @@ export default function TeacherGradingPage() {
       setMessageStudent(null);
       setMessageSubject("");
       setMessageBody("");
-      showToast(`Message sent successfully to ${messageStudent.full_name}.`);
+      showToast(
+        messages.teacherMessageSentTo.replace(
+          "{name}",
+          messageStudent.full_name,
+        ),
+      );
     } catch (error) {
       setMessage(
-        getTeacherErrorMessage(error, "Message could not be sent."),
+        getTeacherErrorMessage(error, messages.teacherMessageSendError),
       );
     } finally {
       setSendingMessage(false);
@@ -251,13 +273,13 @@ export default function TeacherGradingPage() {
     >
       <header>
         <p className="text-[10px] font-semibold tracking-[0.2em] text-[#dfc27e]">
-          ASSESSMENT
+          {messages.teacherAssessment}
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-          Grading
+          {messages.teacherGrading}
         </h1>
         <p className="mt-2 text-sm text-white/45">
-          Record scores in a focused, tap-friendly workspace.
+          {messages.teacherGradingDescription}
         </p>
       </header>
       {message && (
@@ -270,7 +292,7 @@ export default function TeacherGradingPage() {
             onClick={() => setMessage("")}
             className="ml-2 underline underline-offset-4"
           >
-            Dismiss
+            {messages.dismiss}
           </button>
         </div>
       )}
@@ -279,15 +301,15 @@ export default function TeacherGradingPage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.18em] text-white/40">
-              FILTERS
+              {messages.teacherFilters}
             </p>
             <h2 className="mt-1 text-sm font-semibold text-white">
-              Choose a class
+              {messages.teacherChooseClass}
             </h2>
           </div>
           <div
             role="tablist"
-            aria-label="Grading views"
+            aria-label={messages.teacherGradingViews}
             className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-black/20 p-1"
           >
             <button
@@ -298,7 +320,7 @@ export default function TeacherGradingPage() {
               className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2 text-[10px] font-semibold ${view === "grades" ? "bg-[#c6a96b]/15 text-[#dfc27e]" : "text-white/45 hover:text-white"}`}
             >
               <ClipboardList size={14} />
-              Grades
+              {messages.teacherGrades}
             </button>
             <button
               type="button"
@@ -308,7 +330,7 @@ export default function TeacherGradingPage() {
               className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2 text-[10px] font-semibold ${view === "ranking" ? "bg-[#c6a96b]/15 text-[#dfc27e]" : "text-white/45 hover:text-white"}`}
             >
               <Trophy size={14} />
-              Classement
+              {messages.teacherRanking}
             </button>
           </div>
         </div>
@@ -324,13 +346,13 @@ export default function TeacherGradingPage() {
           ))}
         </div>
         <label className="mt-4 block space-y-1.5">
-          <span className="text-[10px] text-white/45">Subject</span>
+          <span className="text-[10px] text-white/45">{messages.teacherSubject}</span>
           <select
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
             className="min-h-11 w-full rounded-xl border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"
           >
-            <option value="">All subjects</option>
+            <option value="">{messages.teacherAllSubjects}</option>
             {subjects.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -343,7 +365,7 @@ export default function TeacherGradingPage() {
       <section className="space-y-3">
         <label className="block space-y-1.5">
           <span className="text-[10px] font-medium text-white/45">
-            Graded work
+            {messages.teacherGradedWork}
           </span>
           <select
             value={exerciseId}
@@ -353,8 +375,8 @@ export default function TeacherGradingPage() {
           >
             <option value="">
               {visibleExercises.length
-                ? "Choose an assignment"
-                : "No graded work for this class"}
+                ? messages.teacherChooseAssignment
+                : messages.teacherNoGradedWork}
             </option>
             {visibleExercises.map((item) => (
               <option key={item.id} value={item.id}>
@@ -381,17 +403,28 @@ export default function TeacherGradingPage() {
         <div className="mb-4 flex items-end justify-between">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.18em] text-white/40">
-              {view === "grades" ? "STUDENT SCORES" : "CLASSEMENT"}
+              {view === "grades"
+                ? messages.teacherStudentScores
+                : messages.teacherRanking}
             </p>
             <h2 className="mt-1 text-lg font-semibold text-white">
               {view === "grades"
-                ? `${students.length} enrolled`
-                : `${students.length} students`}
+                ? messages.teacherEnrolledCount.replace(
+                    "{count}",
+                    String(students.length),
+                  )
+                : messages.teacherStudentCount.replace(
+                    "{count}",
+                    String(students.length),
+                  )}
             </h2>
           </div>
           {view === "grades" && selectedExercise && (
             <span className="text-[10px] text-white/40">
-              Maximum {selectedExercise.max_score}
+              {messages.teacherMaximumScore.replace(
+                "{score}",
+                String(selectedExercise.max_score),
+              )}
             </span>
           )}
         </div>
@@ -417,8 +450,15 @@ export default function TeacherGradingPage() {
                     </p>
                     <p className="mt-1 truncate text-[10px] text-white/40">
                       {scoredExercises
-                        ? `Average of ${scoredExercises} scored ${scoredExercises === 1 ? "exercise" : "exercises"}`
-                        : "No scores yet"}
+                        ? messages.teacherAverageOf
+                            .replace("{count}", String(scoredExercises))
+                            .replace(
+                              "{work}",
+                              scoredExercises === 1
+                                ? messages.teacherScoredExercise
+                                : messages.teacherScoredExercises,
+                            )
+                        : messages.teacherNoScoresYet}
                     </p>
                     <button
                       type="button"
@@ -426,11 +466,16 @@ export default function TeacherGradingPage() {
                       className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 text-[11px] font-medium text-[#dfc27e] hover:bg-white/[0.05]"
                     >
                       <MessageSquare size={14} />
-                      Message
+                      {messages.teacherMessage}
                     </button>
                   </div>
                   <span className="shrink-0 text-sm font-semibold tabular-nums text-white">
-                    {average === null ? "--" : `${average.toFixed(1)} pts`}
+                    {average === null
+                      ? "--"
+                      : messages.teacherPoints.replace(
+                          "{score}",
+                          average.toFixed(1),
+                        )}
                   </span>
                 </motion.article>
               ))}
@@ -438,7 +483,7 @@ export default function TeacherGradingPage() {
           ) : (
             <div className="rounded-2xl border border-white/10 px-4 py-12 text-center">
               <Check className="mx-auto mb-2 text-[#c6a96b]" size={21} />
-              <p className="text-xs text-white/45">No students are enrolled in this class.</p>
+              <p className="text-xs text-white/45">{messages.teacherNoEnrolledStudents}</p>
             </div>
           )
         ) : selectedExercise && students.length ? (
@@ -481,7 +526,7 @@ export default function TeacherGradingPage() {
                         className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 text-[11px] font-medium text-[#dfc27e] hover:bg-white/[0.05]"
                       >
                         <Eye size={14} />
-                        View Answer
+                        {messages.teacherViewAnswer}
                       </a>
                     )}
                     <button
@@ -490,11 +535,14 @@ export default function TeacherGradingPage() {
                       className="mt-2 inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/10 px-2.5 text-[11px] font-medium text-[#dfc27e] hover:bg-white/[0.05]"
                     >
                       <MessageSquare size={14} />
-                      Message
+                      {messages.teacherMessage}
                     </button>
                   </div>
                   <input
-                    aria-label={`Score for ${student.full_name}`}
+                    aria-label={messages.teacherScoreFor.replace(
+                      "{name}",
+                      student.full_name,
+                    )}
                     type="number"
                     min="0"
                     max={selectedExercise.max_score}
@@ -511,8 +559,11 @@ export default function TeacherGradingPage() {
                   <button
                     onClick={() => saveScore(student)}
                     disabled={savingId === student.student_id}
-                    aria-label={`Save grade for ${student.full_name}`}
-                    title="Save grade"
+                    aria-label={messages.teacherSaveGradeFor.replace(
+                      "{name}",
+                      student.full_name,
+                    )}
+                    title={messages.teacherSaveGrade}
                     className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#c6a96b]/25 text-[#dfc27e] hover:bg-[#c6a96b]/[0.08] disabled:opacity-40"
                   >
                     {savingId === student.student_id ? (
@@ -529,7 +580,7 @@ export default function TeacherGradingPage() {
           <div className="rounded-2xl border border-white/10 px-4 py-12 text-center">
             <Check className="mx-auto mb-2 text-[#c6a96b]" size={21} />
             <p className="text-xs text-white/45">
-              Choose a class and graded work to begin.
+              {messages.teacherChooseClassAndWork}
             </p>
           </div>
         )}
@@ -549,9 +600,9 @@ export default function TeacherGradingPage() {
             <div>
               <p className="text-xs font-semibold">{toast}</p>
               <p className="mt-1 text-[10px] text-white/50">
-                {toast.startsWith("Message sent")
-                  ? "Your message is on its way."
-                  : "Your changes have been saved."}
+                {toast.startsWith(messages.teacherMessageSentPrefix)
+                  ? messages.teacherMessageOnItsWay
+                  : messages.teacherChangesSaved}
               </p>
             </div>
           </motion.div>
@@ -574,32 +625,35 @@ export default function TeacherGradingPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">
-                    STUDENT MESSAGE
+                    {messages.teacherStudentMessage}
                   </p>
                   <h2 className="mt-1 text-lg font-semibold text-white">
-                    To {messageStudent.full_name}
+                    {messages.teacherToStudent.replace(
+                      "{name}",
+                      messageStudent.full_name,
+                    )}
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMessageStudent(null)}
-                  aria-label="Close"
+                  aria-label={messages.close}
                   className="flex size-10 items-center justify-center rounded-xl text-white/45"
                 >
                   <X size={18} />
                 </button>
               </div>
               <Input
-                label="Subject"
+                label={messages.teacherSubject}
                 name="subject"
                 value={messageSubject}
                 onChange={(event) => setMessageSubject(event.target.value)}
                 required
                 maxLength={200}
-                placeholder="Message subject"
+                placeholder={messages.teacherMessageSubject}
               />
               <label className="block space-y-1.5">
-                <span className="text-[10px] text-white/50">Message</span>
+                <span className="text-[10px] text-white/50">{messages.teacherMessage}</span>
                 <textarea
                   name="message"
                   value={messageBody}
@@ -607,7 +661,7 @@ export default function TeacherGradingPage() {
                   rows={5}
                   required
                   maxLength={5000}
-                  placeholder="Write a message for this student"
+                  placeholder={messages.teacherWriteStudentMessage}
                   className="w-full resize-y rounded-xl border border-white/10 bg-white/[0.035] p-3 text-sm text-white outline-none placeholder:text-white/25 focus:border-[#c6a96b]/55"
                 />
               </label>
@@ -621,7 +675,7 @@ export default function TeacherGradingPage() {
                 ) : (
                   <Send size={15} />
                 )}
-                Send message
+                {messages.teacherSendMessage}
               </button>
             </motion.form>
           </motion.div>
