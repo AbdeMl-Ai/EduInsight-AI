@@ -12,6 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { useLandingLanguage } from "@/components/app/LandingLanguageProvider";
 import {
   createTeacherCourse,
   createTeacherGradedWork,
@@ -38,6 +39,7 @@ type ModalMode =
   | null;
 
 export default function TeacherClassesPage() {
+  const { language, messages } = useLandingLanguage();
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [courses, setCourses] = useState<TeacherCourse[]>([]);
   const [exercises, setExercises] = useState<TeacherExercise[]>([]);
@@ -79,14 +81,14 @@ export default function TeacherClassesPage() {
       .catch((error: unknown) => {
         if (!controller.signal.aborted)
           setMessage(
-            getTeacherErrorMessage(error, "Classes could not be loaded."),
+            getTeacherErrorMessage(error, messages.teacherClassesLoadError),
           );
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, []);
+  }, [messages.teacherClassesLoadError]);
 
   function openModal(nextMode: ModalMode, classId: string) {
     setMode(nextMode);
@@ -132,7 +134,7 @@ export default function TeacherClassesPage() {
           file,
         });
         setCourses((current) => [course, ...current]);
-        showToast("Course created successfully.");
+        showToast(messages.teacherCourseCreated);
       } else if (mode === "exercise") {
         const exercise = await createTeacherGradedWork({
           class_id: selectedClassId,
@@ -144,7 +146,7 @@ export default function TeacherClassesPage() {
           file,
         });
         setExercises((current) => [exercise, ...current]);
-        showToast("Exercise created successfully.");
+        showToast(messages.teacherExerciseCreated);
       } else if (mode === "edit-course" && editingCourse) {
         await updateTeacherCourse(editingCourse.id, { title, description, file });
         setCourses((current) =>
@@ -154,7 +156,7 @@ export default function TeacherClassesPage() {
               : course,
           ),
         );
-        showToast("Course updated successfully.");
+        showToast(messages.teacherCourseUpdated);
       } else if (mode === "edit-exercise" && editingExercise) {
         const maxScore = Number(values.get("max_score") ?? 20);
         await updateTeacherExercise(editingExercise.id, {
@@ -169,13 +171,13 @@ export default function TeacherClassesPage() {
               : exercise,
           ),
         );
-        showToast("Exercise updated successfully.");
+        showToast(messages.teacherExerciseUpdated);
       }
       setMode(null);
       setEditingCourse(null);
       setEditingExercise(null);
     } catch (error) {
-      setMessage(getTeacherErrorMessage(error, "The item could not be saved."));
+      setMessage(getTeacherErrorMessage(error, messages.teacherItemSaveError));
     } finally {
       setSaving(false);
     }
@@ -183,12 +185,12 @@ export default function TeacherClassesPage() {
 
   async function removeCourse(course: TeacherCourse, exerciseCount: number) {
     if (exerciseCount > 0) {
-      setMessage("Delete this course's exercises before deleting the course.");
+      setMessage(messages.teacherDeleteExercisesFirst);
       return;
     }
     if (
       !window.confirm(
-        `Delete course "${course.title}"? This cannot be undone.`,
+        messages.teacherDeleteCourseConfirm.replace("{title}", course.title),
       )
     )
       return;
@@ -197,10 +199,10 @@ export default function TeacherClassesPage() {
     try {
       await deleteTeacherCourse(course.id);
       setCourses((current) => current.filter((item) => item.id !== course.id));
-      showToast("Course deleted successfully.");
+      showToast(messages.teacherCourseDeleted);
     } catch (error) {
       setMessage(
-        getTeacherErrorMessage(error, "The course could not be deleted."),
+        getTeacherErrorMessage(error, messages.teacherCourseDeleteError),
       );
     } finally {
       setSaving(false);
@@ -210,7 +212,7 @@ export default function TeacherClassesPage() {
   async function removeExercise(exercise: TeacherExercise) {
     if (
       !window.confirm(
-        `Delete exercise "${exercise.course_title}"? This cannot be undone.`,
+        messages.teacherDeleteExerciseConfirm.replace("{title}", exercise.course_title),
       )
     )
       return;
@@ -221,10 +223,10 @@ export default function TeacherClassesPage() {
       setExercises((current) =>
         current.filter((item) => item.id !== exercise.id),
       );
-      showToast("Exercise deleted successfully.");
+      showToast(messages.teacherExerciseDeleted);
     } catch (error) {
       setMessage(
-        getTeacherErrorMessage(error, "The exercise could not be deleted."),
+        getTeacherErrorMessage(error, messages.teacherExerciseDeleteError),
       );
     } finally {
       setSaving(false);
@@ -238,14 +240,14 @@ export default function TeacherClassesPage() {
       className="space-y-7 pb-24"
     >
       <header>
-        <p className="text-[10px] font-semibold tracking-[0.2em] text-[#dfc27e]">
-          TEACHING
+        <p className="text-start text-[10px] font-semibold tracking-[0.2em] text-[#dfc27e]">
+          {messages.teacherTeaching}
         </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-          My classes
+        <h1 className="mt-2 text-start text-3xl font-semibold tracking-tight text-white">
+          {messages.teacherMyClasses}
         </h1>
-        <p className="mt-2 text-sm text-white/45">
-          Classes, courses, and exercises assigned to you.
+        <p className="mt-2 text-start text-sm text-white/45">
+          {messages.teacherClassesDescription}
         </p>
       </header>
       {message && (
@@ -273,15 +275,15 @@ export default function TeacherClassesPage() {
                   <BookOpen size={19} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-semibold text-white">
+                  <h2 dir="auto" className="text-start text-sm font-semibold text-white">
                     {item.name}
                   </h2>
-                  <p className="mt-1 text-[11px] text-white/45">
+                  <p dir="auto" className="mt-1 text-start text-[11px] text-white/45">
                     {item.subject} · {item.academic_year}
                   </p>
-                  <p className="mt-2 flex items-center gap-1.5 text-[10px] text-white/40">
+                  <p className="mt-2 flex items-center gap-1.5 text-start text-[10px] text-white/40">
                     <Users size={13} />
-                    {students[item.class_id]?.length ?? 0} enrolled
+                    <bdi dir="auto">{messages.teacherEnrolledCount.replace("{count}", new Intl.NumberFormat(language === "ar" ? "ar" : "en").format(students[item.class_id]?.length ?? 0))}</bdi>
                   </p>
                 </div>
               </div>
@@ -291,21 +293,21 @@ export default function TeacherClassesPage() {
                   className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 text-[10px] font-semibold text-white/65 hover:border-[#c6a96b]/35 hover:text-[#dfc27e]"
                 >
                   <Plus size={14} />
-                  Add course
+                  {messages.teacherAddCourse}
                 </button>
                 <button
                   onClick={() => openModal("exercise", item.class_id)}
                   className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-[#c6a96b]/25 text-[10px] font-semibold text-[#dfc27e] hover:bg-[#c6a96b]/[0.08]"
                 >
                   <FilePlus2 size={14} />
-                  Add exercise
+                  {messages.teacherAddExercise}
                 </button>
               </div>
               {courses.filter((course) => course.class_id === item.class_id)
                 .length > 0 && (
                 <div className="mt-4 border-t border-white/[0.07] pt-3">
                   <p className="mb-2 text-[10px] font-semibold tracking-[0.14em] text-white/35">
-                    COURSES
+                    {messages.teacherCourseLibrary}
                   </p>
                   {courses
                     .filter((course) => course.class_id === item.class_id)
@@ -321,8 +323,8 @@ export default function TeacherClassesPage() {
                             </p>
                             <button
                               type="button"
-                              title="Edit course"
-                              aria-label={`Edit course ${course.title}`}
+                              title={messages.teacherEditCourseTitle}
+                              aria-label={messages.teacherEditCourseAria.replace("{title}", course.title)}
                               disabled={saving}
                               onClick={() => openCourseEditor(course)}
                               className="flex size-8 shrink-0 items-center justify-center rounded-lg text-white/45 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
@@ -333,10 +335,10 @@ export default function TeacherClassesPage() {
                               type="button"
                               title={
                                 courseExercises.length
-                                  ? "Delete exercises first"
-                                  : "Delete course"
+                                  ? messages.teacherDeleteExercisesFirstTitle
+                                  : messages.teacherDeleteCourseTitle
                               }
-                              aria-label={`Delete course ${course.title}`}
+                              aria-label={messages.teacherDeleteCourse.replace("{title}", course.title)}
                               disabled={saving || courseExercises.length > 0}
                               onClick={() =>
                                 removeCourse(course, courseExercises.length)
@@ -347,19 +349,19 @@ export default function TeacherClassesPage() {
                             </button>
                           </div>
                           {courseExercises.length ? (
-                            <ul className="space-y-1 border-l border-white/10 pl-3">
+                            <ul className="space-y-1 border-s border-white/10 ps-3">
                               {courseExercises.map((exercise) => (
                                 <li
                                   key={exercise.id}
                                   className="flex min-h-8 items-center gap-2 text-[11px] text-white/45"
                                 >
                                   <span className="min-w-0 flex-1 truncate">
-                                    {exercise.course_title} · max {exercise.max_score}
+                                    {exercise.course_title} · {messages.teacherMaxScore}: {exercise.max_score}
                                   </span>
                                   <button
                                     type="button"
-                                    title="Edit exercise"
-                                    aria-label={`Edit exercise ${exercise.course_title}`}
+                                    title={messages.teacherEditExerciseTitle}
+                                    aria-label={messages.teacherEditExerciseAria.replace("{title}", exercise.course_title)}
                                     disabled={saving}
                                     onClick={() => openExerciseEditor(exercise)}
                                     className="flex size-7 shrink-0 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
@@ -368,8 +370,8 @@ export default function TeacherClassesPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    title="Delete exercise"
-                                    aria-label={`Delete exercise ${exercise.course_title}`}
+                                    title={messages.teacherDeleteExercise}
+                                    aria-label={messages.teacherDeleteExercise.replace("{title}", exercise.course_title)}
                                     disabled={saving}
                                     onClick={() => removeExercise(exercise)}
                                     className="flex size-7 shrink-0 items-center justify-center rounded-lg text-rose-200/60 hover:bg-rose-300/[0.08] hover:text-rose-200 disabled:opacity-40"
@@ -380,8 +382,8 @@ export default function TeacherClassesPage() {
                               ))}
                             </ul>
                           ) : (
-                            <p className="pl-3 text-[10px] text-white/30">
-                              No exercises yet
+                            <p className="ps-3 text-start text-[10px] text-white/30">
+                              {messages.teacherNoExercisesYet}
                             </p>
                           )}
                         </div>
@@ -394,7 +396,7 @@ export default function TeacherClassesPage() {
         </div>
       ) : (
         <p className="rounded-2xl border border-white/10 px-4 py-12 text-center text-xs text-white/45">
-          No assigned classes found.
+          {messages.teacherNoAssignedClasses}
         </p>
       )}
 
@@ -416,23 +418,23 @@ export default function TeacherClassesPage() {
                 <div>
                   <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">
                     {mode === "course" || mode === "edit-course"
-                      ? "COURSE LIBRARY"
-                      : "ASSESSMENT"}
+                      ? messages.teacherCourseLibrary
+                      : messages.teacherAssessment}
                   </p>
                   <h2 className="mt-1 text-lg font-semibold text-white">
                     {mode === "course"
-                      ? "Add course"
+                      ? messages.teacherAddCourse
                       : mode === "exercise"
-                        ? "Add exercise"
+                        ? messages.teacherAddExercise
                         : mode === "edit-course"
-                          ? "Edit course"
-                          : "Edit exercise"}
+                          ? messages.teacherEditCourse
+                          : messages.teacherEditExercise}
                   </h2>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMode(null)}
-                  aria-label="Close"
+                  aria-label={messages.teacherCloseDialog}
                   className="flex size-10 items-center justify-center rounded-xl text-white/45"
                 >
                   <X size={18} />
@@ -440,7 +442,7 @@ export default function TeacherClassesPage() {
               </div>
               {mode === "exercise" && (
                 <label className="block space-y-1.5">
-                  <span className="text-[10px] text-white/50">Course</span>
+                  <span className="text-[10px] text-white/50">{messages.teacherCourseField}</span>
                   <select
                     name="course_id"
                     required
@@ -455,8 +457,8 @@ export default function TeacherClassesPage() {
                       {courses.some(
                         (course) => course.class_id === selectedClassId,
                       )
-                        ? "Choose a course"
-                        : "Create a course first"}
+                        ? messages.teacherChooseCourse
+                        : messages.teacherCreateCourseFirst}
                     </option>
                     {courses
                       .filter((course) => course.class_id === selectedClassId)
@@ -469,7 +471,7 @@ export default function TeacherClassesPage() {
                 </label>
               )}
               <Input
-                label="Title"
+                label={messages.teacherTitle}
                 name="title"
                 required
                 defaultValue={
@@ -477,13 +479,13 @@ export default function TeacherClassesPage() {
                 }
                 placeholder={
                   mode === "course" || mode === "edit-course"
-                    ? "Algebra fundamentals"
-                    : "Homework 01"
+                    ? messages.teacherCourseTitlePlaceholder
+                    : messages.teacherExerciseTitlePlaceholder
                 }
               />
               {mode !== "edit-exercise" && (
                 <label className="block space-y-1.5">
-                  <span className="text-[10px] text-white/50">Description</span>
+                  <span className="text-[10px] text-white/50">{messages.teacherDescription}</span>
                   <textarea
                     name="description"
                     rows={3}
@@ -495,20 +497,20 @@ export default function TeacherClassesPage() {
               {mode === "course" ? (
                 <>
                   <Input
-                    label="Content / URL (optional)"
+                    label={messages.teacherContentUrlOptional}
                     name="content_url"
                     type="url"
                     placeholder="https://..."
                   />
-                  <FileField />
+                  <FileField label={messages.teacherFileOptional} />
                 </>
               ) : mode === "edit-course" ? (
-                <FileField label="Replace file (optional)" />
+                <FileField label={messages.teacherReplaceFileOptional} />
               ) : mode === "exercise" ? (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <Input
-                      label="Max score"
+                      label={messages.teacherMaxScore}
                       name="max_score"
                       type="number"
                       min="1"
@@ -517,19 +519,19 @@ export default function TeacherClassesPage() {
                       required
                     />
                     <Input
-                      label="Deadline"
+                      label={messages.teacherDeadline}
                       name="due_date"
                       type="date"
                       defaultValue={new Date().toISOString().slice(0, 10)}
                       required
                     />
                   </div>
-                  <FileField />
+                  <FileField label={messages.teacherFileOptional} />
                 </>
               ) : mode === "edit-exercise" ? (
                 <>
                   <Input
-                    label="Max score"
+                    label={messages.teacherMaxScore}
                     name="max_score"
                     type="number"
                     min="1"
@@ -537,7 +539,7 @@ export default function TeacherClassesPage() {
                     defaultValue={editingExercise?.max_score ?? 20}
                     required
                   />
-                  <FileField label="Replace file (optional)" />
+                  <FileField label={messages.teacherReplaceFileOptional} />
                 </>
               ) : null}
               <button
@@ -553,12 +555,12 @@ export default function TeacherClassesPage() {
               >
                 {saving && <LoaderCircle size={16} className="animate-spin" />}
                 {saving
-                  ? "Saving"
+                  ? messages.teacherSaving
                   : mode === "course"
-                    ? "Add course"
+                    ? messages.teacherAddCourse
                     : mode === "exercise"
-                      ? "Create exercise"
-                      : "Save changes"}
+                      ? messages.teacherCreateExercise
+                      : messages.teacherSaveChanges}
               </button>
             </motion.form>
           </motion.div>
@@ -571,7 +573,7 @@ export default function TeacherClassesPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
             role="status"
-            className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-4 right-4 z-50 rounded-2xl border border-emerald-300/20 bg-[#111]/95 p-3 text-center text-xs text-emerald-200 shadow-xl sm:left-auto sm:right-6 sm:w-80"
+            className="fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 rounded-2xl border border-emerald-300/20 bg-[#111]/95 p-3 text-center text-xs text-emerald-200 shadow-xl sm:inset-x-auto sm:end-6 sm:w-80"
           >
             {toast}
           </motion.div>
@@ -581,7 +583,7 @@ export default function TeacherClassesPage() {
   );
 }
 
-function FileField({ label = "File (optional)" }: { label?: string }) {
+function FileField({ label }: { label: string }) {
   return (
     <label className="block space-y-1.5">
       <span className="text-[10px] text-white/50">{label}</span>
@@ -589,7 +591,7 @@ function FileField({ label = "File (optional)" }: { label?: string }) {
         name="file"
         type="file"
         accept="application/pdf,image/jpeg,image/png"
-        className="block w-full rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs text-white/55 file:mr-3 file:rounded-lg file:border-0 file:bg-[#c6a96b]/15 file:px-3 file:py-2 file:text-xs file:text-[#dfc27e]"
+        className="block w-full rounded-xl border border-white/10 bg-white/[0.035] p-3 text-xs text-white/55 file:me-3 file:rounded-lg file:border-0 file:bg-[#c6a96b]/15 file:px-3 file:py-2 file:text-xs file:text-[#dfc27e]"
       />
     </label>
   );

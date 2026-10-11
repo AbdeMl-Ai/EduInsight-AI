@@ -19,6 +19,28 @@ export type StudentClass = {
   subject: string;
 };
 
+export type StudentProgressExercise = {
+  exercise_id: string;
+  exercise_name: string;
+  sequence: number;
+  score: number | null;
+  max_score: number;
+  percentage: number | null;
+  created_at: string | null;
+};
+
+export type StudentClassProgress = {
+  class_id: string;
+  class_name: string;
+  class_level: string;
+  subject: string;
+  exercises: StudentProgressExercise[];
+};
+
+export type StudentDashboardProgress = {
+  classes: StudentClassProgress[];
+};
+
 export type StudentCourse = {
   id: string;
   title: string;
@@ -147,5 +169,10 @@ export async function markStudentNotificationRead(notificationId: string) {
 
 export async function getStudentClasses(signal?: AbortSignal) {
   const { data } = await api.get<StudentClass[]>('/students/me/classes', { signal });
+  return data;
+}
+
+export async function getStudentDashboardProgress(signal?: AbortSignal) {
+  const { data } = await api.get<StudentDashboardProgress>('/students/me/progress', { signal });
   return data;
 }

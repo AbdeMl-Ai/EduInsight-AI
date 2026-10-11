@@ -5,7 +5,16 @@ import pytest
 from fastapi import HTTPException
 
 from api import dependencies
+from api.main import app
 from api.routes import student_router
+
+
+def test_student_dashboard_progress_endpoint_is_registered():
+    operation = app.openapi()["paths"]["/students/me/progress"]["get"]
+
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"][
+        "$ref"
+    ].endswith("/StudentDashboardProgressResponse")
 
 
 def test_registered_user_can_read_student_workspace_but_not_admin_routes():
@@ -40,6 +49,7 @@ def test_unassigned_registered_user_gets_profile_and_empty_workspace_data():
     assert profile.full_name == "Example Person"
     assert profile.email == "person@example.com"
     assert asyncio.run(student_router.get_my_classes(user)) == []
+    assert asyncio.run(student_router.get_my_dashboard_progress(user)) == {"classes": []}
     assert asyncio.run(student_router.get_my_courses(user)) == []
     assert asyncio.run(student_router.get_my_exercises(user)) == []
     assert asyncio.run(student_router.get_my_submissions(user)) == []

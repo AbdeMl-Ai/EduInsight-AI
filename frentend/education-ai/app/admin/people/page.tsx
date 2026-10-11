@@ -21,26 +21,24 @@ import {
   checkAdminPaymentDue,
   createAdminStudent,
   createAdminTeacher,
-  createStudentPayment,
-  deleteStudentMonthPayment,
   deleteAdminStudent,
   deleteAdminTeacher,
   getAdminClasses,
   getAdminErrorMessage,
-  getAdminPaymentSummary,
   getStudentFinancials,
+  getStudentPaymentHistory,
   getAdminStudents,
   getAdminTeachers,
   getAdminStudentReport,
   resetAdminStudentPassword,
   resetAdminTeacherPassword,
-  updateAdminPaymentState,
   updateAdminStudent,
   updateAdminTeacher,
   type AdminClass,
   type AdminStudent,
   type AdminTeacher,
   type PaymentSummary,
+  type StudentPayment,
   type StudentReport,
 } from '@/lib/admin-api';
 import { getPerformanceStatus, getSubjectAverages } from '@/lib/academic-report';
@@ -49,11 +47,21 @@ import { useAdminToast } from '@/components/admin/AdminToastProvider';
 
 type PeopleTab = 'Students' | 'Teachers';
 type FormMode = 'add-student' | 'edit-student' | 'add-teacher' | 'edit-teacher' | null;
-type PaymentTarget = { id: string; name: string; role: PaymentSummary['user_role'] };
-const PAYMENT_YEAR = new Date().getFullYear();
-
+type PaymentTarget = { id: string; name: string };
 function initials(name: string) {
   return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0] ?? '').join('').toUpperCase() || '?';
+}
+
+function avatarColor(userId: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < userId.length; index += 1) {
+    hash = Math.imul(hash ^ userId.charCodeAt(index), 16777619);
+  }
+  const hue = (hash >>> 0) % 360;
+  return {
+    backgroundColor: `hsl(${hue} 72% 48% / 0.16)`,
+    borderColor: `hsl(${hue} 72% 58% / 0.45)`,
+  };
 }
 
 function studentClassLabel(student: AdminStudent, classes: AdminClass[], noClassLabel: string) {
@@ -97,7 +105,7 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
 }
 
 export default function AdminPeoplePage() {
-  const { messages } = useLandingLanguage();
+  const { language, messages } = useLandingLanguage();
   const { showSuccessToast } = useAdminToast();
   const [tab, setTab] = useState<PeopleTab>('Students');
   const [students, setStudents] = useState<AdminStudent[]>([]);
@@ -127,9 +135,8 @@ export default function AdminPeoplePage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null);
-  const [persistedPaidMonths, setPersistedPaidMonths] = useState<number[]>([]);
+  const [paymentHistory, setPaymentHistory] = useState<StudentPayment[]>([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState('');
 
   useEffect(() => {
@@ -327,65 +334,20 @@ export default function AdminPeoplePage() {
   async function openPayments(target: PaymentTarget) {
     setPaymentTarget(target);
     setPaymentSummary(null);
+    setPaymentHistory([]);
     setPaymentError('');
     setPaymentLoading(true);
     try {
-      if (target.role === 'student') {
-        const financials = await getStudentFinancials(target.id, PAYMENT_YEAR);
-        setPaymentSummary(financials);
-        setPersistedPaidMonths(financials.paid_months);
-      } else {
-        const summary = await getAdminPaymentSummary(target.id, target.role);
-        setPaymentSummary(summary);
-        setPersistedPaidMonths(summary.paid_months);
-      }
+      const [financials, history] = await Promise.all([
+        getStudentFinancials(target.id, new Date().getFullYear()),
+        getStudentPaymentHistory(target.id),
+      ]);
+      setPaymentSummary(financials);
+      setPaymentHistory(history);
     } catch (requestError) {
       setPaymentError(getAdminErrorMessage(requestError, messages.paymentDetailsLoadError));
     } finally {
       setPaymentLoading(false);
-    }
-  }
-
-  async function savePayments() {
-    if (!paymentTarget || !paymentSummary) return;
-    setPaymentSaving(true);
-    setPaymentError('');
-    try {
-      if (paymentTarget.role === 'student') {
-        const selected = new Set(paymentSummary.paid_months);
-        const previouslyPaid = new Set(persistedPaidMonths);
-        const additions = [...selected].filter((month) => !previouslyPaid.has(month));
-        const removals = [...previouslyPaid].filter((month) => !selected.has(month));
-        for (const month of additions) {
-          const monthValue = `${PAYMENT_YEAR}-${String(month).padStart(2, '0')}`;
-          await createStudentPayment({
-            student_id: paymentTarget.id,
-            amount: paymentSummary.monthly_amount,
-            month: monthValue,
-            payment_date: `${monthValue}-01`,
-          });
-        }
-        for (const month of removals) {
-          const monthValue = `${PAYMENT_YEAR}-${String(month).padStart(2, '0')}`;
-          await deleteStudentMonthPayment(paymentTarget.id, monthValue);
-        }
-        const saved = await getStudentFinancials(paymentTarget.id, PAYMENT_YEAR);
-        setPaymentSummary(saved);
-        setPersistedPaidMonths(saved.paid_months);
-      } else {
-        const summary = await updateAdminPaymentState(
-          paymentTarget.id,
-          paymentTarget.role,
-          paymentSummary.paid_months,
-        );
-        setPaymentSummary(summary);
-        setPersistedPaidMonths(summary.paid_months);
-      }
-      showSuccessToast('Payment details were updated.', 'Payment details saved');
-    } catch (requestError) {
-      setPaymentError(getAdminErrorMessage(requestError, messages.paymentStateSaveError));
-    } finally {
-      setPaymentSaving(false);
     }
   }
 
@@ -477,7 +439,7 @@ export default function AdminPeoplePage() {
             {filteredStudents.map((student) => (
               <article key={student.student_id} className="relative border-b border-slate-200/80 py-2.5 last:border-b-0 dark:border-white/[0.07]">
                 <div className="flex min-w-0 items-center gap-3 border-s-2 border-amber-500/70 ps-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/30 bg-amber-400/10 text-[11px] font-semibold text-amber-800 dark:text-amber-200">{initials(student.full_name)}</span>
+                  <span style={avatarColor(student.student_id)} className="flex size-10 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold text-amber-800 dark:text-amber-200">{initials(student.full_name)}</span>
                   <button
                     type="button"
                     aria-expanded={expandedPersonId === `student:${student.student_id}`}
@@ -500,7 +462,7 @@ export default function AdminPeoplePage() {
                       {openMenuId === `student:${student.student_id}` && (
                         <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} className="absolute end-0 top-11 z-40 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
                           <button type="button" onClick={() => { setInfoStudent(student); setResetNotice(''); setResetError(''); setOpenMenuId(null); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Eye size={14} />{messages.viewAccountInfo}</button>
-                          <button type="button" onClick={() => { setOpenMenuId(null); void openPayments({ id: student.student_id, name: student.full_name, role: 'student' }); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Wallet size={14} />{messages.payments}</button>
+                          <button type="button" onClick={() => { setOpenMenuId(null); void openPayments({ id: student.student_id, name: student.full_name }); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Wallet size={14} />{messages.payments}</button>
                           <button type="button" onClick={() => { setOpenMenuId(null); openForm('edit-student', student); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><UserRoundPen size={14} />{messages.editStudent}</button>
                           <button type="button" onClick={() => { setOpenMenuId(null); void removeStudent(student); }} disabled={deletingId === student.student_id} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-300/10"><Trash2 size={14} />{messages.deleteStudent}</button>
                         </motion.div>
@@ -530,7 +492,7 @@ export default function AdminPeoplePage() {
             {filteredTeachers.map((teacher) => (
               <article key={teacher.teacher_id} className="relative border-b border-slate-200/80 py-2.5 last:border-b-0 dark:border-white/[0.07]">
                 <div className="flex min-w-0 items-center gap-3 border-s-2 border-emerald-500/70 ps-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-400/10 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">{initials(teacher.full_name)}</span>
+                  <span style={avatarColor(teacher.teacher_id)} className="flex size-10 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold text-emerald-800 dark:text-emerald-200">{initials(teacher.full_name)}</span>
                   <button type="button" aria-expanded={expandedPersonId === `teacher:${teacher.teacher_id}`} onClick={() => setExpandedPersonId((current) => current === `teacher:${teacher.teacher_id}` ? null : `teacher:${teacher.teacher_id}`)} className="min-w-0 flex-1 py-1 text-start">
                     <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{teacher.full_name}</span>
                     <span className="mt-1 hidden truncate text-[10px] text-slate-500 dark:text-white/45 sm:block">{teacher.email}</span>
@@ -542,7 +504,6 @@ export default function AdminPeoplePage() {
                       {openMenuId === `teacher:${teacher.teacher_id}` && (
                         <motion.div initial={{ opacity: 0, y: -5, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -5, scale: 0.98 }} className="absolute end-0 top-11 z-40 w-44 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-white/10 dark:bg-slate-900">
                           <button type="button" onClick={() => { setOpenMenuId(null); setExpandedPersonId(`teacher:${teacher.teacher_id}`); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Eye size={14} />View details</button>
-                          <button type="button" onClick={() => { setOpenMenuId(null); void openPayments({ id: teacher.teacher_id, name: teacher.full_name, role: 'teacher' }); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><Wallet size={14} />{messages.payments}</button>
                           <button type="button" onClick={() => { setOpenMenuId(null); openForm('edit-teacher', undefined, teacher); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-white/80 dark:hover:bg-white/[0.06]"><UserRoundPen size={14} />{messages.editTeacher}</button>
                           <button type="button" onClick={() => { setOpenMenuId(null); void removeTeacher(teacher); }} disabled={deletingId === teacher.teacher_id} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-start text-xs font-medium text-rose-700 transition-colors hover:bg-rose-50 disabled:opacity-50 dark:text-rose-300 dark:hover:bg-rose-300/10"><Trash2 size={14} />{messages.deleteTeacher}</button>
                         </motion.div>
@@ -579,14 +540,34 @@ export default function AdminPeoplePage() {
 
       <AnimatePresence>
         {paymentTarget && (
-          <motion.div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget && !paymentSaving) setPaymentTarget(null); }}>
+          <motion.div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setPaymentTarget(null); }}>
             <motion.section role="dialog" aria-modal="true" aria-label={`${paymentTarget.name} payments`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} className="w-full max-w-lg rounded-t-xl border border-white/10 bg-[#111111] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:rounded-xl sm:p-5">
-              <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#dfc27e]">{messages.financials}</p><h2 className="mt-1 text-base font-semibold text-white">{paymentTarget.name}</h2></div><button onClick={() => setPaymentTarget(null)} disabled={paymentSaving} aria-label={messages.closePayments} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
+              <div className="mb-5 flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#dfc27e]">{messages.financials}</p><h2 className="mt-1 text-base font-semibold text-white">{paymentTarget.name}</h2></div><button onClick={() => setPaymentTarget(null)} aria-label={messages.closePayments} className="flex size-10 items-center justify-center rounded-lg text-white/45 hover:bg-white/5"><X size={18} /></button></div>
               {paymentLoading ? <div className="h-40 animate-pulse rounded-lg bg-white/[0.04]" /> : paymentSummary && <>
-                <div className="grid grid-cols-2 gap-2"><div className="rounded-lg border border-[#c6a96b]/15 bg-[#c6a96b]/[0.05] p-3"><p className="text-[10px] text-white/40">{paymentTarget.role === 'student' ? messages.monthlyFee : messages.monthlyPayout}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#dfc27e]">{paymentSummary.monthly_amount.toFixed(2)} MAD</p></div><div className="rounded-lg border border-white/10 bg-white/[0.025] p-3"><p className="text-[10px] text-white/40">{messages.status}</p><p className={`mt-1 text-sm font-semibold ${paymentSummary.due ? 'text-rose-200' : 'text-emerald-200'}`}>{paymentSummary.due ? messages.paymentDue : messages.upToDate}</p></div></div>
-                <div className="mt-5"><p className="mb-2 text-[11px] font-medium text-white/55">{messages.paidMonths}{paymentTarget.role === 'student' ? ` · ${PAYMENT_YEAR}` : ''}</p><div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{messages.monthsShort.map((label, index) => { const month = index + 1; const checked = paymentSummary.paid_months.includes(month); return <label key={label} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs ${checked ? 'border-[#c6a96b]/40 bg-[#c6a96b]/[0.1] text-[#dfc27e]' : 'border-white/10 text-white/55'}`}><input type="checkbox" checked={checked} onChange={() => setPaymentSummary((current) => current ? { ...current, paid_months: checked ? current.paid_months.filter((item) => item !== month) : [...current.paid_months, month].sort((a, b) => a - b) } : current)} className="size-3.5 accent-[#c6a96b]" />{label}</label>; })}</div></div>
+                <div className="grid grid-cols-2 gap-2"><div className="rounded-lg border border-[#c6a96b]/15 bg-[#c6a96b]/[0.05] p-3"><p className="text-[10px] text-white/40">{messages.monthlyFee}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#dfc27e]">{paymentSummary.monthly_amount.toFixed(2)} MAD</p></div><div className="rounded-lg border border-white/10 bg-white/[0.025] p-3"><p className="text-[10px] text-white/40">{messages.status}</p><p className={`mt-1 text-sm font-semibold ${paymentSummary.due ? 'text-rose-200' : 'text-emerald-200'}`}>{paymentSummary.due ? messages.paymentDue : messages.upToDate}</p></div></div>
+                <div className="mt-5">
+                    <p className="mb-2 text-[11px] font-medium text-white/55">{messages.paymentHistory}</p>
+                    {paymentHistory.length ? (
+                      <ul className="max-h-64 space-y-2 overflow-y-auto">
+                        {paymentHistory.map((payment) => {
+                          const [year, month] = payment.month.split('-').map(Number);
+                          const paymentDate = new Date(`${payment.payment_date}T00:00:00`);
+                          return (
+                            <li key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                              <div>
+                                <p className="text-sm font-medium text-white">{messages.monthsShort[month - 1]} {year}</p>
+                                <p className="mt-1 text-[11px] text-white/45">{messages.paymentDate}: {new Intl.DateTimeFormat(language === 'ar' ? 'ar-MA' : 'en-MA', { day: 'numeric', month: 'short', year: 'numeric' }).format(paymentDate)}</p>
+                              </div>
+                              <p className="shrink-0 text-sm font-semibold tabular-nums text-[#dfc27e]">{payment.amount.toFixed(2)} MAD</p>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="rounded-lg border border-white/10 bg-white/[0.025] p-3 text-xs text-white/45">{messages.noPaymentsRecorded}</p>
+                    )}
+                </div>
                 {paymentError && <p role="alert" className="mt-3 text-xs text-rose-200">{paymentError}</p>}
-                <button onClick={savePayments} disabled={paymentSaving} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{paymentSaving && <LoaderCircle size={15} className="animate-spin" />}{messages.savePaymentState}</button>
               </>}
               {!paymentLoading && !paymentSummary && paymentError && <p role="alert" className="text-xs text-rose-200">{paymentError}</p>}
             </motion.section>
@@ -695,7 +676,7 @@ export default function AdminPeoplePage() {
         {infoStudent && (
           <Sheet title={messages.studentAccount} onClose={() => { setInfoStudent(null); setResetPassword(''); setResetError(''); setResetNotice(''); }}>
             <div className="flex items-center gap-3 border-b border-white/[0.08] pb-4">
-              <span className="flex size-12 items-center justify-center rounded-full border border-[#c6a96b]/25 bg-[#c6a96b]/[0.07] text-xs font-semibold text-[#dfc27e]">{initials(infoStudent.full_name)}</span>
+              <span style={avatarColor(infoStudent.student_id)} className="flex size-12 items-center justify-center rounded-full border text-xs font-semibold text-[#dfc27e]">{initials(infoStudent.full_name)}</span>
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-white">{infoStudent.full_name}</h3>
                 <p className="mt-1 truncate text-[11px] text-white/45">{studentClassLabel(infoStudent, classes, messages.noClassAssigned)}</p>

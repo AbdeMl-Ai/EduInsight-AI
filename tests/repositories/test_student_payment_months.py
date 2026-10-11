@@ -14,6 +14,12 @@ class AsyncCursor:
     def __aiter__(self):
         return self
 
+    def sort(self, field, direction=1):
+        documents = list(self.documents)
+        documents.sort(key=lambda document: document[field], reverse=direction < 0)
+        self.documents = iter(documents)
+        return self
+
     async def __anext__(self):
         try:
             return next(self.documents)
@@ -32,11 +38,21 @@ class FakePayments:
         self.deleted_query = None
         self.inserted = []
 
-    def find(self, query, _projection):
-        prefix = query["month"]["$regex"].removeprefix("^")
-        return AsyncCursor(
-            [{"month": item["month"]} for item in self.documents if item["month"].startswith(prefix)]
-        )
+    def find(self, query, projection):
+        if "month" in query and isinstance(query["month"], dict):
+            prefix = query["month"]["$regex"].removeprefix("^")
+            documents = [
+                {"month": item["month"]}
+                for item in self.documents
+                if item["month"].startswith(prefix)
+            ]
+        else:
+            documents = [
+                {key: value for key, value in item.items() if key in projection}
+                for item in self.documents
+                if all(item.get(key) == value for key, value in query.items())
+            ]
+        return AsyncCursor(documents)
 
     async def delete_many(self, query):
         self.deleted_query = query
@@ -71,6 +87,62 @@ def test_get_paid_months_reads_student_ledger_by_tenant_and_year():
     months = asyncio.run(repository.get_paid_months(STUDENT_ID, "admin-a", 2026))
 
     assert months == [2]
+
+
+def test_get_payment_history_returns_exact_dates_and_amounts_for_student():
+    repository = StudentPaymentRepo.__new__(StudentPaymentRepo)
+    repository.students = FakeStudents()
+    first_id = ObjectId()
+    second_id = ObjectId()
+    repository.collection = FakePayments([
+        {
+            "_id": first_id,
+            "admin_id": "admin-a",
+            "student_id": STUDENT_ID,
+            "amount": 600.0,
+            "payment_date": "2026-02-17",
+            "month": "2026-02",
+        },
+        {
+            "_id": second_id,
+            "admin_id": "admin-a",
+            "student_id": STUDENT_ID,
+            "amount": 450.0,
+            "payment_date": "2026-01-08",
+            "month": "2026-01",
+        },
+        {
+            "_id": ObjectId(),
+            "admin_id": "admin-b",
+            "student_id": STUDENT_ID,
+            "amount": 900.0,
+            "payment_date": "2026-03-01",
+            "month": "2026-03",
+        },
+    ])
+
+    payments = asyncio.run(
+        repository.get_payment_history(STUDENT_ID, "admin-a")
+    )
+
+    assert payments == [
+        {
+            "id": str(first_id),
+            "student_id": STUDENT_ID,
+            "student_name": "Student One",
+            "amount": 600.0,
+            "payment_date": "2026-02-17",
+            "month": "2026-02",
+        },
+        {
+            "id": str(second_id),
+            "student_id": STUDENT_ID,
+            "student_name": "Student One",
+            "amount": 450.0,
+            "payment_date": "2026-01-08",
+            "month": "2026-01",
+        },
+    ]
 
 
 def test_sync_paid_months_inserts_only_new_months_and_removes_unchecked():

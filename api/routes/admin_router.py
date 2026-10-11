@@ -34,6 +34,7 @@ from api.schemas.admin_schemas import (
     PaymentUpdate,
     RevenueAttendanceResponse,
     StudentPaymentCreate,
+    StudentPaymentHistoryResponse,
     StudentPaymentResponse,
     StudentPaidMonthsUpdate,
     StudentPaidMonthsResponse,
@@ -382,6 +383,23 @@ async def get_student_financials(
             student_id, _admin.admin_id, year
         )
         return summary
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@router.get(
+    "/payments/students/{student_id}/transactions",
+    response_model=StudentPaymentHistoryResponse,
+)
+async def get_student_payment_history(
+    student_id: str,
+    _admin=Depends(get_current_admin),
+):
+    try:
+        payments = await student_payment_repo.get_payment_history(
+            student_id, _admin.admin_id
+        )
+        return {"payments": payments}
     except ValueError as error:
         raise HTTPException(status_code=404, detail=str(error)) from error
 

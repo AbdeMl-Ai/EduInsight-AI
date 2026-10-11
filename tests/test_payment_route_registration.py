@@ -67,3 +67,14 @@ def test_financials_modal_month_sync_routes_are_registered():
         "/admin/payments/students/{student_id}/months/{month}"
     ]
     assert set(delete_operations) == {"delete"}
+
+
+def test_student_payment_history_route_returns_transaction_records():
+    history = app.openapi()["paths"][
+        "/admin/payments/students/{student_id}/transactions"
+    ]["get"]
+
+    response_schema = history["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]
+    assert response_schema["$ref"].endswith("/StudentPaymentHistoryResponse")

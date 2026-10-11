@@ -132,6 +132,10 @@ export type StudentPayment = StudentPaymentCreate & {
   amount: number;
 };
 
+export type StudentPaymentHistory = {
+  payments: StudentPayment[];
+};
+
 export type AttendanceRecord = {
   student_id: string;
   student_name: string | null;
@@ -222,12 +226,23 @@ export async function getRevenueAttendance(month: string, signal?: AbortSignal) 
   return data;
 }
 
-export async function getStudentFinancials(studentId: string, year: number) {
+export async function getStudentFinancials(
+  studentId: string,
+  year: number,
+  signal?: AbortSignal,
+) {
   const { data } = await api.get<PaymentSummary>(
     `/admin/payments/students/${studentId}`,
-    { params: { year } },
+    { params: { year }, signal },
   );
   return data;
+}
+
+export async function getStudentPaymentHistory(studentId: string) {
+  const { data } = await api.get<StudentPaymentHistory>(
+    `/admin/payments/students/${studentId}/transactions`,
+  );
+  return data.payments;
 }
 
 export async function createStudentPayment(payment: StudentPaymentCreate) {

@@ -20,6 +20,9 @@ class StudentController:
     async def get_my_exercises(self, student_id, class_id, admin_id):
         return await self.student_service.get_my_exercises(student_id, class_id, admin_id)
 
+    async def get_dashboard_progress(self, student_id, admin_id):
+        return await self.student_service.get_dashboard_progress(student_id, admin_id)
+
     async def update_student(self, student_id, admin_id, **updates):
         return await self.student_service.update_student(student_id, admin_id, **updates)
 

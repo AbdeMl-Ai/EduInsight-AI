@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, Check, CheckCircle2, ClipboardCheck, LoaderCircle, X } from "lucide-react";
 import { api, type AttendanceRecord, type AttendanceStudent, type TeacherScheduleSession } from "@/lib/api";
+import { useLandingLanguage } from "@/components/app/LandingLanguageProvider";
 
 function localDateISO() {
   const now = new Date();
@@ -17,9 +18,16 @@ function initials(name: string) {
 }
 
 export default function TeacherAttendancePage() {
+  const { language, messages } = useLandingLanguage();
   const reduceMotion = useReducedMotion();
   const today = localDateISO();
   const todayName = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date());
+  const todayLabel = new Intl.DateTimeFormat(language === "ar" ? "ar-MA" : "en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
   const [schedule, setSchedule] = useState<TeacherScheduleSession[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [studentsByClass, setStudentsByClass] = useState<Record<string, AttendanceStudent[]>>({});
@@ -52,7 +60,7 @@ export default function TeacherAttendancePage() {
         setSessionId((current) => todaysSessions.some((item) => item.id === current) ? current : todaysSessions[0]?.id ?? "");
       })
       .catch((loadError: unknown) => {
-        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Unable to load today’s attendance.");
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : messages.teacherAttendanceLoadError);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -60,7 +68,7 @@ export default function TeacherAttendancePage() {
     return () => {
       cancelled = true;
     };
-  }, [todayName]);
+  }, [todayName, messages.teacherAttendanceLoadError]);
 
   const selectedSession = schedule.find((item) => item.id === sessionId);
   const students = useMemo(
@@ -108,7 +116,7 @@ export default function TeacherAttendancePage() {
       setAttendance(await api.getTeacherAttendance());
       setSaved(true);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Unable to save attendance.");
+      setError(saveError instanceof Error ? saveError.message : messages.teacherAttendanceSaveError);
     } finally {
       setSaving(false);
     }
@@ -142,10 +150,12 @@ export default function TeacherAttendancePage() {
                     <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-semibold text-white/65">
                       {initials(student.full_name)}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-xs font-medium text-white/80">{student.full_name}</span>
+                    <bdi dir="auto" className="min-w-0 flex-1 truncate text-start text-xs font-medium text-white/80">{student.full_name}</bdi>
                     <button
                       type="button"
-                      aria-label={`Mark ${student.full_name} ${nextStatus}`}
+                      aria-label={messages.teacherMarkAttendance
+                        .replace("{name}", student.full_name)
+                        .replace("{status}", messages[nextStatus])}
                       onClick={() => setStatuses((current) => ({ ...current, [String(student.student_id)]: nextStatus }))}
                       className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-[10px] font-semibold transition-colors ${
                         nextStatus === "present"
@@ -154,7 +164,7 @@ export default function TeacherAttendancePage() {
                       }`}
                     >
                       {nextStatus === "present" ? <Check size={13} /> : <X size={13} />}
-                      Mark {nextStatus}
+                      {messages.teacherMarkAttendanceButton.replace("{status}", messages[nextStatus])}
                     </button>
                   </motion.li>
                 );
@@ -162,14 +172,14 @@ export default function TeacherAttendancePage() {
             </AnimatePresence>
           </ul>
         ) : (
-          <p className="px-4 py-8 text-center text-xs text-white/40">No students in this column.</p>
+          <p className="px-4 py-8 text-center text-xs text-white/40">{messages.teacherNoStudentsInColumn}</p>
         )}
       </motion.section>
     );
   }
 
   if (loading) {
-    return <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-white/50"><LoaderCircle size={18} className="animate-spin" />Loading today’s attendance…</div>;
+    return <div className="flex min-h-48 items-center justify-center gap-3 text-sm text-white/50"><LoaderCircle size={18} className="animate-spin" />{messages.teacherLoadingAttendance}</div>;
   }
 
   return (
@@ -179,9 +189,9 @@ export default function TeacherAttendancePage() {
       className="space-y-6"
     >
       <header>
-        <p className="text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">TODAY&apos;S CLASS</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white">Attendance</h1>
-        <p className="mt-2 text-xs text-white/45">Select a scheduled session and mark who attended.</p>
+        <p className="text-start text-[10px] font-semibold tracking-[0.18em] text-[#dfc27e]">{messages.teacherTodaysClass}</p>
+        <h1 className="mt-2 text-start text-2xl font-semibold tracking-tight text-white">{messages.attendance}</h1>
+        <p className="mt-2 text-start text-xs text-white/45">{messages.teacherAttendanceInstructions}</p>
       </header>
 
       {error && <p role="alert" className="rounded-xl border border-rose-300/20 bg-rose-300/[0.05] p-3 text-xs text-rose-200">{error}</p>}
@@ -189,7 +199,7 @@ export default function TeacherAttendancePage() {
       {schedule.length ? (
         <>
           <label className="block max-w-xl space-y-2 text-xs font-medium text-white/60">
-            Select today&apos;s class
+            {messages.teacherSelectTodaysClass}
             <select
               value={sessionId}
               onChange={(event) => {
@@ -215,10 +225,10 @@ export default function TeacherAttendancePage() {
                 className="grid gap-3 rounded-2xl border border-[#c6a96b]/20 bg-[#c6a96b]/[0.045] p-4 sm:grid-cols-2 lg:grid-cols-4"
               >
                 {[
-                  ["Session Name", selectedSession.class_name],
-                  ["Subject (Mada)", selectedSession.subject],
-                  ["Level", selectedSession.level],
-                  ["Teacher Name", selectedSession.teacher_name || teacherName],
+                  [messages.teacherSessionName, selectedSession.class_name],
+                  [messages.subject, selectedSession.subject],
+                  [messages.level, selectedSession.level],
+                  [messages.teacher, selectedSession.teacher_name || teacherName],
                 ].map(([label, value], index) => (
                   <motion.div
                     key={label}
@@ -226,12 +236,12 @@ export default function TeacherAttendancePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: reduceMotion ? 0 : 0.2, delay: reduceMotion ? 0 : index * 0.06 }}
                   >
-                    <p className="text-[9px] font-semibold tracking-[0.12em] text-white/40">{label}</p>
-                    <p className="mt-1 text-xs font-semibold text-white">{value || "—"}</p>
+                    <p className="text-start text-[9px] font-semibold tracking-[0.12em] text-white/40">{label}</p>
+                    <p dir="auto" className="mt-1 text-start text-xs font-semibold text-white"><bdi>{value || "—"}</bdi></p>
                   </motion.div>
                 ))}
                 <p className="text-[10px] text-white/40 sm:col-span-2 lg:col-span-4">
-                  {today} · {selectedSession.start_time}–{selectedSession.end_time}
+                  <bdi dir="auto">{todayLabel} · {selectedSession.start_time}–{selectedSession.end_time}</bdi>
                 </p>
               </motion.section>
             )}
@@ -240,11 +250,11 @@ export default function TeacherAttendancePage() {
           {selectedSession && (
             <>
               <div className="grid items-start gap-4 md:grid-cols-2">
-                {attendanceColumn("Li 7dro (Present)", "present", present)}
-                {attendanceColumn("Li ma 7drox (Absent)", "absent", absent)}
+                {attendanceColumn(messages.present, "present", present)}
+                {attendanceColumn(messages.absent, "absent", absent)}
               </div>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[10px] text-white/40">{students.length} students · {today}</p>
+                <p className="text-start text-[10px] text-white/40"><bdi dir="auto">{messages.teacherAttendanceCount.replace("{count}", new Intl.NumberFormat(language === "ar" ? "ar" : "en").format(students.length))} · {todayLabel}</bdi></p>
                 <motion.button
                   type="button"
                   onClick={saveAttendance}
@@ -254,7 +264,7 @@ export default function TeacherAttendancePage() {
                   className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#c6a96b] px-4 text-xs font-semibold text-[#17130b] transition-shadow hover:shadow-lg hover:shadow-[#c6a96b]/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <LoaderCircle size={15} className="animate-spin" /> : <ClipboardCheck size={15} />}
-                  {saving ? "Saving…" : "Save attendance"}
+                  {saving ? messages.saving : messages.teacherSaveAttendance}
                 </motion.button>
               </div>
             </>
@@ -263,8 +273,8 @@ export default function TeacherAttendancePage() {
       ) : (
         <div className="rounded-2xl border border-white/10 px-5 py-12 text-center">
           <CalendarDays className="mx-auto mb-3 text-[#c6a96b]" size={23} />
-          <p className="text-sm font-medium text-white">No sessions scheduled for today</p>
-          <p className="mt-1 text-xs text-white/40">Your attendance sheet will be available on a scheduled class day.</p>
+          <p className="text-sm font-medium text-white">{messages.teacherNoSessionsToday}</p>
+          <p className="mt-1 text-xs text-white/40">{messages.teacherAttendanceAvailableOnSchedule}</p>
         </div>
       )}
 
@@ -280,7 +290,7 @@ export default function TeacherAttendancePage() {
             className="fixed bottom-20 end-5 z-[80] flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-[#111] px-4 py-3 text-xs font-semibold text-emerald-200 shadow-xl md:bottom-6"
           >
             <CheckCircle2 size={17} />
-            Attendance saved successfully
+            {messages.teacherAttendanceSaved}
           </motion.div>
         )}
       </AnimatePresence>

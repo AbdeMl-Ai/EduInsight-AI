@@ -55,6 +55,9 @@ class StudentService:
             return await self.exercise_repo.get_exercises_by_class_ids_for_student(selected_classes, student_id, admin_id)
         return await self.exercise_repo.get_exercises_by_level_for_student(student.level_academy, student_id, admin_id)
 
+    async def get_dashboard_progress(self, student_id, admin_id):
+        return await self.student_repo.get_dashboard_progress(student_id, admin_id)
+
     async def assign_to_class(self, student_id, class_id, admin_id):
         await self.get_student(student_id, admin_id)
         student = await self.get_student(student_id, admin_id)

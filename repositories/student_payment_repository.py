@@ -62,6 +62,40 @@ class StudentPaymentRepo:
         }
         return sorted(months)
 
+    async def get_payment_history(self, student_id: str, admin_id: str):
+        student_id = self._id(student_id)
+        student = await self.students.find_one({
+            "_id": ObjectId(student_id),
+            "admin_id": admin_id,
+        })
+        if student is None:
+            raise ValueError("Student not found in your workspace.")
+
+        cursor = self.collection.find(
+            {
+                "admin_id": admin_id,
+                "student_id": student_id,
+            },
+            {
+                "_id": 1,
+                "student_id": 1,
+                "amount": 1,
+                "payment_date": 1,
+                "month": 1,
+            },
+        ).sort("payment_date", -1)
+        return [
+            {
+                "id": str(document["_id"]),
+                "student_id": student_id,
+                "student_name": student.get("full_name", ""),
+                "amount": document["amount"],
+                "payment_date": document["payment_date"],
+                "month": document["month"],
+            }
+            async for document in cursor
+        ]
+
     async def sync_paid_months(
         self,
         student_id: str,

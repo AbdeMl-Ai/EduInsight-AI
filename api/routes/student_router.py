@@ -13,7 +13,12 @@ from api.dependencies import (
     submission_controller,
 )
 from api.schemas.admin_schemas import AdminStudentCreate
-from api.schemas.student_schema import StudentCreate, StudentResponse, StudentUpdate
+from api.schemas.student_schema import (
+    StudentCreate,
+    StudentDashboardProgressResponse,
+    StudentResponse,
+    StudentUpdate,
+)
 from utils.submission_storage import delete_submission_file, save_submission_file
 
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -62,6 +67,13 @@ async def get_my_classes(user=Depends(require_student_workspace)):
             "subject": class_group.subject,
         })
     return classes
+
+
+@router.get("/me/progress", response_model=StudentDashboardProgressResponse)
+async def get_my_dashboard_progress(user=Depends(require_student_workspace)):
+    if _is_registered_user(user):
+        return {"classes": []}
+    return await student_controller.get_dashboard_progress(user.id, user.admin_id)
 
 
 @router.put("/me", response_model=StudentResponse)

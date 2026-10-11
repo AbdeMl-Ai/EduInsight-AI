@@ -258,6 +258,10 @@ class StudentPaymentResponse(BaseModel):
     month: str
 
 
+class StudentPaymentHistoryResponse(BaseModel):
+    payments: list[StudentPaymentResponse]
+
+
 class StudentPaidMonthsUpdate(BaseModel):
     year: int = Field(ge=2000, le=2100)
     paid_months: list[int] = Field(default_factory=list)

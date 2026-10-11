@@ -18,7 +18,9 @@ class PaymentService:
             user = await self.student_repo.get_student(user_id, admin_id)
             if user is None:
                 raise ValueError("Student not found in your workspace.")
-            class_ids = user.class_ids or ([user.class_id] if user.class_id else [])
+            class_ids = list(dict.fromkeys(
+                user.class_ids or ([user.class_id] if user.class_id else [])
+            ))
             class_docs = [await self.class_repo.get_class(class_id, admin_id) for class_id in class_ids]
             monthly_amount = sum(item.student_monthly_fee for item in class_docs if item)
             base_date = user.date_enjoined

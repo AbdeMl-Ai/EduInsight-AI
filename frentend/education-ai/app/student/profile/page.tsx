@@ -70,10 +70,6 @@ export default function StudentProfilePage() {
               <dt className="text-xs text-white/45">Academic level</dt>
               <dd className="max-w-[65%] break-words text-right text-sm text-white/85">{profile.level_academy || 'Not provided'}</dd>
             </div>
-            <div className="flex min-h-[62px] items-center justify-between gap-4 py-3">
-              <dt className="text-xs text-white/45">Age</dt>
-              <dd className="text-right text-sm tabular-nums text-white/85">{profile.age}</dd>
-            </div>
           </dl>
         </motion.div>
       )}

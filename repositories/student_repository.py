@@ -156,3 +156,98 @@ class StudentRepo:
             "class_info": None,
             "exercises_and_exams": exercise_rows,
         }
+
+    async def get_dashboard_progress(self, student_id: str, admin_id: str):
+        student = await self.get_student(student_id, admin_id)
+        if student is None:
+            raise ValueError("Student not found in your workspace.")
+
+        class_ids = list(dict.fromkeys(
+            student.class_ids or ([student.class_id] if student.class_id else [])
+        ))
+        classes_collection = self.collection.database["classes"]
+        exercises_collection = self.collection.database["exercises"]
+        submissions_collection = self.collection.database["submissions"]
+
+        class_documents = [
+            document
+            async for document in classes_collection.find({
+                "admin_id": admin_id,
+                "_id": {"$in": [ObjectId(class_id) for class_id in class_ids]},
+            })
+        ] if class_ids else []
+        class_by_id = {str(document["_id"]): document for document in class_documents}
+        ordered_class_ids = [class_id for class_id in class_ids if class_id in class_by_id]
+        if not ordered_class_ids:
+            return {"classes": []}
+
+        class_query_ids = [
+            item
+            for class_id in ordered_class_ids
+            for item in (class_id, ObjectId(class_id))
+        ]
+        exercise_documents = [
+            document
+            async for document in exercises_collection.find({
+                "admin_id": admin_id,
+                "class_id": {"$in": class_query_ids},
+            }).sort("created_at", 1)
+        ]
+        exercise_ids = [str(document["_id"]) for document in exercise_documents]
+        exercise_query_ids = [
+            item
+            for exercise_id in exercise_ids
+            for item in (exercise_id, ObjectId(exercise_id))
+        ]
+        submission_documents = [
+            document
+            async for document in submissions_collection.find({
+                "admin_id": admin_id,
+                "student_id": {"$in": [student.id, ObjectId(student.id)]},
+                "exercise_id": {"$in": exercise_query_ids},
+            })
+        ] if exercise_query_ids else []
+        submission_by_exercise = {
+            str(document["exercise_id"]): document
+            for document in submission_documents
+        }
+
+        exercises_by_class: dict[str, list[dict]] = {
+            class_id: [] for class_id in ordered_class_ids
+        }
+        for document in exercise_documents:
+            exercise_id = str(document["_id"])
+            class_id = str(document["class_id"])
+            submission = submission_by_exercise.get(exercise_id)
+            score = submission.get("score") if submission else None
+            max_score = document.get("max_score", 100)
+            exercises = exercises_by_class.get(class_id)
+            if exercises is None:
+                continue
+            sequence = len(exercises) + 1
+            exercises.append({
+                "exercise_id": exercise_id,
+                "exercise_name": document.get("course_title") or "Exercise",
+                "sequence": sequence,
+                "score": score,
+                "max_score": max_score,
+                "percentage": (
+                    round(score / max_score * 100, 2)
+                    if score is not None and max_score > 0
+                    else None
+                ),
+                "created_at": document.get("created_at"),
+            })
+
+        return {
+            "classes": [
+                {
+                    "class_id": class_id,
+                    "class_name": class_by_id[class_id].get("class_name", ""),
+                    "class_level": class_by_id[class_id].get("class_level", ""),
+                    "subject": class_by_id[class_id].get("subject", ""),
+                    "exercises": exercises_by_class[class_id],
+                }
+                for class_id in ordered_class_ids
+            ]
+        }

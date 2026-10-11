@@ -16,6 +16,7 @@ import {
   getAdminStudents,
   getAdminErrorMessage,
   getRevenueAttendance,
+  getStudentFinancials,
   type AdminStudent,
   type RevenueAttendance,
 } from '@/lib/admin-api';
@@ -55,7 +56,8 @@ export default function AdminRevenueAttendance() {
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [studentError, setStudentError] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [monthlyAmount, setMonthlyAmount] = useState<number | null>(null);
+  const [monthlyAmountLoading, setMonthlyAmountLoading] = useState(false);
   const [paymentDate, setPaymentDate] = useState(() => dateValue(new Date()));
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState('');
@@ -102,20 +104,44 @@ export default function AdminRevenueAttendance() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (!studentId) {
+      setMonthlyAmount(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setMonthlyAmount(null);
+    setMonthlyAmountLoading(true);
+    setPaymentError('');
+    getStudentFinancials(studentId, new Date().getFullYear(), controller.signal)
+      .then((financials) => {
+        if (!controller.signal.aborted) setMonthlyAmount(financials.monthly_amount);
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) {
+          setPaymentError(getAdminErrorMessage(requestError, messages.paymentDetailsLoadError));
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setMonthlyAmountLoading(false);
+      });
+    return () => controller.abort();
+  }, [studentId, messages]);
+
   async function savePayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!studentId || !amount || !paymentDate) return;
+    if (!studentId || monthlyAmount === null || monthlyAmount <= 0 || !paymentDate) return;
 
     setPaymentSaving(true);
     setPaymentError('');
     try {
       await createStudentPayment({
         student_id: studentId,
-        amount: Number(amount),
+        amount: monthlyAmount,
         payment_date: paymentDate,
         month: paymentDate.slice(0, 7),
       });
-      setAmount('');
       setRefreshKey((current) => current + 1);
       showSuccessToast(messages.paymentSavedSuccessfully, messages.paymentSaved);
     } catch (requestError) {
@@ -170,7 +196,11 @@ export default function AdminRevenueAttendance() {
           <select
             required
             value={studentId}
-            onChange={(event) => setStudentId(event.target.value)}
+            onChange={(event) => {
+              setMonthlyAmount(null);
+              setPaymentError('');
+              setStudentId(event.target.value);
+            }}
             disabled={studentsLoading || students.length === 0 || paymentSaving}
             className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition-colors focus:border-amber-500 disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-white"
           >
@@ -188,11 +218,11 @@ export default function AdminRevenueAttendance() {
             type="number"
             min="0.01"
             step="0.01"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            disabled={paymentSaving}
-            placeholder={messages.exampleAmount}
-            className="min-h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-amber-500 disabled:opacity-60 dark:border-white/10 dark:bg-slate-900 dark:text-white dark:placeholder:text-white/30"
+            value={monthlyAmount === null ? '' : monthlyAmount.toFixed(2)}
+            readOnly
+            aria-readonly="true"
+            placeholder={monthlyAmountLoading ? messages.loadingAnalytics : messages.exampleAmount}
+            className="min-h-10 w-full rounded-lg border border-slate-200 bg-slate-100 px-3 text-xs text-slate-800 outline-none dark:border-white/10 dark:bg-slate-900 dark:text-white"
           />
         </label>
         <label className="block space-y-1.5">
@@ -208,7 +238,7 @@ export default function AdminRevenueAttendance() {
         </label>
         <button
           type="submit"
-          disabled={paymentSaving || studentsLoading || students.length === 0}
+          disabled={paymentSaving || studentsLoading || students.length === 0 || monthlyAmountLoading || monthlyAmount === null || monthlyAmount <= 0}
           className="inline-flex min-h-10 items-center justify-center gap-2 self-end rounded-lg bg-amber-300 px-4 text-xs font-semibold text-slate-950 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-55 dark:bg-amber-200 dark:hover:bg-amber-100"
         >
           {paymentSaving && <LoaderCircle size={14} className="animate-spin" />}

@@ -22,6 +22,28 @@ class StudentResponse(BaseModel):
     class_ids: list[str] = Field(default_factory=list)
 
 
+class StudentProgressExercise(BaseModel):
+    exercise_id: str
+    exercise_name: str
+    sequence: int
+    score: float | None
+    max_score: float
+    percentage: float | None
+    created_at: datetime | None = None
+
+
+class StudentClassProgress(BaseModel):
+    class_id: str
+    class_name: str
+    class_level: str
+    subject: str
+    exercises: list[StudentProgressExercise] = Field(default_factory=list)
+
+
+class StudentDashboardProgressResponse(BaseModel):
+    classes: list[StudentClassProgress] = Field(default_factory=list)
+
+
 class StudentCreate(BaseModel):
     full_name: str
     email: str
