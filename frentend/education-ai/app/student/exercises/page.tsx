@@ -36,6 +36,7 @@ export default function ExercisesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
+  const [targetExerciseId, setTargetExerciseId] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,7 +47,12 @@ export default function ExercisesPage() {
       getStudentSubmissions(controller.signal),
     ])
       .then(([exerciseData, submissionData]) => {
-        const selectedClassId = window.localStorage.getItem(ACTIVE_STUDENT_CLASS_KEY);
+        const params = new URLSearchParams(window.location.search);
+        const selectedClassId =
+          params.get('class_id') ||
+          window.localStorage.getItem(ACTIVE_STUDENT_CLASS_KEY);
+        const targetId = params.get('exercise_id') ?? '';
+        setTargetExerciseId(targetId);
         const visibleExercises = selectedClassId
           ? exerciseData.filter((exercise) => exercise.class_id === selectedClassId)
           : exerciseData;
@@ -64,6 +70,14 @@ export default function ExercisesPage() {
       });
     return () => controller.abort();
   }, [attempt]);
+
+  useEffect(() => {
+    if (!loading && targetExerciseId) {
+      document
+        .getElementById(`student-exercise-${targetExerciseId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [loading, targetExerciseId, exercises]);
 
   const groupedExercises = exercises.reduce<Record<string, { courseTitle: string; items: StudentExercise[] }>>(
     (groups, exercise) => {
@@ -161,10 +175,15 @@ export default function ExercisesPage() {
               return (
                 <motion.article
                   key={exercise.id}
+                  id={`student-exercise-${exercise.id}`}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: Math.min((groupIndex + index) * 0.04, 0.2) }}
-                  className="rounded-lg border border-white/10 bg-white/[0.025] p-4 sm:p-5"
+                  className={`rounded-lg border bg-white/[0.025] p-4 transition-colors sm:p-5 ${
+                    targetExerciseId === exercise.id
+                      ? 'border-[#c6a96b]/70 ring-1 ring-[#c6a96b]/40'
+                      : 'border-white/10'
+                  }`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] text-white/65">

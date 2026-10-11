@@ -22,6 +22,13 @@ class NotificationController:
     async def send_notification_to_class_students(self, teacher_id, class_id, message, admin_id, reference_link=None):
         return await self.notification_service.send_notification_to_class_students(teacher_id, class_id, message, admin_id, reference_link)
 
+    async def notify_class_resource_added(
+        self, teacher_id, class_id, resource_type, resource_title, admin_id, reference_link
+    ):
+        return await self.notification_service.notify_class_resource_added(
+            teacher_id, class_id, resource_type, resource_title, admin_id, reference_link
+        )
+
     async def send_admin_notification(self, admin_id, message, student_id=None, class_id=None, teacher_id=None):
         return await self.notification_service.send_admin_notification(admin_id, message, student_id, class_id, teacher_id)
 

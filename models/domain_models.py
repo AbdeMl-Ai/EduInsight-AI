@@ -218,6 +218,7 @@ class Notification(MongoDocument):
     notification_type: str
     message: str
     reference_link: str | None = None
+    resource_title: str | None = None
     is_read: bool = False
     created_at: datetime = Field(default_factory=_utc_now)
 

@@ -12,9 +12,9 @@ class NotificationService:
         self.admin_repo = admin_repo
         self.class_repo = class_repo
 
-    async def _create(self, admin_id, sender_id, receiver_id, receiver_role, notification_type, message, reference_link=None):
+    async def _create(self, admin_id, sender_id, receiver_id, receiver_role, notification_type, message, reference_link=None, resource_title=None):
         NotificationValidator.validation_message(message)
-        doc = Notification(admin_id=admin_id, sender_id=sender_id, receiver_id=receiver_id, receiver_role=receiver_role, notification_type=notification_type, message=message, reference_link=reference_link, is_read=False, created_at=datetime.now(timezone.utc))
+        doc = Notification(admin_id=admin_id, sender_id=sender_id, receiver_id=receiver_id, receiver_role=receiver_role, notification_type=notification_type, message=message, reference_link=reference_link, resource_title=resource_title, is_read=False, created_at=datetime.now(timezone.utc))
         return await self.notification_repo.add_notification(doc, admin_id)
 
     async def create_notification(self, message, teacher_id, receiver_id, admin_id, receiver_role="student", reference_link=None):
@@ -38,6 +38,36 @@ class NotificationService:
             raise ValueError("Class not found in your workspace.")
         for enrollment in class_doc.embedded_students:
             await self.create_notification(message, teacher_id, enrollment["student_id"], admin_id, "student", reference_link)
+        return "Notification sent to class students."
+
+    async def notify_class_resource_added(
+        self, teacher_id, class_id, resource_type, resource_title, admin_id, reference_link
+    ):
+        if resource_type not in {"course", "exercise"}:
+            raise ValueError("Unsupported class resource type.")
+        if self.class_repo is None:
+            raise ValueError("Class repository is unavailable.")
+        class_doc = await self.class_repo.get_class(class_id, admin_id)
+        if class_doc is None or class_doc.teacher_id != teacher_id:
+            raise ValueError("Class not found in your workspace.")
+        teacher = await self.teacher_repo.get_teacher(teacher_id, admin_id)
+        if teacher is None:
+            raise ValueError("Teacher not found in your workspace.")
+        message = (
+            f"Teacher {teacher.full_name} added a new {resource_type}: "
+            f"{resource_title}"
+        )
+        for enrollment in class_doc.embedded_students:
+            await self._create(
+                admin_id,
+                teacher.id,
+                enrollment["student_id"],
+                "student",
+                f"{resource_type}_added",
+                message,
+                reference_link,
+                resource_title,
+            )
         return "Notification sent to class students."
 
     async def send_notification_to_students(self, teacher_id, message, admin_id):

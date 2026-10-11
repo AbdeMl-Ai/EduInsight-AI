@@ -72,3 +72,73 @@ def test_teacher_cannot_message_student_outside_assigned_classes():
                 "teacher-a", "student", "student-a", "Check-in", "Hello", "admin-a"
             )
         )
+import asyncio
+from types import SimpleNamespace
+
+from services.notification_service import NotificationService
+
+
+class FakeClassRepo:
+    async def get_class(self, class_id, _admin_id):
+        return SimpleNamespace(
+            id=class_id,
+            teacher_id="teacher-a",
+            embedded_students=[
+                {"student_id": "student-a"},
+                {"student_id": "student-b"},
+            ],
+        )
+
+
+class FakeResourceTeacherRepo:
+    async def get_teacher(self, teacher_id, _admin_id):
+        return SimpleNamespace(id=teacher_id, full_name="Teacher One")
+
+
+def test_resource_added_notification_reaches_every_class_student():
+    service = NotificationService(
+        notification_repo=None,
+        student_repo=None,
+        teacher_repo=FakeResourceTeacherRepo(),
+        class_repo=FakeClassRepo(),
+    )
+    notifications = []
+
+    async def record_notification(*args):
+        notifications.append(args)
+
+    service._create = record_notification
+
+    asyncio.run(
+        service.notify_class_resource_added(
+            "teacher-a",
+            "class-a",
+            "exercise",
+            "Exercise 1",
+            "admin-a",
+            "/student/exercises?class_id=class-a&exercise_id=exercise-a",
+        )
+    )
+
+    assert notifications == [
+        (
+            "admin-a",
+            "teacher-a",
+            "student-a",
+            "student",
+            "exercise_added",
+            "Teacher Teacher One added a new exercise: Exercise 1",
+            "/student/exercises?class_id=class-a&exercise_id=exercise-a",
+            "Exercise 1",
+        ),
+        (
+            "admin-a",
+            "teacher-a",
+            "student-b",
+            "student",
+            "exercise_added",
+            "Teacher Teacher One added a new exercise: Exercise 1",
+            "/student/exercises?class_id=class-a&exercise_id=exercise-a",
+            "Exercise 1",
+        ),
+    ]

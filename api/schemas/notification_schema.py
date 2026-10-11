@@ -12,6 +12,8 @@ class NotificationResponse(BaseModel):
     notification_type: str
     message: str
     reference_link: str | None = None
+    link: str | None = None
+    resource_title: str | None = None
     is_read: bool
     created_at: datetime
     notification_id: str | None = None

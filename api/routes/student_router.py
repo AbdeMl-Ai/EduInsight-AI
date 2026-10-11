@@ -193,6 +193,8 @@ async def get_my_notifications(user=Depends(require_student_workspace)):
             "receiver_role": item.receiver_role,
             "notification_type": item.notification_type,
             "reference_link": item.reference_link,
+            "link": item.reference_link,
+            "resource_title": item.resource_title,
         })
     return results
 

@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BookOpen,
+  ChevronDown,
   FilePlus2,
   LoaderCircle,
   Pencil,
@@ -46,6 +47,7 @@ export default function TeacherClassesPage() {
   const [students, setStudents] = useState<Record<string, TeacherStudent[]>>(
     {},
   );
+  const [expandedCourses, setExpandedCourses] = useState<Record<string, boolean>>({});
   const [mode, setMode] = useState<ModalMode>(null);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [editingCourse, setEditingCourse] = useState<TeacherCourse | null>(null);
@@ -318,9 +320,26 @@ export default function TeacherClassesPage() {
                       return (
                         <div key={course.id} className="mb-3 last:mb-0">
                           <div className="flex items-center gap-2">
-                            <p className="min-w-0 flex-1 truncate py-1 text-xs font-medium text-white/70">
-                              {course.title}
-                            </p>
+                            <button
+                              type="button"
+                              aria-expanded={Boolean(expandedCourses[course.id])}
+                              aria-controls={`course-exercises-${course.id}`}
+                              onClick={() =>
+                                setExpandedCourses((current) => ({
+                                  ...current,
+                                  [course.id]: !current[course.id],
+                                }))
+                              }
+                              className="flex min-w-0 flex-1 items-center gap-2 py-1 text-start text-xs font-medium text-white/70 hover:text-white"
+                            >
+                              <ChevronDown
+                                size={14}
+                                className={`shrink-0 transition-transform ${
+                                  expandedCourses[course.id] ? 'rotate-180' : ''
+                                }`}
+                              />
+                              <span className="truncate">{course.title}</span>
+                            </button>
                             <button
                               type="button"
                               title={messages.teacherEditCourseTitle}
@@ -348,44 +367,50 @@ export default function TeacherClassesPage() {
                               <Trash2 size={14} />
                             </button>
                           </div>
-                          {courseExercises.length ? (
-                            <ul className="space-y-1 border-s border-white/10 ps-3">
-                              {courseExercises.map((exercise) => (
-                                <li
-                                  key={exercise.id}
-                                  className="flex min-h-8 items-center gap-2 text-[11px] text-white/45"
-                                >
-                                  <span className="min-w-0 flex-1 truncate">
-                                    {exercise.course_title} · {messages.teacherMaxScore}: {exercise.max_score}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    title={messages.teacherEditExerciseTitle}
-                                    aria-label={messages.teacherEditExerciseAria.replace("{title}", exercise.course_title)}
-                                    disabled={saving}
-                                    onClick={() => openExerciseEditor(exercise)}
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+                          <div
+                            id={`course-exercises-${course.id}`}
+                            hidden={!expandedCourses[course.id]}
+                            className="mt-1"
+                          >
+                            {courseExercises.length ? (
+                              <ul className="space-y-1 border-s border-white/10 ps-3">
+                                {courseExercises.map((exercise) => (
+                                  <li
+                                    key={exercise.id}
+                                    className="flex min-h-8 items-center gap-2 text-[11px] text-white/45"
                                   >
-                                    <Pencil size={13} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title={messages.teacherDeleteExercise}
-                                    aria-label={messages.teacherDeleteExercise.replace("{title}", exercise.course_title)}
-                                    disabled={saving}
-                                    onClick={() => removeExercise(exercise)}
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-lg text-rose-200/60 hover:bg-rose-300/[0.08] hover:text-rose-200 disabled:opacity-40"
-                                  >
-                                    <Trash2 size={13} />
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p className="ps-3 text-start text-[10px] text-white/30">
-                              {messages.teacherNoExercisesYet}
-                            </p>
-                          )}
+                                    <span className="min-w-0 flex-1 truncate">
+                                      {exercise.course_title} · {messages.teacherMaxScore}: {exercise.max_score}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      title={messages.teacherEditExerciseTitle}
+                                      aria-label={messages.teacherEditExerciseAria.replace("{title}", exercise.course_title)}
+                                      disabled={saving}
+                                      onClick={() => openExerciseEditor(exercise)}
+                                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-white/40 hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title={messages.teacherDeleteExercise}
+                                      aria-label={messages.teacherDeleteExercise.replace("{title}", exercise.course_title)}
+                                      disabled={saving}
+                                      onClick={() => removeExercise(exercise)}
+                                      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-rose-200/60 hover:bg-rose-300/[0.08] hover:text-rose-200 disabled:opacity-40"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="ps-6 text-start text-[10px] text-white/30">
+                                {messages.teacherNoExercisesYet}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       );
                     })}

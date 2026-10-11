@@ -33,6 +33,7 @@ export default function StudentHomePage() {
   const { language, messages } = useLandingLanguage();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [classProgress, setClassProgress] = useState<StudentClassProgress[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -48,6 +49,11 @@ export default function StudentHomePage() {
       .then(([student, progress]) => {
         setProfile(student);
         setClassProgress(progress.classes);
+        setSelectedClassId((current) =>
+          progress.classes.some((item) => item.class_id === current)
+            ? current
+            : progress.classes[0]?.class_id ?? '',
+        );
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
@@ -108,83 +114,109 @@ export default function StudentHomePage() {
             <h2 className="mt-1 text-start text-base font-semibold text-slate-900 dark:text-white">{messages.studentProgressByClass}</h2>
           </header>
           {classProgress.length ? (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {classProgress.map((classItem, classIndex) => {
-                const chartData = classItem.exercises.map((exercise) => ({
-                  ...exercise,
-                  label: messages.studentExerciseShort.replace(
-                    '{number}',
-                    new Intl.NumberFormat(language === 'ar' ? 'ar' : 'en').format(exercise.sequence),
-                  ),
-                }));
-                const hasScores = chartData.some((exercise) => exercise.percentage !== null);
-                const classTitle = messages.studentClassProgressTitle
-                  .replace('{className}', classItem.class_name)
-                  .replace('{subject}', classItem.subject);
+            (() => {
+              const selectedClass =
+                classProgress.find((item) => item.class_id === selectedClassId) ??
+                classProgress[0];
+              const chartData = selectedClass.exercises.map((exercise) => ({
+                ...exercise,
+                scoreOutOf20:
+                  exercise.score !== null && exercise.max_score > 0
+                    ? (exercise.score / exercise.max_score) * 20
+                    : null,
+                label: messages.studentExerciseShort.replace(
+                  '{number}',
+                  new Intl.NumberFormat(language === 'ar' ? 'ar' : 'en').format(exercise.sequence),
+                ),
+              }));
+              const hasScores = chartData.some((exercise) => exercise.scoreOutOf20 !== null);
+              const classTitle = messages.studentClassProgressTitle
+                .replace('{className}', selectedClass.class_name)
+                .replace('{subject}', selectedClass.subject);
 
-                return (
-                  <motion.article
-                    key={classItem.class_id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.08 + classIndex * 0.04 }}
-                    className="min-w-0 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm transition-colors dark:border-white/10 dark:bg-white/[0.025]"
+              return (
+                <motion.article
+                  key={selectedClass.class_id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="min-w-0 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm transition-colors dark:border-white/10 dark:bg-white/[0.025]"
+                >
+                  <label
+                    htmlFor="student-progress-class"
+                    className="mb-2 block text-start text-xs font-medium text-slate-700 dark:text-white/70"
                   >
-                    <h3 dir="auto" className="text-start text-sm font-semibold text-slate-900 dark:text-white">
-                      <bdi>{classTitle}</bdi>
-                    </h3>
-                    {chartData.length && hasScores ? (
-                      <div className="mt-3 h-52 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                            <CartesianGrid stroke="var(--border)" strokeDasharray="3 5" vertical={false} />
-                            <XAxis
-                              dataKey="label"
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                              minTickGap={12}
-                            />
-                            <YAxis
-                              domain={[0, 100]}
-                              tickLine={false}
-                              axisLine={false}
-                              tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
-                              tickFormatter={(value: number) => `${value}%`}
-                              width={42}
-                            />
-                            <Tooltip
-                              formatter={(value) => [`${Number(value).toFixed(1)}%`, messages.studentScore]}
-                              contentStyle={{
-                                borderRadius: 12,
-                                border: '1px solid var(--border)',
-                                background: 'var(--card)',
-                                color: 'var(--card-foreground)',
-                                fontSize: 12,
-                              }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="percentage"
-                              name={messages.studentScore}
-                              stroke="var(--primary)"
-                              strokeWidth={2.5}
-                              dot={{ r: 3, fill: 'var(--primary)', strokeWidth: 0 }}
-                              activeDot={{ r: 5, fill: 'var(--primary)', stroke: 'var(--card)', strokeWidth: 2 }}
-                              connectNulls
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <p className="mt-3 flex h-52 items-center justify-center rounded-lg bg-slate-50 text-center text-xs text-slate-500 dark:bg-white/[0.02] dark:text-white/45">
-                        {chartData.length ? messages.studentNoScoresYet : messages.studentNoExercises}
-                      </p>
-                    )}
-                  </motion.article>
-                );
-              })}
-            </div>
+                    {messages.studentSelectClass}
+                  </label>
+                  <select
+                    id="student-progress-class"
+                    value={selectedClass.class_id}
+                    onChange={(event) => setSelectedClassId(event.target.value)}
+                    className="mb-4 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-start text-sm text-slate-900 outline-none focus:border-amber-700 dark:border-white/10 dark:bg-[#111111] dark:text-white sm:max-w-sm"
+                  >
+                    {classProgress.map((classItem) => (
+                      <option key={classItem.class_id} value={classItem.class_id}>
+                        {classItem.class_name} · {classItem.subject}
+                      </option>
+                    ))}
+                  </select>
+                  <h3 dir="auto" className="text-start text-sm font-semibold text-slate-900 dark:text-white">
+                    <bdi>{classTitle}</bdi>
+                  </h3>
+                  {chartData.length && hasScores ? (
+                    <div className="mt-3 h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 40 }}>
+                          <CartesianGrid stroke="var(--border)" strokeDasharray="3 5" vertical={false} />
+                          <XAxis
+                            dataKey="label"
+                            interval={0}
+                            angle={-35}
+                            textAnchor="end"
+                            height={55}
+                            tickMargin={8}
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: 'var(--muted-foreground)', fontSize: 9 }}
+                          />
+                          <YAxis
+                            domain={[0, 20]}
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }}
+                            allowDecimals={false}
+                            width={36}
+                          />
+                          <Tooltip
+                            formatter={(value) => [`${Number(value).toFixed(1)} / 20`, messages.studentScore]}
+                            contentStyle={{
+                              borderRadius: 12,
+                              border: '1px solid var(--border)',
+                              background: 'var(--card)',
+                              color: 'var(--card-foreground)',
+                              fontSize: 12,
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="scoreOutOf20"
+                            name={messages.studentScore}
+                            stroke="var(--primary)"
+                            strokeWidth={2.5}
+                            dot={{ r: 3, fill: 'var(--primary)', strokeWidth: 0 }}
+                            activeDot={{ r: 5, fill: 'var(--primary)', stroke: 'var(--card)', strokeWidth: 2 }}
+                            connectNulls
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <p className="mt-3 flex h-52 items-center justify-center rounded-lg bg-slate-50 text-center text-xs text-slate-500 dark:bg-white/[0.02] dark:text-white/45">
+                      {chartData.length ? messages.studentNoScoresYet : messages.studentNoExercises}
+                    </p>
+                  )}
+                </motion.article>
+              );
+            })()
           ) : (
             <p className="rounded-xl border border-slate-200 bg-white/80 p-4 text-start text-xs text-slate-500 dark:border-white/10 dark:bg-white/[0.025] dark:text-white/45">
               {messages.studentNoEnrolledClasses}

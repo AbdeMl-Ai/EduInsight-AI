@@ -2,13 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, GraduationCap, LayoutDashboard, UserRound, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bell, BookOpen, GraduationCap, LayoutDashboard, UserRound, Users } from 'lucide-react';
 import ThemeToggle from '@/components/app/ThemeToggle';
 import AuthGuard from '@/components/app/AuthGuard';
 import LanguageSwitcher from '@/components/app/LanguageSwitcher';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import AdminToastProvider from '@/components/admin/AdminToastProvider';
 import type { LucideIcon } from 'lucide-react';
+import {
+  getAdminErrorMessage,
+  getAdminNotifications,
+  type AdminNotification,
+} from '@/lib/admin-api';
 
 const navigation: Array<{ href: string; label: 'overview' | 'people' | 'classes' | 'profile'; icon: LucideIcon }> = [
   { href: '/admin/home', label: 'overview', icon: LayoutDashboard },
@@ -20,6 +26,37 @@ const navigation: Array<{ href: string; label: 'overview' | 'people' | 'classes'
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { messages } = useLandingLanguage();
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsLoading, setNotificationsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshNotifications = () => {
+      getAdminNotifications()
+        .then((items) => {
+          if (!cancelled) setNotifications(items);
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            console.warn(
+              getAdminErrorMessage(error, messages.notificationsLoadError),
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setNotificationsLoading(false);
+        });
+    };
+    refreshNotifications();
+    const interval = window.setInterval(refreshNotifications, 60_000);
+    window.addEventListener('focus', refreshNotifications);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshNotifications);
+    };
+  }, [messages.notificationsLoadError]);
 
   return (
     <AuthGuard role="admin">
@@ -37,6 +74,75 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="size-1.5 rounded-full bg-emerald-400" />
             {messages.adminWorkspace}
           </span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setNotificationsOpen((open) => !open)}
+              disabled={notificationsLoading}
+              aria-label={messages.openNotifications}
+              aria-expanded={notificationsOpen}
+              aria-haspopup="dialog"
+              title={messages.openNotifications}
+              className="relative flex size-9 items-center justify-center rounded-lg text-white/55 transition-colors hover:bg-white/5 hover:text-[#dfc27e] disabled:opacity-50"
+            >
+              <Bell size={18} />
+              {notifications.some((item) => !item.is_read) && (
+                <span
+                  aria-label={messages.unreadNotifications}
+                  className="absolute end-1.5 top-1.5 size-2 rounded-full bg-rose-500"
+                />
+              )}
+            </button>
+            {notificationsOpen && (
+              <section
+                role="dialog"
+                aria-label={messages.notifications}
+                className="absolute end-0 top-full z-[60] mt-3 flex max-h-[min(30rem,calc(100dvh-9rem))] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#111111] shadow-2xl"
+              >
+                <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                  <h2 className="text-sm font-semibold text-white">
+                    {messages.notifications}
+                  </h2>
+                  <Link
+                    href="/admin/notifications"
+                    onClick={() => setNotificationsOpen(false)}
+                    className="text-[10px] font-semibold text-[#dfc27e] hover:text-white"
+                  >
+                    {messages.viewAllNotifications}
+                  </Link>
+                </header>
+                <div className="overflow-y-auto p-3">
+                  {notifications.length ? (
+                    notifications.slice(0, 20).map((item) => (
+                      <article
+                        key={item.id}
+                        className={`border-b border-white/[0.06] px-2 py-3 last:border-0 ${
+                          item.is_read ? '' : 'bg-[#c6a96b]/[0.05]'
+                        }`}
+                      >
+                        <p className="text-[10px] font-medium text-[#dfc27e]">
+                          {messages.sentBy.replace(
+                            '{name}',
+                            item.sender_name || messages.adminName,
+                          )}
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-white/75">
+                          {item.message}
+                        </p>
+                        <time className="mt-2 block text-[9px] text-white/35">
+                          {new Date(item.created_at).toLocaleString()}
+                        </time>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="px-2 py-8 text-center text-xs text-white/45">
+                      {messages.noNotifications}
+                    </p>
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
           <LanguageSwitcher />
           <ThemeToggle />
         </div>

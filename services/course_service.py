@@ -24,6 +24,14 @@ class CourseService:
             await self.notification_service.notify_admin_resource_added(
                 teacher.id, "course", created_course.title, admin_id
             )
+            await self.notification_service.notify_class_resource_added(
+                teacher.id,
+                class_id,
+                "course",
+                created_course.title,
+                admin_id,
+                f"/student/courses?class_id={class_id}&course_id={created_course.id}",
+            )
         return created_course
 
     async def get_course(self, course_id, admin_id):

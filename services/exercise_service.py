@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from models.domain_models import Exercise
 from utils.validation_exercise import ExerciseValidator
 from utils.validators import validate_max_score
@@ -18,6 +20,19 @@ class ExerciseService:
                 teacher_id, "exercise", resource_title, admin_id
             )
 
+    async def _notify_students(
+        self, teacher_id, exercise, admin_id, resource_title=None
+    ):
+        if self.notification_service is not None:
+            await self.notification_service.notify_class_resource_added(
+                teacher_id,
+                exercise.class_id,
+                "exercise",
+                resource_title or exercise.course_title,
+                admin_id,
+                f"/student/exercises?class_id={exercise.class_id}&exercise_id={exercise.id}",
+            )
+
     async def create_exercise(self, teacher_id, course_id, file_path, max_score, admin_id):
         validate_max_score(max_score)
         course = await self.course_repo.get_course(course_id, admin_id)
@@ -28,6 +43,12 @@ class ExerciseService:
         exercise = Exercise(admin_id=admin_id, teacher_id=teacher_id, class_id=course.class_id, course_id=course.id, course_title=course.title, file_path=file_path, max_score=max_score)
         created_exercise = await self.exercise_repo.add_exercise(exercise, admin_id)
         await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
+        await self._notify_students(
+            teacher_id,
+            created_exercise,
+            admin_id,
+            Path(file_path).stem if file_path else None,
+        )
         return created_exercise
 
     async def create_graded_work(self, teacher_id, class_id, title, description, max_score, due_date, admin_id, file_path="", course_id=None):
@@ -56,6 +77,7 @@ class ExerciseService:
         )
         created_exercise = await self.exercise_repo.add_graded_work(exercise, admin_id)
         await self._notify_admin(teacher_id, created_exercise.course_title, admin_id)
+        await self._notify_students(teacher_id, created_exercise, admin_id)
         return created_exercise
 
     async def get_exercise(self, exercise_id, admin_id):

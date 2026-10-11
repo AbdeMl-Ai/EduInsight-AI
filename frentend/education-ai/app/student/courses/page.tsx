@@ -14,6 +14,7 @@ import {
 export default function CoursesPage() {
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<StudentCourse | null>(null);
+  const [targetCourseId, setTargetCourseId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -24,10 +25,18 @@ export default function CoursesPage() {
     setError('');
     getStudentCourses(controller.signal)
       .then((courseData) => {
-        const selectedClassId = window.localStorage.getItem(ACTIVE_STUDENT_CLASS_KEY);
-        setCourses(selectedClassId
+        const params = new URLSearchParams(window.location.search);
+        const selectedClassId =
+          params.get('class_id') ||
+          window.localStorage.getItem(ACTIVE_STUDENT_CLASS_KEY);
+        const visibleCourses = selectedClassId
           ? courseData.filter((course) => course.class_id === selectedClassId)
-          : courseData);
+          : courseData;
+        const targetId = params.get('course_id') ?? '';
+        setTargetCourseId(targetId);
+        setCourses(visibleCourses);
+        const targetCourse = visibleCourses.find((course) => course.id === targetId);
+        if (targetCourse?.material_file_path) setSelectedCourse(targetCourse);
       })
       .catch((requestError: unknown) => {
         if (!controller.signal.aborted) {
@@ -39,6 +48,14 @@ export default function CoursesPage() {
       });
     return () => controller.abort();
   }, [attempt]);
+
+  useEffect(() => {
+    if (!loading && targetCourseId) {
+      document
+        .getElementById(`student-course-${targetCourseId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [loading, targetCourseId, courses]);
 
   const materialPath = selectedCourse?.material_file_path;
   const materialUrl = materialPath ? getStudentAssetUrl(materialPath) : null;
@@ -84,10 +101,15 @@ export default function CoursesPage() {
           {courses.map((course, index) => (
             <motion.article
               key={course.id}
+              id={`student-course-${course.id}`}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: Math.min(index * 0.04, 0.2) }}
-              className="flex min-h-44 flex-col rounded-lg border border-white/10 bg-white/[0.025] p-5 transition-colors hover:border-[#c6a96b]/40"
+              className={`flex min-h-44 flex-col rounded-lg border bg-white/[0.025] p-5 transition-colors hover:border-[#c6a96b]/40 ${
+                targetCourseId === course.id
+                  ? 'border-[#c6a96b]/70 ring-1 ring-[#c6a96b]/40'
+                  : 'border-white/10'
+              }`}
             >
               <div className="mb-5 flex items-center justify-between">
                 <span className="flex size-9 items-center justify-center rounded-lg border border-[#c6a96b]/20 bg-[#c6a96b]/[0.06] text-[#d4b875]">

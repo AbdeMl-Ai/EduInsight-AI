@@ -17,7 +17,10 @@ class FakeCourseRepo:
 
 class FakeExerciseRepo:
     async def add_graded_work(self, exercise, _admin_id):
-        return exercise
+        return exercise.model_copy(update={"id": "exercise-a"})
+
+    async def add_exercise(self, exercise, _admin_id):
+        return exercise.model_copy(update={"id": "exercise-a"})
 
 
 class FakeNotificationService:
@@ -31,6 +34,12 @@ class FakeNotificationService:
             (teacher_id, resource_type, resource_title, admin_id)
         )
 
+    async def notify_class_resource_added(
+        self, teacher_id, class_id, resource_type, resource_title, admin_id, link
+    ):
+        self.notifications.append(
+            (teacher_id, class_id, resource_type, resource_title, admin_id, link)
+        )
 
 class RecordingExerciseService:
     async def create_graded_work(self, *args):
@@ -80,6 +89,7 @@ def test_graded_work_is_assigned_to_selected_course():
             None,
             "admin-a",
             course_id="course-a",
+            file_path="",
         )
     )
 
@@ -87,7 +97,53 @@ def test_graded_work_is_assigned_to_selected_course():
     assert exercise.course_id == "course-a"
     assert exercise.course_title == "Exercise 1"
     assert notifications.notifications == [
-        ("teacher-a", "exercise", "Exercise 1", "admin-a")
+        ("teacher-a", "exercise", "Exercise 1", "admin-a"),
+        (
+            "teacher-a",
+            "class-a",
+            "exercise",
+            "Exercise 1",
+            "admin-a",
+            "/student/exercises?class_id=class-a&exercise_id=exercise-a",
+        ),
+    ]
+
+
+def test_file_exercise_notifies_students_with_the_uploaded_title():
+    course = SimpleNamespace(
+        id="course-a",
+        teacher_id="teacher-a",
+        class_id="class-a",
+        title="Algebra",
+    )
+    notifications = FakeNotificationService()
+    service = ExerciseService(
+        FakeExerciseRepo(),
+        FakeCourseRepo(course),
+        notification_service=notifications,
+    )
+
+    exercise = asyncio.run(
+        service.create_exercise(
+            "teacher-a",
+            "course-a",
+            "uploads/worksheet.pdf",
+            20,
+            "admin-a",
+        )
+    )
+
+    assert exercise.id == "exercise-a"
+    assert notifications.notifications == [
+        ("teacher-a", "exercise", "Algebra", "admin-a"),
+        (
+            "teacher-a",
+            "class-a",
+            "exercise",
+            "worksheet",
+            "admin-a",
+            "/student/exercises?class_id=class-a&exercise_id=exercise-a",
+        ),
     ]
 
 

@@ -88,6 +88,9 @@ export type StudentNotification = {
   sender_name: string;
   title: string;
   message: string;
+  notification_type?: string;
+  resource_title?: string | null;
+  link?: string | null;
   is_read: boolean;
   created_at: string;
   reference_link?: string | null;

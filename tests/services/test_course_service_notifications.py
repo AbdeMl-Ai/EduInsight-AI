@@ -28,6 +28,12 @@ class FakeNotificationService:
             (teacher_id, resource_type, resource_title, admin_id)
         )
 
+    async def notify_class_resource_added(
+        self, teacher_id, class_id, resource_type, resource_title, admin_id, link
+    ):
+        self.notifications.append(
+            (teacher_id, class_id, resource_type, resource_title, admin_id, link)
+        )
 
 def test_course_creation_notifies_the_admin():
     notifications = FakeNotificationService()
@@ -43,5 +49,13 @@ def test_course_creation_notifies_the_admin():
 
     assert course.id == "course-a"
     assert notifications.notifications == [
-        ("teacher-a", "course", "Algebra", "admin-a")
+        ("teacher-a", "course", "Algebra", "admin-a"),
+        (
+            "teacher-a",
+            "class-a",
+            "course",
+            "Algebra",
+            "admin-a",
+            "/student/courses?class_id=class-a&course_id=course-a",
+        ),
     ]

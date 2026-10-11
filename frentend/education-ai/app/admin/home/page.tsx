@@ -3,17 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, ArrowUpRight, Bell, BookOpen, GraduationCap, Hand, Send, Users } from 'lucide-react';
+import { Activity, ArrowUpRight, BookOpen, GraduationCap, Hand, Users } from 'lucide-react';
 import AdminRevenueAttendance from '@/components/admin/AdminRevenueAttendance';
 import AdminWeeklySchedule from '@/components/admin/AdminWeeklySchedule';
 import { useLandingLanguage } from '@/components/app/LandingLanguageProvider';
 import {
   getAdminErrorMessage,
   getAdminProfile,
-  getAdminNotifications,
   getAdminStats,
   type AdminProfile,
-  type AdminNotification,
   type AdminStats,
 } from '@/lib/admin-api';
 
@@ -21,7 +19,6 @@ export default function AdminHomePage() {
   const { messages } = useLandingLanguage();
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<string[]>([]);
   const [attempt, setAttempt] = useState(0);
@@ -33,7 +30,6 @@ export default function AdminHomePage() {
     Promise.allSettled([
       getAdminProfile(controller.signal),
       getAdminStats(controller.signal),
-      getAdminNotifications(controller.signal),
     ]).then((results) => {
       if (controller.signal.aborted) return;
       const nextErrors: string[] = [];
@@ -41,8 +37,6 @@ export default function AdminHomePage() {
       else nextErrors.push(getAdminErrorMessage(results[0].reason, messages.adminProfileLoadError));
       if (results[1].status === 'fulfilled') setStats(results[1].value);
       else nextErrors.push(getAdminErrorMessage(results[1].reason, messages.dashboardCountsLoadError));
-      if (results[2].status === 'fulfilled') setNotifications(results[2].value);
-      else nextErrors.push(getAdminErrorMessage(results[2].reason, messages.notificationsLoadError));
       setErrors(nextErrors);
       setLoading(false);
     });
@@ -78,7 +72,7 @@ export default function AdminHomePage() {
         <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-white via-white/85 to-transparent dark:from-slate-950 dark:via-slate-950/85 dark:to-transparent rtl:bg-gradient-to-l" />
         <div className="relative z-10 flex h-full w-full flex-col items-start">
           <div className="max-w-xl">
-            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-800/80 dark:text-amber-200/75">{messages.adminOffice}</p>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-950 dark:text-amber-200/75">{messages.adminOffice}</p>
             <h1 className="break-words text-xl font-semibold leading-tight tracking-tight text-slate-950 sm:text-3xl dark:text-white">
               {messages.welcomeBack.replace('{name}', profile?.full_name || messages.adminName)}
               <Hand className="ms-2 inline-block -rotate-12 text-amber-600 dark:text-amber-300" size={24} strokeWidth={1.8} aria-hidden="true" />
@@ -89,16 +83,10 @@ export default function AdminHomePage() {
             <Link href="/admin/people" className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-400 px-3.5 text-xs font-semibold text-slate-950 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-300 dark:border-amber-200/30 dark:bg-amber-200 dark:hover:bg-amber-100">
               {messages.managePeopleLink} <ArrowUpRight size={15} />
             </Link>
-            <div className="max-w-full rounded-full border border-slate-300 bg-white/65 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-slate-600 backdrop-blur-sm dark:border-white/15 dark:bg-black/30 dark:text-white/65">{messages.adminOffice}</div>
+            <div className="max-w-full rounded-full border border-slate-300 bg-white/65 px-2.5 py-1 text-[9px] font-medium tracking-[0.13em] text-slate-950 backdrop-blur-sm dark:border-white/15 dark:bg-black/30 dark:text-white/65">{messages.adminOffice}</div>
           </div>
         </div>
       </motion.header>
-
-      <section aria-label={messages.notifications} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/80 p-3 shadow-sm transition-colors duration-300 dark:border-white/10 dark:bg-white/[0.025]">
-        <Link href="/admin/notifications" aria-label={messages.openNotifications} title={messages.notifications} className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-[#c6a96b]/30 bg-[#c6a96b]/[0.08] text-[#dfc27e] hover:bg-[#c6a96b]/[0.14]"><Bell size={19} /></Link>
-        <div className="min-w-0 flex-1"><p className="text-[10px] font-semibold tracking-[0.14em] text-slate-500 dark:text-white/40">{messages.latestNotification}</p><p className="mt-1 truncate text-xs text-slate-700 dark:text-white/70">{loading ? messages.loadingNotifications : notifications[0]?.message || messages.noNotifications}</p></div>
-        <Link href="/admin/notifications" className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md border border-white/10 px-2.5 text-[10px] font-semibold text-white/60 hover:border-[#c6a96b]/30 hover:text-[#dfc27e]"><Send size={13} />{messages.send}</Link>
-      </section>
 
       <section aria-labelledby="admin-stats-heading">
         <div className="mb-3 flex items-end justify-between">
