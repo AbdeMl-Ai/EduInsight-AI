@@ -15,7 +15,7 @@ from utils.passwords import hash_password, verify_password
 
 
 DEFAULT_DATA_FILE = Path(__file__).resolve().with_name("mock_data.json")
-EXPECTED_COUNTS = {"teachers": 5, "classes": 10, "students": 20}
+EXPECTED_COUNTS = {"teachers": 5, "classes": 10, "students": 80}
 
 
 def stable_object_id(kind: str, key: str) -> ObjectId:
@@ -344,7 +344,7 @@ def main() -> None:
         data["password"] = os.environ["SEED_PASSWORD"]
     validate_data(data)
     if args.validate_only:
-        print("Seed data is valid: 1 admin, 5 teachers, 10 classes, 20 students.")
+        print("Seed data is valid: 1 admin, 5 teachers, 10 classes, 80 students.")
         return
 
     mongo_uri = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI")

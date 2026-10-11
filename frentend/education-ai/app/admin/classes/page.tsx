@@ -47,6 +47,10 @@ function Field({ label, ...props }: { label: string } & React.InputHTMLAttribute
   );
 }
 
+function calculateTeacherFee(studentMonthlyFee: number, centerFee: number) {
+  return Number((studentMonthlyFee - centerFee).toFixed(2));
+}
+
 export default function AdminClassesPage() {
   const { messages } = useLandingLanguage();
   const { showSuccessToast } = useAdminToast();
@@ -106,7 +110,10 @@ export default function AdminClassesPage() {
       subject: classItem.subject,
       class_level: classItem.class_level,
       center_rent_fee_per_student: classItem.center_rent_fee_per_student,
-      teacher_teaching_fee_per_student: classItem.teacher_teaching_fee_per_student,
+      teacher_teaching_fee_per_student: calculateTeacherFee(
+        classItem.student_monthly_fee,
+        classItem.center_rent_fee_per_student,
+      ),
       student_monthly_fee: classItem.student_monthly_fee,
     });
     setFormError('');
@@ -124,10 +131,17 @@ export default function AdminClassesPage() {
     setSaving(true);
     setFormError('');
     try {
+      const classData = {
+        ...form,
+        teacher_teaching_fee_per_student: calculateTeacherFee(
+          form.student_monthly_fee,
+          form.center_rent_fee_per_student,
+        ),
+      };
       if (editingClass) {
-        await updateAdminClass(editingClass.id, form);
+        await updateAdminClass(editingClass.id, classData);
       } else {
-        const created = await createAdminClass(form);
+        const created = await createAdminClass(classData);
         await assignAdminTeacherClasses(form.teacher_id, [created.id]);
       }
       showSuccessToast(
@@ -460,9 +474,29 @@ export default function AdminClassesPage() {
                 <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.academicLevel}</span><select required value={form.class_level} onChange={(event) => setForm((current) => ({ ...current, class_level: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseAcademicLevel}</option>{ACADEMIC_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></label>
                 <label className="block space-y-1.5"><span className="text-[11px] font-medium text-white/55">{messages.teacher}</span><select required value={form.teacher_id} onChange={(event) => setForm((current) => ({ ...current, teacher_id: event.target.value }))} className="min-h-11 w-full rounded-lg border border-white/10 bg-[#151515] px-3 text-sm text-white outline-none focus:border-[#c6a96b]/55"><option value="">{messages.chooseTeacher}</option>{teachers.map((teacher) => <option key={teacher.teacher_id} value={teacher.teacher_id}>{teacher.full_name}</option>)}</select>{teachers.length === 0 && <span className="text-[10px] text-amber-100/65">{messages.addTeacherBeforeClass}</span>}</label>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <Field label={messages.centerFeePerStudent} type="number" min="0" step="0.01" value={form.center_rent_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, center_rent_fee_per_student: Number(event.target.value) }))} required />
-                  <Field label={messages.teacherFeePerStudent} type="number" min="0" step="0.01" value={form.teacher_teaching_fee_per_student} onChange={(event) => setForm((current) => ({ ...current, teacher_teaching_fee_per_student: Number(event.target.value) }))} required />
-                  <Field label={messages.studentMonthlyFee} type="number" min="0" step="0.01" value={form.student_monthly_fee} onChange={(event) => setForm((current) => ({ ...current, student_monthly_fee: Number(event.target.value) }))} required />
+                  <Field label={messages.centerFeePerStudent} type="number" min="0" step="0.01" value={form.center_rent_fee_per_student} onChange={(event) => {
+                    const centerFee = Number(event.target.value);
+                    setForm((current) => ({
+                      ...current,
+                      center_rent_fee_per_student: centerFee,
+                      teacher_teaching_fee_per_student: calculateTeacherFee(
+                        current.student_monthly_fee,
+                        centerFee,
+                      ),
+                    }));
+                  }} required />
+                  <Field label={messages.teacherFeePerStudent} type="number" min="0" step="0.01" value={form.teacher_teaching_fee_per_student} readOnly aria-readonly="true" />
+                  <Field label={messages.studentMonthlyFee} type="number" min={form.center_rent_fee_per_student} step="0.01" value={form.student_monthly_fee} onChange={(event) => {
+                    const studentMonthlyFee = Number(event.target.value);
+                    setForm((current) => ({
+                      ...current,
+                      student_monthly_fee: studentMonthlyFee,
+                      teacher_teaching_fee_per_student: calculateTeacherFee(
+                        studentMonthlyFee,
+                        current.center_rent_fee_per_student,
+                      ),
+                    }));
+                  }} required />
                 </div>
                 {formError && <p role="alert" className="rounded-lg border border-rose-300/15 bg-rose-300/[0.04] p-3 text-xs text-rose-200">{formError}</p>}
                 <div className="flex gap-2 border-t border-white/[0.08] pt-4"><button type="button" onClick={() => setFormOpen(false)} disabled={saving} className="min-h-11 flex-1 rounded-lg border border-white/10 text-xs text-white/60">{messages.cancel}</button><button type="submit" disabled={saving || !teachers.length} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#c6a96b] text-xs font-semibold text-[#17130b] disabled:opacity-50">{saving && <LoaderCircle size={15} className="animate-spin" />}{saving ? messages.saving : editingClass ? messages.saveChanges : messages.createClass}</button></div>

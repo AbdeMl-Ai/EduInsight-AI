@@ -93,6 +93,75 @@ def test_class_service_requires_teacher_in_same_workspace():
     asyncio.run(exercise_service())
 
 
+def test_class_service_calculates_teacher_fee_on_create_and_update():
+    class_repo = FakeClassRepo()
+    service = ClassService(class_repo, FakeTeacherRepo(valid_teachers={"teacher-a"}))
+    class_document = ClassDocument(
+        admin_id="admin-a",
+        teacher_id="teacher-a",
+        class_name="Class A",
+        subject="Math",
+        class_level="1AC",
+        center_rent_fee_per_student=75,
+        teacher_teaching_fee_per_student=999,
+        student_monthly_fee=350,
+    )
+
+    async def exercise_service():
+        created = await service.create_class(class_document, "admin-a")
+        assert created.teacher_teaching_fee_per_student == 275
+
+        await service.update_class(
+            "class-id",
+            "admin-a",
+            {
+                "center_rent_fee_per_student": 80,
+                "student_monthly_fee": 390,
+                "teacher_teaching_fee_per_student": 1,
+            },
+        )
+        assert class_repo.class_document.center_rent_fee_per_student == 80
+        assert class_repo.class_document.teacher_teaching_fee_per_student == 310
+
+    asyncio.run(exercise_service())
+
+
+def test_class_service_rejects_monthly_fee_below_center_fee():
+    class_repo = FakeClassRepo()
+    service = ClassService(class_repo, FakeTeacherRepo(valid_teachers={"teacher-a"}))
+    class_document = ClassDocument(
+        admin_id="admin-a",
+        teacher_id="teacher-a",
+        class_name="Class A",
+        subject="Math",
+        class_level="1AC",
+        center_rent_fee_per_student=100,
+        teacher_teaching_fee_per_student=0,
+        student_monthly_fee=50,
+    )
+
+    async def exercise_service():
+        with pytest.raises(ValueError, match="at least the center fee"):
+            await service.create_class(class_document, "admin-a")
+
+        valid_class = class_document.model_copy(
+            update={
+                "center_rent_fee_per_student": 40,
+                "teacher_teaching_fee_per_student": 10,
+                "student_monthly_fee": 50,
+            }
+        )
+        class_repo.class_document = valid_class
+        with pytest.raises(ValueError, match="at least the center fee"):
+            await service.update_class(
+                "class-id",
+                "admin-a",
+                {"center_rent_fee_per_student": 60},
+            )
+
+    asyncio.run(exercise_service())
+
+
 def test_repeating_teacher_class_assignment_is_idempotent(monkeypatch):
     class FakeAdminController:
         assigned = None

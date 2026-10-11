@@ -335,6 +335,546 @@
       "age": 17,
       "level": "2BAC",
       "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_21",
+      "full_name": "Anas El Mansouri",
+      "email": "demo.student21@gmail.com",
+      "phone_number": "+212600000121",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_22",
+      "full_name": "Ghita Ait Lahcen",
+      "email": "demo.student22@gmail.com",
+      "phone_number": "+212600000122",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_23",
+      "full_name": "Bilal Chafai",
+      "email": "demo.student23@gmail.com",
+      "phone_number": "+212600000123",
+      "age": 13,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_24",
+      "full_name": "Salma El Gharbi",
+      "email": "demo.student24@gmail.com",
+      "phone_number": "+212600000124",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_25",
+      "full_name": "Ayoub Lahlou",
+      "email": "demo.student25@gmail.com",
+      "phone_number": "+212600000125",
+      "age": 13,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_26",
+      "full_name": "Zineb Othmani",
+      "email": "demo.student26@gmail.com",
+      "phone_number": "+212600000126",
+      "age": 12,
+      "level": "1AC",
+      "class_keys": ["class_1"]
+    },
+    {
+      "key": "student_27",
+      "full_name": "Mehdi Bennis",
+      "email": "demo.student27@gmail.com",
+      "phone_number": "+212600000127",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_28",
+      "full_name": "Chaimae Amrani",
+      "email": "demo.student28@gmail.com",
+      "phone_number": "+212600000128",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_29",
+      "full_name": "Ismail Tazi",
+      "email": "demo.student29@gmail.com",
+      "phone_number": "+212600000129",
+      "age": 14,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_30",
+      "full_name": "Hajar El Khatib",
+      "email": "demo.student30@gmail.com",
+      "phone_number": "+212600000130",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_31",
+      "full_name": "Younes Fikri",
+      "email": "demo.student31@gmail.com",
+      "phone_number": "+212600000131",
+      "age": 14,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_32",
+      "full_name": "Ikram Saidi",
+      "email": "demo.student32@gmail.com",
+      "phone_number": "+212600000132",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_2"]
+    },
+    {
+      "key": "student_33",
+      "full_name": "Rachid Belhaj",
+      "email": "demo.student33@gmail.com",
+      "phone_number": "+212600000133",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_34",
+      "full_name": "Kenza Mernissi",
+      "email": "demo.student34@gmail.com",
+      "phone_number": "+212600000134",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_35",
+      "full_name": "Soufiane Haddou",
+      "email": "demo.student35@gmail.com",
+      "phone_number": "+212600000135",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_36",
+      "full_name": "Malak Chraibi",
+      "email": "demo.student36@gmail.com",
+      "phone_number": "+212600000136",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_37",
+      "full_name": "Hamid El Alaoui",
+      "email": "demo.student37@gmail.com",
+      "phone_number": "+212600000137",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_38",
+      "full_name": "Mouna Bennani",
+      "email": "demo.student38@gmail.com",
+      "phone_number": "+212600000138",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_3"]
+    },
+    {
+      "key": "student_39",
+      "full_name": "Amina Jebari",
+      "email": "demo.student39@gmail.com",
+      "phone_number": "+212600000139",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_40",
+      "full_name": "Oussama Lamrani",
+      "email": "demo.student40@gmail.com",
+      "phone_number": "+212600000140",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_41",
+      "full_name": "Nabil El Fassi",
+      "email": "demo.student41@gmail.com",
+      "phone_number": "+212600000141",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_42",
+      "full_name": "Mariam Ghallab",
+      "email": "demo.student42@gmail.com",
+      "phone_number": "+212600000142",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_43",
+      "full_name": "Reda Naciri",
+      "email": "demo.student43@gmail.com",
+      "phone_number": "+212600000143",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_44",
+      "full_name": "Yasmine Raji",
+      "email": "demo.student44@gmail.com",
+      "phone_number": "+212600000144",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_4"]
+    },
+    {
+      "key": "student_45",
+      "full_name": "Hamza El Ouazzani",
+      "email": "demo.student45@gmail.com",
+      "phone_number": "+212600000145",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_46",
+      "full_name": "Sara Berrada",
+      "email": "demo.student46@gmail.com",
+      "phone_number": "+212600000146",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_47",
+      "full_name": "Walid El Idrissi",
+      "email": "demo.student47@gmail.com",
+      "phone_number": "+212600000147",
+      "age": 14,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_48",
+      "full_name": "Nour El Houda Lachkar",
+      "email": "demo.student48@gmail.com",
+      "phone_number": "+212600000148",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_49",
+      "full_name": "Amine Boulahya",
+      "email": "demo.student49@gmail.com",
+      "phone_number": "+212600000149",
+      "age": 14,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_50",
+      "full_name": "Farah El Amrani",
+      "email": "demo.student50@gmail.com",
+      "phone_number": "+212600000150",
+      "age": 13,
+      "level": "2AC",
+      "class_keys": ["class_5"]
+    },
+    {
+      "key": "student_51",
+      "full_name": "Taha Moutaouakil",
+      "email": "demo.student51@gmail.com",
+      "phone_number": "+212600000151",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_52",
+      "full_name": "Safae El Khatib",
+      "email": "demo.student52@gmail.com",
+      "phone_number": "+212600000152",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_53",
+      "full_name": "Zakaria Bennis",
+      "email": "demo.student53@gmail.com",
+      "phone_number": "+212600000153",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_54",
+      "full_name": "Lina El Fadili",
+      "email": "demo.student54@gmail.com",
+      "phone_number": "+212600000154",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_55",
+      "full_name": "Youssef Bennani",
+      "email": "demo.student55@gmail.com",
+      "phone_number": "+212600000155",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_56",
+      "full_name": "Meryem Chafai",
+      "email": "demo.student56@gmail.com",
+      "phone_number": "+212600000156",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_6"]
+    },
+    {
+      "key": "student_57",
+      "full_name": "Anouar Lamrani",
+      "email": "demo.student57@gmail.com",
+      "phone_number": "+212600000157",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_58",
+      "full_name": "Dounia El Mansouri",
+      "email": "demo.student58@gmail.com",
+      "phone_number": "+212600000158",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_59",
+      "full_name": "Omar Ziani",
+      "email": "demo.student59@gmail.com",
+      "phone_number": "+212600000159",
+      "age": 17,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_60",
+      "full_name": "Houda Belkacem",
+      "email": "demo.student60@gmail.com",
+      "phone_number": "+212600000160",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_61",
+      "full_name": "Imad El Kaddouri",
+      "email": "demo.student61@gmail.com",
+      "phone_number": "+212600000161",
+      "age": 17,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_62",
+      "full_name": "Nisrine Alaoui",
+      "email": "demo.student62@gmail.com",
+      "phone_number": "+212600000162",
+      "age": 16,
+      "level": "1BAC",
+      "class_keys": ["class_7"]
+    },
+    {
+      "key": "student_63",
+      "full_name": "Marouane Fassi",
+      "email": "demo.student63@gmail.com",
+      "phone_number": "+212600000163",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_64",
+      "full_name": "Siham Tazi",
+      "email": "demo.student64@gmail.com",
+      "phone_number": "+212600000164",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_65",
+      "full_name": "Anass El Bakkali",
+      "email": "demo.student65@gmail.com",
+      "phone_number": "+212600000165",
+      "age": 18,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_66",
+      "full_name": "Asmae Rami",
+      "email": "demo.student66@gmail.com",
+      "phone_number": "+212600000166",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_67",
+      "full_name": "Rayan El Idrissi",
+      "email": "demo.student67@gmail.com",
+      "phone_number": "+212600000167",
+      "age": 18,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_68",
+      "full_name": "Ikram Chraibi",
+      "email": "demo.student68@gmail.com",
+      "phone_number": "+212600000168",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_8"]
+    },
+    {
+      "key": "student_69",
+      "full_name": "Badr Eddine Amrani",
+      "email": "demo.student69@gmail.com",
+      "phone_number": "+212600000169",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_70",
+      "full_name": "Sanae El Gharbi",
+      "email": "demo.student70@gmail.com",
+      "phone_number": "+212600000170",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_71",
+      "full_name": "Soukaina Naciri",
+      "email": "demo.student71@gmail.com",
+      "phone_number": "+212600000171",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_72",
+      "full_name": "Hamid Bennis",
+      "email": "demo.student72@gmail.com",
+      "phone_number": "+212600000172",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_73",
+      "full_name": "Tarik El Alaoui",
+      "email": "demo.student73@gmail.com",
+      "phone_number": "+212600000173",
+      "age": 15,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_74",
+      "full_name": "Ghizlane Ouazzani",
+      "email": "demo.student74@gmail.com",
+      "phone_number": "+212600000174",
+      "age": 14,
+      "level": "3AC",
+      "class_keys": ["class_9"]
+    },
+    {
+      "key": "student_75",
+      "full_name": "Ilyass Saidi",
+      "email": "demo.student75@gmail.com",
+      "phone_number": "+212600000175",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_76",
+      "full_name": "Basma Fikri",
+      "email": "demo.student76@gmail.com",
+      "phone_number": "+212600000176",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_77",
+      "full_name": "Amine Chraibi",
+      "email": "demo.student77@gmail.com",
+      "phone_number": "+212600000177",
+      "age": 18,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_78",
+      "full_name": "Imane El Mansouri",
+      "email": "demo.student78@gmail.com",
+      "phone_number": "+212600000178",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_79",
+      "full_name": "Mehdi El Khatib",
+      "email": "demo.student79@gmail.com",
+      "phone_number": "+212600000179",
+      "age": 18,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
+    },
+    {
+      "key": "student_80",
+      "full_name": "Salma Jebari",
+      "email": "demo.student80@gmail.com",
+      "phone_number": "+212600000180",
+      "age": 17,
+      "level": "2BAC",
+      "class_keys": ["class_10"]
     }
   ]
 }

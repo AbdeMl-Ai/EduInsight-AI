@@ -13,6 +13,14 @@ class ClassService:
         if teacher is None:
             raise ValueError("Teacher not found in your workspace.")
 
+    @staticmethod
+    def _teacher_fee(center_fee: float, monthly_fee: float) -> float:
+        if center_fee < 0 or monthly_fee < 0:
+            raise ValueError("Class fees cannot be negative.")
+        if monthly_fee < center_fee:
+            raise ValueError("Student monthly fee must be at least the center fee.")
+        return round(monthly_fee - center_fee, 2)
+
     async def create_class(
         self, class_document: ClassDocument, admin_id: str
     ) -> ClassDocument:
@@ -21,6 +29,14 @@ class ClassService:
         if not class_document.subject.strip():
             raise ValueError("Class subject is required.")
         await self._validate_teacher(class_document.teacher_id, admin_id)
+        class_document = class_document.model_copy(
+            update={
+                "teacher_teaching_fee_per_student": self._teacher_fee(
+                    class_document.center_rent_fee_per_student,
+                    class_document.student_monthly_fee,
+                )
+            }
+        )
         return await self.class_repo.add_class(class_document, admin_id)
 
     async def get_class(self, class_id: str, admin_id: str) -> ClassDocument:
@@ -50,13 +66,27 @@ class ClassService:
     async def update_class(
         self, class_id: str, admin_id: str, updates: dict
     ) -> str:
-        await self.get_class(class_id, admin_id)
+        class_document = await self.get_class(class_id, admin_id)
         if "teacher_id" in updates:
             await self._validate_teacher(updates["teacher_id"], admin_id)
         if "class_name" in updates and not updates["class_name"].strip():
             raise ValueError("Class name is required.")
         if "subject" in updates and not updates["subject"].strip():
             raise ValueError("Class subject is required.")
+        center_fee = updates.get(
+            "center_rent_fee_per_student",
+            class_document.center_rent_fee_per_student,
+        )
+        monthly_fee = updates.get(
+            "student_monthly_fee",
+            class_document.student_monthly_fee,
+        )
+        updates = {
+            **updates,
+            "teacher_teaching_fee_per_student": self._teacher_fee(
+                center_fee, monthly_fee
+            ),
+        }
         updated = await self.class_repo.update_class(class_id, admin_id, updates)
         if updated is None:
             raise ValueError("Class not found.")

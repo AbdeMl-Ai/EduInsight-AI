@@ -13,9 +13,9 @@ class ClassCreate(BaseModel):
     class_name: str
     subject: str
     class_level: str
-    center_rent_fee_per_student: float
+    center_rent_fee_per_student: float = Field(ge=0, allow_inf_nan=False)
     teacher_teaching_fee_per_student: float
-    student_monthly_fee: float
+    student_monthly_fee: float = Field(ge=0, allow_inf_nan=False)
 
     @field_validator("class_level")
     @classmethod
@@ -35,9 +35,9 @@ class ClassUpdate(BaseModel):
     class_name: str | None = None
     subject: str | None = None
     class_level: str | None = None
-    center_rent_fee_per_student: float | None = None
+    center_rent_fee_per_student: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     teacher_teaching_fee_per_student: float | None = None
-    student_monthly_fee: float | None = None
+    student_monthly_fee: float | None = Field(default=None, ge=0, allow_inf_nan=False)
 
     @field_validator("class_level")
     @classmethod
