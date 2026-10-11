@@ -13,8 +13,16 @@ class ScheduleRepo:
             raise ValueError("schedule/reference ID must be a valid ObjectId")
         return ObjectId(value)
 
-    async def get_all(self, admin_id: str) -> list[ScheduleSession]:
-        cursor = self.collection.find({"admin_id": admin_id}).sort(
+    async def get_all(
+        self, admin_id: str, teacher_id: str | None = None
+    ) -> list[ScheduleSession]:
+        query = {"admin_id": admin_id}
+        if teacher_id is not None:
+            normalized_teacher_id = str(self._id(teacher_id))
+            query["teacher_id"] = {
+                "$in": [normalized_teacher_id, ObjectId(normalized_teacher_id)]
+            }
+        cursor = self.collection.find(query).sort(
             [("day", 1), ("start_time", 1)]
         )
         return [ScheduleSession.model_validate(item) async for item in cursor]

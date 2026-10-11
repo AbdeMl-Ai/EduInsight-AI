@@ -63,7 +63,7 @@ class TeacherRepo:
     async def get_teacher_id_for_class(self, class_id: str, admin_id: str):
         admin_id = self._tenant(admin_id)
         doc = await self.classes.find_one({"_id": ObjectId(self._id(class_id)), "admin_id": admin_id}, {"teacher_id": 1})
-        return doc.get("teacher_id") if doc else None
+        return str(doc["teacher_id"]) if doc and doc.get("teacher_id") is not None else None
 
     async def update_teacher(self, teacher_id: str, admin_id: str, **updates):
         admin_id = self._tenant(admin_id)

@@ -1,6 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
+from bson import ObjectId
+
 from services.attendance_service import AttendanceService
 
 
@@ -20,6 +22,33 @@ class FakeClassService:
 class FakeScheduleRepo:
     async def get_session(self, _session_id, _admin_id):
         return None
+
+
+class ObjectIdTeacherRepo:
+    async def get_teacher_id_for_class(self, _class_id, _admin_id):
+        return ObjectId("64b000000000000000000001")
+
+
+class EmptyAttendanceRepo:
+    async def get_students_by_class(self, _class_id, _admin_id):
+        return []
+
+
+def test_attendance_assignment_accepts_object_id_teacher_reference():
+    service = AttendanceService(
+        EmptyAttendanceRepo(),
+        ObjectIdTeacherRepo(),
+        FakeClassService(),
+        FakeScheduleRepo(),
+    )
+
+    students = asyncio.run(
+        service.get_class_students(
+            "64b000000000000000000001", "class-id", "admin-id"
+        )
+    )
+
+    assert students == []
 
 
 def test_class_attendance_summary_uses_distinct_sessions_for_each_student():

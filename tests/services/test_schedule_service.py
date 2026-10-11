@@ -156,3 +156,37 @@ def test_schedule_repository_persists_object_ids_and_tenant_scope():
     assert collection.inserted["class_id"] == ObjectId(class_id)
     assert collection.inserted["admin_id"] == "admin-id"
     assert saved.id == str(inserted_id)
+
+
+def test_schedule_repository_can_filter_sessions_by_teacher_id():
+    teacher_id = str(ObjectId())
+
+    class EmptyCursor:
+        def sort(self, *_args):
+            return self
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    class FakeCollection:
+        query = None
+
+        def find(self, query):
+            self.query = query
+            return EmptyCursor()
+
+    collection = FakeCollection()
+    repository = ScheduleRepo({"schedules": collection})
+
+    sessions = asyncio.run(repository.get_all("admin-id", teacher_id))
+
+    assert sessions == []
+    assert collection.query == {
+        "admin_id": "admin-id",
+        "teacher_id": {
+            "$in": [teacher_id, ObjectId(teacher_id)],
+        },
+    }

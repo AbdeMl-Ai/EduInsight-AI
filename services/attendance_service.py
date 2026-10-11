@@ -91,7 +91,10 @@ class AttendanceService:
 
     async def _require_teacher_class(self, teacher_id, class_id, admin_id):
         await self.class_service.get_class(class_id, admin_id)
-        if await self.teacher_repo.get_teacher_id_for_class(class_id, admin_id) != teacher_id:
+        assigned_teacher_id = await self.teacher_repo.get_teacher_id_for_class(
+            class_id, admin_id
+        )
+        if assigned_teacher_id is None or str(assigned_teacher_id) != str(teacher_id):
             raise ValueError("You can only manage attendance for your assigned classes.")
 
     @staticmethod

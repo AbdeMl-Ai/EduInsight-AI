@@ -12,8 +12,10 @@ class ScheduleService:
         self.class_service = class_service
         self.notification_service = notification_service
 
-    async def list_sessions(self, admin_id: str) -> list[dict[str, str]]:
-        sessions = await self.schedule_repo.get_all(admin_id)
+    async def list_sessions(
+        self, admin_id: str, teacher_id: str | None = None
+    ) -> list[dict[str, str]]:
+        sessions = await self.schedule_repo.get_all(admin_id, teacher_id)
         teachers = {teacher.id: teacher for teacher in await self.teacher_repo.get_all_teachers(admin_id)}
         classes = {item.id: item for item in await self.class_service.get_all_classes(admin_id)}
         return [

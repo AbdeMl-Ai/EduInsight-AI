@@ -82,11 +82,13 @@ async def get_my_class_students(class_id: str, user=Depends(require_teacher)):
 @router.get("/schedule")
 async def get_my_schedule(user=Depends(require_teacher)):
     try:
-        sessions = await schedule_controller.list_sessions(user.admin_id)
+        sessions = await schedule_controller.list_sessions(
+            user.admin_id, user.id
+        )
     except Exception:
         logger.exception("Unable to load schedule for teacher %s", user.id)
         raise HTTPException(status_code=500, detail="Unable to load teacher schedule.")
-    return [session for session in sessions if session.get("teacher_id") == user.id]
+    return sessions
 
 
 @router.get("/me/notifications")
