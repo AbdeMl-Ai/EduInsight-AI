@@ -51,7 +51,9 @@ export default function StudentLayout({
 
   useEffect(() => {
     let cancelled = false;
+    const onNotificationsPage = pathname === '/student/notifications';
     const refreshUnreadCount = () => {
+      if (onNotificationsPage) return;
       getStudentNotifications()
         .then((notifications) => {
           if (!cancelled) {
@@ -77,7 +79,11 @@ export default function StudentLayout({
       }
     };
 
-    refreshUnreadCount();
+    if (onNotificationsPage) {
+      setUnreadCount(0);
+    } else {
+      refreshUnreadCount();
+    }
     const interval = window.setInterval(refreshUnreadCount, 60_000);
     window.addEventListener('focus', refreshUnreadCount);
     window.addEventListener(
@@ -95,7 +101,8 @@ export default function StudentLayout({
     };
   }, [pathname]);
 
-  const unreadBadge = unreadCount > 0 && (
+  const unreadBadge =
+    pathname !== '/student/notifications' && unreadCount > 0 && (
     <span
       aria-label={messages.unreadNotifications}
       className="absolute -end-1 -top-1 size-2 rounded-full bg-rose-400"

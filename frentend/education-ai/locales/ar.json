@@ -112,7 +112,7 @@
   "studentSending": "جارٍ الإرسال...",
   "studentMessageSent": "تم إرسال الرسالة بنجاح.",
   "studentMessageSendError": "تعذر إرسال رسالتك.",
-  "studentNotificationReadError": "تعذر تحديد الإشعار كمقروء.",
+  "studentNotificationReadError": "تعذر تحديد الإشعارات كمقروءة.",
   "studentNoScoresYet": "لم تُسجل نتائج لهذه التمارين بعد.",
   "studentNoEnrolledClasses": "لم يتم تسجيلك في أي فصل بعد.",
   "studentNoExercises": "لم يتم تعيين تمارين بعد",

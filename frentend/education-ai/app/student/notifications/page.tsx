@@ -2,10 +2,8 @@
 
 import {
   useEffect,
-  useRef,
   useState,
   type FormEvent,
-  type KeyboardEvent,
 } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -15,7 +13,7 @@ import {
   getApiErrorMessage,
   getStudentMessageTeachers,
   getStudentNotifications,
-  markStudentNotificationRead,
+  markAllStudentNotificationsRead,
   sendStudentMessage,
   STUDENT_NOTIFICATIONS_UPDATED_EVENT,
   type StudentMessageTeacher,
@@ -25,8 +23,6 @@ import {
 export default function StudentNotificationsPage() {
   const { language, messages } = useLandingLanguage();
   const [notifications, setNotifications] = useState<StudentNotification[]>([]);
-  const notificationsRef = useRef(notifications);
-  const readRequests = useRef(new Set<string>());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [messageOpen, setMessageOpen] = useState(false);
@@ -39,36 +35,52 @@ export default function StudentNotificationsPage() {
   const [sendError, setSendError] = useState('');
   const [sendSuccess, setSendSuccess] = useState('');
 
-  function updateNotifications(items: StudentNotification[]) {
-    notificationsRef.current = items;
-    setNotifications(items);
-  }
-
   useEffect(() => {
     const controller = new AbortController();
-    getStudentNotifications(controller.signal)
-      .then((items) => {
-        updateNotifications(items);
-        window.dispatchEvent(
-          new CustomEvent(
-            STUDENT_NOTIFICATIONS_UPDATED_EVENT,
-            {
-              detail: items.filter((notification) => !notification.is_read)
-                .length,
-            },
+    window.dispatchEvent(
+      new CustomEvent(STUDENT_NOTIFICATIONS_UPDATED_EVENT, { detail: 0 }),
+    );
+
+    async function loadNotifications() {
+      try {
+        await markAllStudentNotificationsRead(controller.signal);
+      } catch (requestError) {
+        if (controller.signal.aborted) return;
+        setError(
+          getApiErrorMessage(
+            requestError,
+            messages.studentNotificationReadError,
           ),
         );
-      })
-      .catch((requestError: unknown) => {
+      }
+
+      try {
+        const items = await getStudentNotifications(controller.signal);
+        if (controller.signal.aborted) return;
+        setNotifications(items);
+        window.dispatchEvent(
+          new CustomEvent(STUDENT_NOTIFICATIONS_UPDATED_EVENT, {
+            detail: items.filter((notification) => !notification.is_read)
+              .length,
+          }),
+        );
+      } catch (requestError) {
         if (!controller.signal.aborted) {
-          setError(getApiErrorMessage(requestError, 'Notifications could not be loaded.'));
+          setError(
+            getApiErrorMessage(
+              requestError,
+              'Notifications could not be loaded.',
+            ),
+          );
         }
-      })
-      .finally(() => {
+      } finally {
         if (!controller.signal.aborted) setLoading(false);
-      });
+      }
+    }
+
+    void loadNotifications();
     return () => controller.abort();
-  }, []);
+  }, [messages.studentNotificationReadError]);
 
   useEffect(() => {
     if (!messageOpen || recipientRole !== 'teacher') return;
@@ -97,71 +109,6 @@ export default function StudentNotificationsPage() {
       });
     return () => controller.abort();
   }, [messageOpen, recipientRole, messages.studentTeachersLoadError]);
-
-  async function markNotificationRead(notificationId: string) {
-    const current = notificationsRef.current;
-    if (
-      readRequests.current.has(notificationId) ||
-      current.find((item) => item.notification_id === notificationId)?.is_read
-    ) {
-      return;
-    }
-    readRequests.current.add(notificationId);
-    const unreadCount = current.filter(
-      (item) => !item.is_read && item.notification_id !== notificationId,
-    ).length;
-    updateNotifications(
-      current.map((item) =>
-        item.notification_id === notificationId
-          ? { ...item, is_read: true }
-          : item,
-      ),
-    );
-    window.dispatchEvent(
-      new CustomEvent(STUDENT_NOTIFICATIONS_UPDATED_EVENT, {
-        detail: unreadCount,
-      }),
-    );
-    try {
-      await markStudentNotificationRead(notificationId);
-    } catch (requestError) {
-      const latest = notificationsRef.current;
-      const reverted = latest.map((item) =>
-        item.notification_id === notificationId
-          ? { ...item, is_read: false }
-          : item,
-      );
-      updateNotifications(reverted);
-      window.dispatchEvent(
-        new CustomEvent(STUDENT_NOTIFICATIONS_UPDATED_EVENT, {
-          detail: reverted.filter((item) => !item.is_read).length,
-        }),
-      );
-      setError(
-        getApiErrorMessage(
-          requestError,
-          messages.studentNotificationReadError,
-        ),
-      );
-    } finally {
-      readRequests.current.delete(notificationId);
-    }
-  }
-
-  function handleNotificationKeyDown(
-    event: KeyboardEvent<HTMLElement>,
-    notification: StudentNotification,
-  ) {
-    if (
-      !notification.is_read &&
-      !notification.link &&
-      !notification.reference_link &&
-      (event.key === 'Enter' || event.key === ' ')
-    ) {
-      event.preventDefault();
-      void markNotificationRead(notification.notification_id);
-    }
-  }
 
   async function submitMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -258,25 +205,7 @@ export default function StudentNotificationsPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(index * 0.04, 0.2) }}
-                onClick={() => {
-                  if (!notification.is_read) {
-                    void markNotificationRead(notification.notification_id);
-                  }
-                }}
-                onKeyDown={(event) =>
-                  handleNotificationKeyDown(event, notification)
-                }
-                role={
-                  !notification.is_read && !resourceLink
-                    ? 'button'
-                    : undefined
-                }
-                tabIndex={
-                  !notification.is_read && !resourceLink ? 0 : undefined
-                }
-                className={`py-4 ${
-                  !notification.is_read ? 'cursor-pointer' : ''
-                }`}
+                className="py-4"
               >
                 {resourceLink ? (
                   <Link

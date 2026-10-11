@@ -306,6 +306,13 @@ class NotificationService:
             raise ValueError("Student not found.")
         return await self.notification_repo.get_notifications_for_receiver(student_id, admin_id)
 
+    async def mark_student_notifications_as_read(self, student_id, admin_id):
+        if await self.student_repo.get_student(student_id, admin_id) is None:
+            raise ValueError("Student not found.")
+        return await self.notification_repo.mark_all_as_read(
+            student_id, "student", admin_id
+        )
+
     async def update_notification(self, notification_id, admin_id, **updates):
         await self.get_notification(notification_id, admin_id)
         if not await self.notification_repo.update_notification(notification_id, admin_id, **updates):

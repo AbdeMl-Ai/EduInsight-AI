@@ -232,6 +232,17 @@ async def get_my_notifications(user=Depends(require_student_workspace)):
     return results
 
 
+@router.patch("/me/notifications/read")
+async def mark_my_notifications_read(user=Depends(require_student)):
+    try:
+        updated_count = await notification_controller.mark_student_notifications_as_read(
+            user.id, user.admin_id
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return {"message": "Notifications marked as read.", "updated_count": updated_count}
+
+
 @router.get("/", response_model=list[StudentResponse])
 async def list_students(admin=Depends(get_current_admin)):
     return [_student(item) for item in await student_controller.get_all_students(admin.id)]

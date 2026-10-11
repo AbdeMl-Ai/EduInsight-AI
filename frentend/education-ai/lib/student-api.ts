@@ -172,8 +172,12 @@ export async function getStudentNotifications(signal?: AbortSignal) {
   return data;
 }
 
-export async function markStudentNotificationRead(notificationId: string) {
-  const { data } = await api.patch<{ message: string }>(`/notifications/${notificationId}/read`);
+export async function markAllStudentNotificationsRead(signal?: AbortSignal) {
+  const { data } = await api.patch<{ message: string; updated_count: number }>(
+    '/students/me/notifications/read',
+    undefined,
+    { signal },
+  );
   return data;
 }
 

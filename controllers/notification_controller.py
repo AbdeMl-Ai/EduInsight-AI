@@ -87,5 +87,10 @@ class NotificationController:
     async def get_student_notifications(self, student_id, admin_id):
         return await self.notification_service.get_student_notifications(student_id, admin_id)
 
+    async def mark_student_notifications_as_read(self, student_id, admin_id):
+        return await self.notification_service.mark_student_notifications_as_read(
+            student_id, admin_id
+        )
+
     async def mark_as_read(self, notification_id, student_id, admin_id):
         return await self.notification_service.mark_as_read(notification_id, student_id, admin_id)

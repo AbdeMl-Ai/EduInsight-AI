@@ -64,7 +64,7 @@ Student API calls used by the pages:
 | `replaceStudentSubmission` | `PUT /students/me/submissions/{submission_id}` | Multipart replacement upload with `file`. |
 | `getStudentGrades` | `GET /students/me/grades` | Graded submissions. |
 | `getStudentNotifications` | `GET /students/me/notifications` | Student notifications. |
-| `markStudentNotificationRead` | `PATCH /notifications/{notification_id}/read` | Marks a notification as read. |
+| `markAllStudentNotificationsRead` | `PATCH /students/me/notifications/read` | Marks all of the student's unread notifications as read. |
 
 The FastAPI routes are in `api/routes/student_router.py`; they use `require_student` for student-only data and actions. The frontend should therefore be opened with a valid student bearer token.
 

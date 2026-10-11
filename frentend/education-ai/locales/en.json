@@ -112,7 +112,7 @@
   "studentSending": "Sending...",
   "studentMessageSent": "Message sent successfully.",
   "studentMessageSendError": "Your message could not be sent.",
-  "studentNotificationReadError": "This notification could not be marked as read.",
+  "studentNotificationReadError": "Notifications could not be marked as read.",
   "studentNoScoresYet": "No scores have been recorded for these exercises yet.",
   "studentNoEnrolledClasses": "You are not enrolled in any classes yet.",
   "studentNoExercises": "No exercises assigned yet",
