@@ -46,18 +46,27 @@ export default function TeacherAttendancePage() {
         const todaysSessions = sessions
           .filter((item) => item.day === todayName)
           .sort((a, b) => b.start_time.localeCompare(a.start_time));
-        const entries = await Promise.all(
-          [...new Set(todaysSessions.map((item) => item.class_id))].map(async (classId) => [
-            classId,
-            await api.getAttendanceStudents(classId),
-          ] as const),
-        );
         if (cancelled) return;
         setSchedule(todaysSessions);
         setAttendance(records);
         setTeacherName(profile.full_name);
-        setStudentsByClass(Object.fromEntries(entries));
         setSessionId((current) => todaysSessions.some((item) => item.id === current) ? current : todaysSessions[0]?.id ?? "");
+        const entries = await Promise.allSettled(
+          [...new Map(todaysSessions.map((item) => [item.class_id, item])).values()].map(
+            async (session) => [
+              session.class_id,
+              await api.getAttendanceStudents(session.class_id, session.id),
+            ] as const,
+          ),
+        );
+        if (cancelled) return;
+        const loadedStudents = entries.flatMap((result) =>
+          result.status === "fulfilled" ? [result.value] : [],
+        );
+        setStudentsByClass(Object.fromEntries(loadedStudents));
+        if (entries.some((result) => result.status === "rejected")) {
+          setError(messages.teacherAttendanceLoadError);
+        }
       })
       .catch((loadError: unknown) => {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : messages.teacherAttendanceLoadError);

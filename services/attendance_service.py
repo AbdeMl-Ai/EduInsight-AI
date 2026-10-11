@@ -10,12 +10,12 @@ class AttendanceService:
         self.class_service = class_service
         self.schedule_repo = schedule_repo
 
-    async def get_class_students(self, teacher_id, class_id, admin_id):
-        await self._require_teacher_class(teacher_id, class_id, admin_id)
+    async def get_class_students(self, teacher_id, class_id, admin_id, session_id=None):
+        await self._require_teacher_class(teacher_id, class_id, admin_id, session_id)
         return await self.attendance_repo.get_students_by_class(class_id, admin_id)
 
     async def save_attendance(self, teacher_id, class_id, attendance_date, records, admin_id, session_id=None):
-        await self._require_teacher_class(teacher_id, class_id, admin_id)
+        await self._require_teacher_class(teacher_id, class_id, admin_id, session_id)
         if session_id is not None:
             session = await self.schedule_repo.get_session(session_id, admin_id)
             if (
@@ -89,13 +89,22 @@ class AttendanceService:
             "students": students,
         }
 
-    async def _require_teacher_class(self, teacher_id, class_id, admin_id):
+    async def _require_teacher_class(self, teacher_id, class_id, admin_id, session_id=None):
         await self.class_service.get_class(class_id, admin_id)
         assigned_teacher_id = await self.teacher_repo.get_teacher_id_for_class(
             class_id, admin_id
         )
-        if assigned_teacher_id is None or str(assigned_teacher_id) != str(teacher_id):
-            raise ValueError("You can only manage attendance for your assigned classes.")
+        if assigned_teacher_id is not None and str(assigned_teacher_id) == str(teacher_id):
+            return
+        if session_id is not None:
+            session = await self.schedule_repo.get_session(session_id, admin_id)
+            if (
+                session is not None
+                and str(session.class_id) == str(class_id)
+                and str(session.teacher_id) == str(teacher_id)
+            ):
+                return
+        raise ValueError("You can only manage attendance for your assigned classes.")
 
     @staticmethod
     def _validate_month(month):

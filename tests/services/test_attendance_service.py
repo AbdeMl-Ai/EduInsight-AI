@@ -34,6 +34,19 @@ class EmptyAttendanceRepo:
         return []
 
 
+class ScheduledSessionRepo:
+    def __init__(self, session):
+        self.session = session
+
+    async def get_session(self, _session_id, _admin_id):
+        return self.session
+
+
+class UnassignedTeacherRepo:
+    async def get_teacher_id_for_class(self, _class_id, _admin_id):
+        return "another-teacher-id"
+
+
 def test_attendance_assignment_accepts_object_id_teacher_reference():
     service = AttendanceService(
         EmptyAttendanceRepo(),
@@ -49,6 +62,59 @@ def test_attendance_assignment_accepts_object_id_teacher_reference():
     )
 
     assert students == []
+
+
+def test_attendance_accepts_class_assigned_by_matching_schedule_session():
+    service = AttendanceService(
+        EmptyAttendanceRepo(),
+        UnassignedTeacherRepo(),
+        FakeClassService(),
+        ScheduledSessionRepo(
+            SimpleNamespace(
+                class_id="class-id",
+                teacher_id="scheduled-teacher-id",
+            )
+        ),
+    )
+
+    students = asyncio.run(
+        service.get_class_students(
+            "scheduled-teacher-id",
+            "class-id",
+            "admin-id",
+            "session-id",
+        )
+    )
+
+    assert students == []
+
+
+def test_attendance_rejects_schedule_for_a_different_class():
+    service = AttendanceService(
+        EmptyAttendanceRepo(),
+        UnassignedTeacherRepo(),
+        FakeClassService(),
+        ScheduledSessionRepo(
+            SimpleNamespace(
+                class_id="another-class-id",
+                teacher_id="scheduled-teacher-id",
+            )
+        ),
+    )
+
+    try:
+        asyncio.run(
+            service.get_class_students(
+                "scheduled-teacher-id",
+                "class-id",
+                "admin-id",
+                "session-id",
+            )
+        )
+    except ValueError as error:
+        assert str(error) == "You can only manage attendance for your assigned classes."
+    else:
+        raise AssertionError("Expected unrelated schedule to be rejected.")
 
 
 def test_class_attendance_summary_uses_distinct_sessions_for_each_student():

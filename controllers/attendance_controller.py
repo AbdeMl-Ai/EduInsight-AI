@@ -2,8 +2,10 @@ class AttendanceController:
     def __init__(self, attendance_service):
         self.attendance_service = attendance_service
 
-    async def get_class_students(self, teacher_id, class_id, admin_id):
-        return await self.attendance_service.get_class_students(teacher_id, class_id, admin_id)
+    async def get_class_students(self, teacher_id, class_id, admin_id, session_id=None):
+        return await self.attendance_service.get_class_students(
+            teacher_id, class_id, admin_id, session_id
+        )
 
     async def save_attendance(self, teacher_id, class_id, attendance_date, records, admin_id, session_id=None):
         return await self.attendance_service.save_attendance(

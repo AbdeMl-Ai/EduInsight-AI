@@ -24,10 +24,13 @@ def attendance_response(record):
 @router.get("/teachers/me/attendance/classes/{class_id}/students")
 async def get_class_students_for_attendance(
     class_id: str,
+    session_id: str | None = Query(default=None),
     current_user=Depends(require_teacher),
 ):
     try:
-        return await attendance_controller.get_class_students(current_user.id, class_id, current_user.admin_id)
+        return await attendance_controller.get_class_students(
+            current_user.id, class_id, current_user.admin_id, session_id
+        )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 

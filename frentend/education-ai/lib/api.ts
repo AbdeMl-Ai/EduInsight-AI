@@ -364,9 +364,9 @@ export const api = {
     request<{ admin_id: number; full_name: string; email: string }>(
       "/admin/me",
     ),
-  getAttendanceStudents: (classId: string) =>
+  getAttendanceStudents: (classId: string, sessionId: string) =>
     request<AttendanceStudent[]>(
-      `/teachers/me/attendance/classes/${classId}/students`,
+      `/teachers/me/attendance/classes/${classId}/students?${new URLSearchParams({ session_id: sessionId })}`,
     ),
   getTeacherSchedule: () =>
     request<TeacherScheduleSession[]>("/teachers/me/schedule"),
