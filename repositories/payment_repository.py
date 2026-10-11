@@ -20,6 +20,21 @@ class PaymentRepo:
         })
         return PaymentState.model_validate(document) if document else None
 
+    async def get_for_users(
+        self, user_ids: list[str], user_role: str, admin_id: str
+    ) -> list[PaymentState]:
+        if not user_ids:
+            return []
+        ids = [ObjectId(self._id(user_id)) for user_id in user_ids]
+        cursor = self.collection.find(
+            {
+                "admin_id": admin_id,
+                "user_role": user_role,
+                "user_id": {"$in": ids},
+            }
+        )
+        return [PaymentState.model_validate(document) async for document in cursor]
+
     async def save(self, state: PaymentState, admin_id: str):
         payload = state.model_dump(exclude={"id", "created_at"})
         payload["admin_id"] = admin_id

@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.dependencies import (
@@ -7,6 +9,7 @@ from api.dependencies import (
     get_current_admin,
     notification_controller,
     payment_service,
+    payment_repo,
     student_payment_repo,
     schedule_controller,
     student_controller,
@@ -46,8 +49,8 @@ from utils.passwords import hash_password
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-def student_response(student):
-    return {
+def student_response(student, has_paid_current_month: bool | None = None):
+    response = {
         "student_id": student.id,
         "admin_id": student.admin_id,
         "parent_id": student.parent_id,
@@ -61,6 +64,9 @@ def student_response(student):
         "class_id": student.class_id,
         "class_ids": student.class_ids,
     }
+    if has_paid_current_month is not None:
+        response["has_paid_current_month"] = has_paid_current_month
+    return response
 
 
 def teacher_response(teacher):
@@ -274,7 +280,29 @@ async def create_student(data: AdminStudentCreate, _admin=Depends(get_current_ad
 
 @router.get("/students")
 async def list_students(_admin=Depends(get_current_admin)):
-    return [student_response(item) for item in await admin_controller.get_students(_admin.id)]
+    students = await admin_controller.get_students(_admin.id)
+    payment_states = await payment_repo.get_for_users(
+        [student.id for student in students],
+        "student",
+        _admin.admin_id,
+    )
+    now = datetime.now(timezone.utc)
+    recent_payment_cutoff = now - timedelta(days=30)
+    paid_student_ids = set()
+    for state in payment_states:
+        last_payment_date = state.last_payment_date
+        if last_payment_date is not None:
+            if last_payment_date.tzinfo is None:
+                last_payment_date = last_payment_date.replace(tzinfo=timezone.utc)
+            if recent_payment_cutoff <= last_payment_date.astimezone(timezone.utc) <= now:
+                paid_student_ids.add(state.user_id)
+                continue
+        if now.month in state.paid_months:
+            paid_student_ids.add(state.user_id)
+    return [
+        student_response(item, item.id in paid_student_ids)
+        for item in students
+    ]
 
 
 @router.get("/students/search")

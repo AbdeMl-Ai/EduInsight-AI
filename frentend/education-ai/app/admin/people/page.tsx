@@ -446,7 +446,18 @@ export default function AdminPeoplePage() {
                     onClick={() => setExpandedPersonId((current) => current === `student:${student.student_id}` ? null : `student:${student.student_id}`)}
                     className="min-w-0 flex-1 py-1 text-start"
                   >
-                    <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{student.full_name}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="block truncate text-sm font-semibold text-slate-950 dark:text-white">{student.full_name}</span>
+                      <span
+                        aria-label={student.has_paid_current_month ? 'Paid this month' : 'Payment not recorded this month'}
+                        title={student.has_paid_current_month ? 'Paid this month' : 'Payment not recorded this month'}
+                        className={`size-2 shrink-0 rounded-full ${
+                          student.has_paid_current_month
+                            ? 'animate-pulse bg-green-500'
+                            : 'bg-gray-500'
+                        }`}
+                      />
+                    </span>
                     <span className="mt-1 hidden truncate text-[10px] text-slate-500 dark:text-white/45 sm:block">{student.email}</span>
                     <span className="mt-0.5 block truncate text-[10px] text-slate-500 dark:text-white/35">{studentClassLabel(student, classes, messages.noClassAssigned)}</span>
                   </button>

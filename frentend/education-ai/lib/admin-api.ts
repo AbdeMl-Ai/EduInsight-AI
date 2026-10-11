@@ -26,6 +26,7 @@ export type AdminStudent = {
   level_academy: string;
   class_id: string | null;
   class_ids: string[];
+  has_paid_current_month?: boolean | null;
 };
 
 export type AdminTeacher = {
