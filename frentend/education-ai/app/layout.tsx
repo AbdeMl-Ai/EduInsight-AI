@@ -51,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ar" dir="rtl" className={`dark ${inter.variable} ${dmSans.variable}`}>
+    <html lang="en" dir="ltr" className={`dark ${inter.variable} ${dmSans.variable}`}>
       <body className="font-sans antialiased">
         <LandingLanguageProvider>
           <AuthProvider>

@@ -34,7 +34,7 @@ export function LandingLanguageProvider({
 }: {
   children: ReactNode;
 }) {
-  const [language, setCurrentLanguage] = useState<LandingLanguage>('ar');
+  const [language, setCurrentLanguage] = useState<LandingLanguage>('en');
 
   const setLanguage = useCallback((nextLanguage: LandingLanguage) => {
     localStorage.setItem(LANGUAGE_KEY, nextLanguage);
